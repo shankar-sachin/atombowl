@@ -14,7 +14,8 @@ import {
   signOut as fbSignOut,
   onAuthStateChanged,
   updateProfile,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  validatePassword
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import {
@@ -335,6 +336,18 @@ async function resetPassword(email: string) {
 }
 
 async function signUpWithEmail(email: string, password: string, displayName = "") {
+  const validation = await validatePassword(auth, password);
+  if (!validation.isValid) {
+    const missing = [];
+    const policy = validation.passwordPolicy?.customStrengthOptions || {};
+    if (validation.meetsMinPasswordLength === false) missing.push(`at least ${policy.minPasswordLength || 6} characters`);
+    if (validation.meetsMaxPasswordLength === false) missing.push(`no more than ${policy.maxPasswordLength} characters`);
+    if (validation.containsLowercaseLetter === false) missing.push("a lowercase letter");
+    if (validation.containsUppercaseLetter === false) missing.push("an uppercase letter");
+    if (validation.containsNumericCharacter === false) missing.push("a number");
+    if (validation.containsNonAlphanumericCharacter === false) missing.push("a symbol");
+    throw new Error(missing.length ? `Password needs ${missing.join(", ")}.` : "Please choose a stronger password.");
+  }
   const normalizedEmail = String(email || "").trim().toLowerCase();
   await auth.authStateReady();
   if (auth.currentUser?.isAnonymous) {

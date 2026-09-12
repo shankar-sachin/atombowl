@@ -104,7 +104,8 @@ function friendlyAuthError(err: any): string {
     case "auth/email-already-in-use":
       return "An account with this email already exists. Try signing in.";
     case "auth/weak-password":
-      return "Password must be at least 6 characters.";
+    case "auth/password-does-not-meet-requirements":
+      return "Use at least 8 characters with uppercase and lowercase letters, a number, and a symbol.";
     case "auth/invalid-email":
       return "Please enter a valid email address.";
     case "auth/too-many-requests":

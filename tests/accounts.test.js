@@ -7,10 +7,12 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 function setup() {
  const documents = new Map(), storage = new Map();
  let observer, creates = 0, resetEmail;
+ let passwordStatus = { isValid: true };
  const auth = { currentUser: null, authStateReady: async () => {} };
  const snap = ref => ({ exists: () => documents.has(ref), data: () => documents.get(ref) });
  const set = (ref, value, options) => documents.set(ref, options?.merge ? { ...documents.get(ref), ...value } : value);
  const api = {
+   validatePassword: async () => passwordStatus,
    onAuthStateChanged: (_, cb) => { observer = cb; },
    createUserWithEmailAndPassword: async (_, email) => {
      creates++; auth.currentUser = { uid: 'new', email, isAnonymous: false, providerData: [] };
@@ -31,7 +33,7 @@ function setup() {
  };
  const window = {}, localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
  loadTS('src/ts/account_store.ts', { './firebase.js': { auth, db: {} }, [AUTH]: api, [FIRESTORE]: dbApi }, { window, localStorage, document: { dispatchEvent() {} }, CustomEvent: class {} });
- return { account: window.atomAccount, documents, storage, auth, get creates() { return creates; }, get resetEmail() { return resetEmail; }, async change(user) { auth.currentUser = user; observer(user); await flush(); } };
+ return { setPasswordStatus: status => { passwordStatus = status; }, account: window.atomAccount, documents, storage, auth, get creates() { return creates; }, get resetEmail() { return resetEmail; }, async change(user) { auth.currentUser = user; observer(user); await flush(); } };
 }
 const details = { firstName: 'First', lastName: 'Last', email: 'test@example.com', username: 'player1', password: 'password', playerName: 'My Name' };
 test('anonymous Firebase users remain guests and do not create account documents', async () => {
@@ -72,4 +74,11 @@ test('provider users and partial signups can finish username setup in profile ed
  assert.equal(env.account.getProfile().username, 'finishme');
  assert.equal(env.documents.get('usernames/finishme').uid, 'oauth');
  await assert.rejects(env.account.updateAccountProfile({ username: 'rename' }), /cannot be changed/);
+});
+
+test('signup reports Firebase password requirements before creating an account', async () => {
+ const env = setup();
+ env.setPasswordStatus({ isValid: false, containsUppercaseLetter: false, containsNumericCharacter: false, containsNonAlphanumericCharacter: false, passwordPolicy: { customStrengthOptions: { minPasswordLength: 8 } } });
+ await assert.rejects(env.account.signUpWithDetails(details), /uppercase letter, a number, a symbol/);
+ assert.equal(env.creates, 0);
 });

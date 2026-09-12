@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { auth, db } from "./firebase.js";
 // @ts-ignore
-import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import { doc, getDoc, setDoc, serverTimestamp, increment, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const SETTINGS_KEY = "atom_settings_v1";
@@ -310,10 +310,28 @@ async function resetPassword(email) {
     await sendPasswordResetEmail(auth, value);
 }
 async function signUpWithEmail(email, password, displayName = "") {
-    var _a;
+    var _a, _b;
+    const validation = await validatePassword(auth, password);
+    if (!validation.isValid) {
+        const missing = [];
+        const policy = ((_a = validation.passwordPolicy) === null || _a === void 0 ? void 0 : _a.customStrengthOptions) || {};
+        if (validation.meetsMinPasswordLength === false)
+            missing.push(`at least ${policy.minPasswordLength || 6} characters`);
+        if (validation.meetsMaxPasswordLength === false)
+            missing.push(`no more than ${policy.maxPasswordLength} characters`);
+        if (validation.containsLowercaseLetter === false)
+            missing.push("a lowercase letter");
+        if (validation.containsUppercaseLetter === false)
+            missing.push("an uppercase letter");
+        if (validation.containsNumericCharacter === false)
+            missing.push("a number");
+        if (validation.containsNonAlphanumericCharacter === false)
+            missing.push("a symbol");
+        throw new Error(missing.length ? `Password needs ${missing.join(", ")}.` : "Please choose a stronger password.");
+    }
     const normalizedEmail = String(email || "").trim().toLowerCase();
     await auth.authStateReady();
-    if ((_a = auth.currentUser) === null || _a === void 0 ? void 0 : _a.isAnonymous) {
+    if ((_b = auth.currentUser) === null || _b === void 0 ? void 0 : _b.isAnonymous) {
         const cred = EmailAuthProvider.credential(normalizedEmail, password);
         const res = await linkWithCredential(auth.currentUser, cred);
         if (displayName) {
