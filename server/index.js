@@ -51,6 +51,14 @@ function runScript(cmd, args, input, timeoutMs = 3000) {
     child.stdout.on("data", (d) => (stdout += d.toString()));
     child.stderr.on("data", (d) => (stderr += d.toString()));
 
+    child.stdin.on("error", (err) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      child.kill();
+      reject(err);
+    });
+
     child.on("error", (err) => {
       if (done) return;
       done = true;
@@ -157,6 +165,7 @@ app.get("/api/stats", async (req, res) => {
 app.get("/api/validate", async (req, res) => {
   const script = path.join(ROOT, "server", "ruby", "validator.rb");
   const checksParam = req.query.checks;
+  if (checksParam != null && typeof checksParam !== "string") return res.status(400).json({ error: "checks-must-be-a-string" });
   const checks = checksParam ? checksParam.split(",").map(s => s.trim()).filter(Boolean) : [];
   const payload = {
     bank: req.query.bank || "ALL",
@@ -194,7 +203,9 @@ app.post("/api/difficulty", async (req, res) => {
 
 app.use(express.static(path.join(ROOT, "docs")));
 
-app.listen(PORT, () => {
+if (require.main === module) app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`Atom Bowl server running at http://localhost:${PORT}`);
 });
+
+module.exports = { app, runScript };

@@ -78,3 +78,14 @@ Note: Atom Bowl v1 is coming! It will include AI Generate using Gemini API, a wo
 ## Get going at <https://atom-bowl.github.io/Atom_Bowl/>
 
 *Last updated 2/12/2026 at 6:28 PM*
+
+
+## Development and Firebase setup
+
+Use Node.js 22 or 24. Run `npm ci`, `npm run build`, and `npm start` to serve the site and APIs locally. The build compiles TypeScript and copies source HTML/CSS to `docs`, the deployed site directory. `npm run build:watch` watches TypeScript only.
+
+- `npm test`: account, room-state, answer-grading, and backend regression tests.
+- `npm run test:firebase`: real Firestore emulator rules and transaction tests, including simultaneous buzzes. Requires Java 21+; the first run downloads the emulator.
+- [Firebase setup](src/data/firebase_rules.md): providers, authorized domains, legacy username migration, room rules, and staging verification. Deploy the new client and reviewed rules together; no production configuration is changed by building this repository.
+
+Production dependency audit passes with the pinned lockfile (`npm audit --omit=dev`). The Firebase CLI currently brings seven moderate development-only audit findings; resolving those requires upstream dependency updates or a separately reviewed toolchain change.

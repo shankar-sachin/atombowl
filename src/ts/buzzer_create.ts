@@ -1,10 +1,10 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { db, ensureAnonAuth } from "./firebase.js";
 import "./account_store.js";
 import {
   doc,
   collection,
-  setDoc,
+  runTransaction,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
@@ -131,18 +131,17 @@ if (window.atomAccount?.onAuthChange) {
 async function createRoom() {
   createError.textContent = "";
   const user = await ensureAnonAuth();
-  const roomCode = generateRoomCode();
-  const teamCount = parseInt(teamCountSelect.value, 10) || 2;
+  let roomCode = generateRoomCode();
+  const teamCount = Math.max(2, Math.min(4, parseInt(teamCountSelect.value, 10) || 2));
   const useNsb = nsbRulesCheckbox.checked;
-  const tuTime = parseInt(tuTimeInput.value, 10) || 5;
-  const bonusTime = parseInt(bonusTimeInput.value, 10) || 20;
-  const roomName = roomNameInput.value.trim() || "Buzzer Room";
-  const hostName = hostNameInput?.value.trim() || "Host";
+  const tuTime = useNsb ? 5 : Math.max(1, Math.min(300, parseInt(tuTimeInput.value, 10) || 5));
+  const bonusTime = useNsb ? 20 : Math.max(1, Math.min(300, parseInt(bonusTimeInput.value, 10) || 20));
+  const roomName = roomNameInput.value.trim().slice(0, 80) || "Buzzer Room";
+  const hostName = hostNameInput?.value.trim().slice(0, 40) || "Host";
   const hostTeam = hostTeamSelect?.value || "A";
   const teamNames = getTeamNamesFromInputs();
 
-  const roomRef = doc(collection(db, "rooms"));
-  const roomId = roomRef.id;
+  let roomId = roomCode;
 
   const roomData = {
     roomCode,
@@ -155,6 +154,7 @@ async function createRoom() {
     scores: buildInitialScores(teamCount),
     timers: null,
     lockoutTeam: null,
+    lockoutTeams: [],
     currentCategory: null,
     lastAction: null,
     bonusTeam: "A",
@@ -167,13 +167,21 @@ async function createRoom() {
     }
   };
 
-  await setDoc(roomRef, roomData);
-  await setDoc(doc(collection(roomRef, "players"), user.uid), {
-    name: hostName,
-    team: hostTeam,
-    joinedAt: serverTimestamp(),
-    isHost: true
-  });
+  let created = false;
+  for (let attempt = 0; attempt < 5 && !created; attempt++) {
+    roomId = roomCode;
+    const roomRef = doc(db, "rooms", roomId);
+    created = await runTransaction(db, async tx => {
+      if ((await tx.get(roomRef)).exists()) return false;
+      tx.set(roomRef, { ...roomData, roomCode });
+      tx.set(doc(db, "rooms", roomId, "players", user.uid), {
+        name: hostName, team: hostTeam, joinedAt: serverTimestamp(), isHost: true
+      });
+      return true;
+    });
+    if (!created) roomCode = generateRoomCode();
+  }
+  if (!created) throw new Error("Could not allocate a room code. Try again.");
 
   localStorage.setItem("atom_buzzer_profile", JSON.stringify({
     name: hostName,
@@ -199,10 +207,12 @@ function buildInitialScores(teamCount) {
 }
 
 createRoomBtn.addEventListener("click", () => {
+  if (createRoomBtn.disabled) return;
+  createRoomBtn.disabled = true;
   createRoom().catch((err) => {
     console.error(err);
-    createError.textContent = "Create failed. Try again.";
-  });
+    createError.textContent = `Create failed: ${err.message || "Check Firebase permissions and connection."}`;
+  }).finally(() => { createRoomBtn.disabled = false; });
 });
 
 

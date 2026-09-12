@@ -50,7 +50,7 @@ function saveLocalProgress() {
     catch { }
 }
 async function syncProgress() {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     const account = window.atomAccount;
     if (!account)
         return;
@@ -59,11 +59,13 @@ async function syncProgress() {
         return;
     try {
         const remote = await ((_b = account.loadLearnProgress) === null || _b === void 0 ? void 0 : _b.call(account));
+        if (((_c = account.getUser) === null || _c === void 0 ? void 0 : _c.call(account)) !== user)
+            return;
         if (Array.isArray(remote)) {
             remote.forEach((id) => completedLessons.add(id));
         }
         saveLocalProgress();
-        await ((_c = account.saveLearnProgress) === null || _c === void 0 ? void 0 : _c.call(account, [...completedLessons]));
+        await ((_d = account.saveLearnProgress) === null || _d === void 0 ? void 0 : _d.call(account, [...completedLessons]));
     }
     catch { }
 }
@@ -345,10 +347,17 @@ async function init() {
     const account = window.atomAccount;
     if (account === null || account === void 0 ? void 0 : account.onAuthChange) {
         account.onAuthChange(async (user) => {
+            completedLessons.clear();
+            loadLocalProgress().forEach((id) => completedLessons.add(id));
             if (user) {
                 await syncProgress();
                 renderGrid();
                 updateProgressUI();
+            }
+            else {
+                renderGrid();
+                updateProgressUI();
+                updateCompleteUI();
             }
         });
     }

@@ -26,7 +26,7 @@ def norm(s)
 end
 
 input = JSON.parse(STDIN.read || "{}")
-root = File.expand_path("..", __dir__)
+root = File.expand_path("../..", __dir__)
 bank_choice = input["bank"] || "ALL"
 
 bank = load_bank(root)

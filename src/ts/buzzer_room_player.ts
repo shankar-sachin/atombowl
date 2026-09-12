@@ -1,13 +1,12 @@
-﻿// @ts-nocheck
+// @ts-nocheck
+import { sendBuzz, loadMembership } from "./room_store.js";
+import { canBuzz } from "./room_state.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import {
   doc,
   collection,
   onSnapshot,
-  runTransaction,
-  getDoc,
-  setDoc,
-  serverTimestamp
+  getDoc
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 const roomTitle = document.getElementById("roomTitle");
@@ -68,12 +67,13 @@ function formatTime(ms) {
 }
 
 function humanStatus(status) {
+  if (status === "tossup_dead") return "Tossup closed. Waiting for the next question.";
   if (status === "lobby") return "Waiting for host.";
   if (status === "tossup_open") return "Tossup open. Anyone can buzz.";
-  if (status === "tossup_locked") return "Locked â€” host grading.";
+  if (status === "tossup_locked") return "Locked — host grading.";
   if (status === "bonus_ready") return "Bonus ready.";
-  if (status === "bonus_open") return "Bonus open â€” selected team can buzz.";
-  if (status === "bonus_locked") return "Bonus locked â€” host grading.";
+  if (status === "bonus_open") return "Bonus open — selected team can buzz.";
+  if (status === "bonus_locked") return "Bonus locked — host grading.";
   if (status === "ended") return "Game ended.";
   return status || "Waiting.";
 }
@@ -90,16 +90,9 @@ function updateStatusUI(data) {
 
 function updateBuzzButtonState(data) {
   if (!buzzBtn) return;
-  const isOpen = data.status === "tossup_open" || data.status === "bonus_open";
-  let canBuzz = isOpen;
-  if (data.status === "bonus_open" && data.bonusTeam && data.bonusTeam !== state.team) {
-    canBuzz = false;
-  }
-  if (data.status === "tossup_open" && data.lockoutTeam && data.lockoutTeam === state.team) {
-    canBuzz = false;
-  }
-  buzzBtn.disabled = !canBuzz;
-  buzzBtn.classList.toggle("buzz-locked", !canBuzz);
+  const canBuzzNow = playerSynced && canBuzz(data, state);
+  buzzBtn.disabled = !canBuzzNow;
+  buzzBtn.classList.toggle("buzz-locked", !canBuzzNow);
 }
 
 function updateBuzzStatus(data) {
@@ -166,7 +159,7 @@ function renderPlayers(players) {
     const left = document.createElement("span");
     left.textContent = p.name || "Player";
     const right = document.createElement("span");
-    right.textContent = `${p.team || "?"}${p.isHost ? " Â· Host" : ""}`;
+    right.textContent = `${p.team || "?"}${p.isHost ? " · Host" : ""}`;
     card.appendChild(left);
     card.appendChild(right);
     playerList.appendChild(card);
@@ -202,6 +195,7 @@ function updateTimers(data) {
   const end = timers.phaseEndAt;
   const tick = () => {
     const remaining = end - Date.now();
+    updateBuzzButtonState(data);
     const formatted = formatTime(remaining);
     if (playerPhaseTimer) playerPhaseTimer.textContent = formatted;
   };
@@ -230,24 +224,29 @@ async function enterRoom(roomId) {
   if (roomUnsub) roomUnsub();
   if (playerUnsub) playerUnsub();
   roomStatus.textContent = "Loading room...";
+  const member = await loadMembership(roomId, state.uid);
+  if (!member) {
+    const room = await getDoc(doc(db, "rooms", roomId));
+    if (!room.exists()) throw new Error("Room not found.");
+    window.location.replace(`buzzer_rooms.html?code=${encodeURIComponent(room.data().roomCode)}`);
+    return;
+  }
+  state.name = member.name;
+  state.team = member.team;
+  playerSynced = true;
 
   roomUnsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
     if (!snap.exists()) {
+      cachedRoom = null;
+      buzzBtn.disabled = true;
+      if (timerInterval) clearInterval(timerInterval);
+      if (gameClockInterval) clearInterval(gameClockInterval);
       roomStatus.textContent = "Room not found.";
       if (roomCodeValue) roomCodeValue.textContent = "-----";
       return;
     }
     const data = snap.data();
     cachedRoom = data;
-    if (!playerSynced) {
-      playerSynced = true;
-      setDoc(doc(db, "rooms", roomId, "players", state.uid), {
-        name: state.name || "Player",
-        team: state.team || "A",
-        joinedAt: serverTimestamp(),
-        isHost: false
-      }, { merge: true }).catch(() => {});
-    }
     roomTitle.textContent = data.roomName || `Room ${data.roomCode}`;
     roomCodeTitle.textContent = `Room ${data.roomCode}`;
     if (roomCodeValue) roomCodeValue.textContent = data.roomCode || "-----";
@@ -260,6 +259,8 @@ async function enterRoom(roomId) {
     updatePlayerScoreboard(data.stats || {});
   }, (err) => {
     console.error("Room snapshot error", err);
+    cachedRoom = null;
+    buzzBtn.disabled = true;
     roomStatus.textContent = "Room unavailable (check permissions).";
   });
 
@@ -271,67 +272,23 @@ async function enterRoom(roomId) {
     latestPlayers = list;
     renderPlayers(list);
     updatePlayerScoreboard(cachedRoom?.stats || {}, list);
-  });
+  }, (err) => { roomStatus.textContent = "Unable to load players: " + err.message; });
 }
 
-async function withRoomDoc() {
-  if (!activeRoomId) throw new Error("No room joined.");
-  const ref = doc(db, "rooms", activeRoomId);
-  const snap = await getDoc(ref);
-  return { ref, data: snap.data() };
-}
-
-function appendLog(data, entry) {
-  const next = [...(data.log || []), entry];
-  return next.slice(-200);
-}
-
-function updateStatsForBuzz(stats, buzz) {
-  const next = { ...(stats || {}), team: { ...(stats?.team || {}) }, player: { ...(stats?.player || {}) } };
-  if (!buzz) return next;
-  const teamStats = next.team[buzz.team] || { correct: 0, incorrect: 0, interrupt: 0, buzzes: 0 };
-  teamStats.buzzes += 1;
-  next.team[buzz.team] = teamStats;
-
-  const player = next.player[buzz.uid] || { name: buzz.name || "Player", team: buzz.team, correct: 0, incorrect: 0, interrupt: 0, buzzes: 0, points: 0 };
-  player.buzzes += 1;
-  next.player[buzz.uid] = player;
-  return next;
-}
-
+let buzzPending = false;
 async function buzz() {
-  if (!activeRoomId) return;
-  const roomRef = doc(db, "rooms", activeRoomId);
-  try {
-    if (buzzStatus) buzzStatus.textContent = "Buzzing...";
-    await runTransaction(db, async (txn) => {
-      const snap = await txn.get(roomRef);
-      if (!snap.exists()) return;
-      const data = snap.data();
-      if (data.status !== "tossup_open" && data.status !== "bonus_open") return;
-      if (data.currentBuzz) return;
-      if (data.status === "bonus_open" && data.bonusTeam && data.bonusTeam !== state.team) return;
-      if (data.status === "tossup_open" && data.lockoutTeam && data.lockoutTeam === state.team) return;
-      const buzzData = { uid: state.uid, team: state.team, at: Date.now(), name: state.name };
-      const stats = updateStatsForBuzz(data.stats, buzzData);
-      const newStatus = data.status === "bonus_open" ? "bonus_locked" : "tossup_locked";
-      txn.update(roomRef, {
-        currentBuzz: buzzData,
-        status: newStatus,
-        lastAction: { type: "buzz", at: Date.now(), by: state.uid },
-        log: appendLog(data, { type: "buzz", at: Date.now(), by: state.uid, team: state.team, details: `Buzzed ${state.team}` }),
-        stats
-      });
-    });
-  } catch (err) {
-    console.error("Buzz failed", err);
-    if (buzzStatus) buzzStatus.textContent = "Buzz failed. Check connection/permissions.";
-  }
+  if (!activeRoomId || !playerSynced || buzzPending || !canBuzz(cachedRoom || {}, state)) return;
+  buzzPending = true;
+  buzzBtn.disabled = true;
+  buzzStatus.textContent = "Buzzing...";
+  try { await sendBuzz(activeRoomId); }
+  catch (err) { buzzStatus.textContent = err.message || "Buzz failed. Check connection/permissions."; }
+  finally { buzzPending = false; updateBuzzButtonState(cachedRoom || {}); }
 }
 
 function handleSpacebar(e) {
   const tag = document.activeElement?.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (e.repeat || document.activeElement?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
   if (e.code === "Space") {
     e.preventDefault();
     buzz();
@@ -356,6 +313,10 @@ if (toggleLogBtn && playerLogPanel) {
     return;
   }
   await enterRoom(roomId);
-})();
+})().catch((err) => { roomStatus.textContent = err.message || "Unable to connect to room."; buzzBtn.disabled = true; });
 
 
+
+window.addEventListener("pagehide", () => { roomUnsub?.(); playerUnsub?.(); clearInterval(timerInterval); clearInterval(gameClockInterval); });
+
+window.addEventListener("pageshow", event => { if (event.persisted) window.location.reload(); });

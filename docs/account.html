@@ -76,7 +76,7 @@
         <h2>Account Homepage</h2>
         <div class="form-grid">
           <div>
-            <label class="label">Username (locked)</label>
+            <label class="label">Username (choose once)</label>
             <input class="input input-readonly" type="text" id="usernameLockedInput" placeholder="Set on sign-up" readonly />
           </div>
           <div>
@@ -165,23 +165,27 @@
         <button class="tab active" id="showSignUpTab" type="button">Sign Up</button>
       </div>
 
+      <div class="provider-row" aria-label="Sign-in providers">
+        <button class="btn provider google" id="googleBtn" type="button" data-auth-action>
+          <img class="brand-icon" src="data/auth/google.png" width="20" height="20" alt="" aria-hidden="true" />
+          <span>Sign in with Google</span>
+        </button>
+        <button class="btn provider apple" id="appleBtn" type="button" aria-label="Sign in with Apple" data-auth-action>
+          <img class="apple-signin-art" src="data/auth/apple-signin.png" width="200" height="44" alt="" aria-hidden="true" />
+        </button>
+        <button class="btn provider microsoft" id="microsoftBtn" type="button" data-auth-action>
+          <img class="brand-icon" src="data/auth/microsoft.svg" width="20" height="20" alt="" aria-hidden="true" />
+          <span>Sign in with Microsoft</span>
+        </button>
+      </div>
       <div id="signInFormPanel">
-        <div class="provider-row">
-          <button class="btn provider google" id="googleBtn" type="button" data-auth-action>
-            <img class="brand-icon" src="Google-Symbol.png" alt="" aria-hidden="true" />
-            Continue with Google
-          </button>
-          <button class="btn provider microsoft" id="microsoftBtn" type="button" data-auth-action>
-            <img class="brand-icon" src="microsoft.svg" alt="" aria-hidden="true" />
-            Continue with Microsoft
-          </button>
-        </div>
         <div class="divider"><span>or use Email</span></div>
-        <label class="label">Email or Username</label>
-        <input class="input" id="signinIdentifierInput" type="text" placeholder="scibowl@atombowl.com or username" />
+        <label class="label">Email</label>
+        <input class="input" id="signinIdentifierInput" type="email" autocomplete="username" placeholder="you@example.com" />
         <label class="label">Password</label>
         <input class="input" id="signinPasswordInput" type="password" placeholder="Password" />
         <button class="btn" id="signinBtn" type="button" data-auth-action>Sign In</button>
+        <button class="btn ghost" id="resetPasswordBtn" type="button" data-auth-action>Reset Password</button>
         <p class="tiny-link">Don't have an account? <a href="#" id="gotoSignupLink">Sign up</a></p>
       </div>
 
@@ -225,7 +229,7 @@
         <p class="tiny-link">Already have an account? <a href="#" id="gotoSigninLink">Sign in</a></p>
       </div>
 
-      <p id="authError" class="error"></p>
+      <p id="authError" class="error" role="status" aria-live="polite"></p>
     </div>
   </div>
 
