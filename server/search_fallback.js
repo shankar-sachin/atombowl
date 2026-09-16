@@ -64,6 +64,8 @@ function searchLocal(root, payload) {
   if (!Number.isFinite(pageSize) || pageSize < 1) pageSize = 1;
   if (pageSize > 200) pageSize = 200;
 
+  page = Math.floor(page);
+  pageSize = Math.floor(pageSize);
   const bank = loadBank(root);
   const filtered = bank.filter((q) => matches(q, search, bankChoice, level, category, bonus));
   const total = filtered.length;

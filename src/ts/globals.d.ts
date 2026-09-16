@@ -98,8 +98,10 @@ declare global {
         totalSlowCorrect?: number;
       } | null>;
       isUsernameAvailable?: (username: string) => Promise<boolean>;
-      resolveEmailFromUsername?: (username: string) => Promise<string>;
+      resetPassword: (email: string) => Promise<void>;
+      getSyncError?: () => string;
       updateAccountProfile?: (patch: {
+        username?: string;
         playerName?: string;
         firstName?: string;
         lastName?: string;

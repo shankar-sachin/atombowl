@@ -154,7 +154,7 @@ CHECK_MAP = {
 ALL_CHECKS = CHECK_MAP.keys.freeze
 
 input = JSON.parse(STDIN.read || "{}")
-root = File.expand_path("..", __dir__)
+root = File.expand_path("../..", __dir__)
 bank_choice = input["bank"] || "ALL"
 checks = input["checks"] || ALL_CHECKS
 checks = ALL_CHECKS if checks.empty?

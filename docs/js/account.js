@@ -1,4 +1,4 @@
-var _a;
+var _a, _b;
 import "./account_store.js";
 const statusText = document.getElementById("statusText");
 const statusSub = document.getElementById("statusSub");
@@ -38,6 +38,7 @@ const authError = document.getElementById("authError");
 const usernameStatus = document.getElementById("usernameStatus");
 const googleBtn = document.getElementById("googleBtn");
 const microsoftBtn = document.getElementById("microsoftBtn");
+const appleBtn = document.getElementById("appleBtn");
 const signinIdentifierInput = document.getElementById("signinIdentifierInput");
 const signinPasswordInput = document.getElementById("signinPasswordInput");
 const signinBtn = document.getElementById("signinBtn");
@@ -52,7 +53,6 @@ const signupPassword2 = document.getElementById("signupPassword2");
 const signupBtn = document.getElementById("signupBtn");
 let pendingPhotoData = "";
 function refreshAccountCopy() {
-    var _a;
     const signinPasswordLabel = document.querySelector('label[for="signinPasswordInput"]');
     if (signinPasswordLabel)
         signinPasswordLabel.textContent = "Password";
@@ -62,19 +62,6 @@ function refreshAccountCopy() {
         if (((_a = label.textContent) === null || _a === void 0 ? void 0 : _a.trim().toLowerCase()) === "p-word") {
             label.textContent = "Password";
         }
-    });
-    if (microsoftBtn && ((_a = microsoftBtn.textContent) === null || _a === void 0 ? void 0 : _a.includes("Under Dev"))) {
-        microsoftBtn.innerHTML = `
-      <img class="brand-icon" src="microsoft.svg" alt="" aria-hidden="true" />
-      Continue with Microsoft (Coming Soon)
-    `;
-    }
-    const signupLabels = Array.from(document.querySelectorAll("#signUpFormPanel .label"));
-    signupLabels.forEach((label) => {
-        var _a;
-        const text = (_a = label.textContent) === null || _a === void 0 ? void 0 : _a.trim().toLowerCase();
-        if (text === "copy password*")
-            label.textContent = "Confirm Password*";
     });
 }
 function requireAccount() {
@@ -101,19 +88,28 @@ function friendlyAuthError(err) {
     switch (code) {
         case "auth/user-not-found":
         case "auth/invalid-credential":
-            return "Invalid email/username or password.";
+            return "Invalid email or password.";
         case "auth/wrong-password":
             return "Incorrect password.";
         case "auth/email-already-in-use":
             return "An account with this email already exists. Try signing in.";
         case "auth/weak-password":
-            return "Password must be at least 6 characters.";
+        case "auth/password-does-not-meet-requirements":
+            return "Use at least 8 characters with uppercase and lowercase letters, a number, and a symbol.";
         case "auth/invalid-email":
             return "Please enter a valid email address.";
         case "auth/too-many-requests":
             return "Too many attempts. Please try again later.";
         case "auth/network-request-failed":
             return "Network error. Check your connection.";
+        case "auth/popup-blocked":
+            return "Allow popups for this site and try again.";
+        case "auth/operation-not-allowed":
+            return "This sign-in provider is not enabled in Firebase. Try another sign-in method.";
+        case "auth/unauthorized-domain":
+            return "This website domain must be added to Firebase Authentication authorized domains.";
+        case "auth/account-exists-with-different-credential":
+            return "Use the sign-in method you originally used for this email.";
         case "auth/popup-closed-by-user":
             return "Sign-in popup was closed.";
         default:
@@ -170,7 +166,10 @@ function closeAuthModal() {
 async function renderStats() {
     var _a;
     const account = requireAccount();
+    const user = account.getUser();
     const stats = await ((_a = account.loadPracticeStats) === null || _a === void 0 ? void 0 : _a.call(account));
+    if (account.getUser() !== user)
+        return;
     const runs = Number((stats === null || stats === void 0 ? void 0 : stats.totalRuns) || 0);
     const answered = Number((stats === null || stats === void 0 ? void 0 : stats.totalAnswered) || 0);
     const correct = Number((stats === null || stats === void 0 ? void 0 : stats.totalCorrect) || 0);
@@ -238,7 +237,7 @@ async function renderSignedIn(user) {
         statusText.classList.add("signed-in");
     }
     if (statusSub)
-        statusSub.textContent = "Your account is synced across devices.";
+        statusSub.textContent = "Your account is connected.";
     if (guestTagEl)
         guestTagEl.textContent = ((_b = account.getGuestTag) === null || _b === void 0 ? void 0 : _b.call(account)) || fallbackGuestTag();
     if (profileUsername)
@@ -261,21 +260,27 @@ async function renderSignedIn(user) {
         lastNameInput.value = lastName;
     if (phoneInput)
         phoneInput.value = phone;
-    if (usernameLockedInput)
-        usernameLockedInput.value = username;
+    if (usernameLockedInput) {
+        usernameLockedInput.value = profile.username || "";
+        usernameLockedInput.readOnly = !!profile.username;
+        usernameLockedInput.classList.toggle("input-readonly", !!profile.username);
+        usernameLockedInput.disabled = !!profile.username;
+        usernameLockedInput.placeholder = "Choose a username";
+    }
     if (emailLockedInput)
         emailLockedInput.value = email;
     pendingPhotoData = "";
     await renderStats();
 }
 async function handleAuthChange(user) {
+    var _a, _b;
     setAccountError("");
-    if (!user) {
+    if (!user || user.isAnonymous) {
         await renderSignedOut();
         return;
     }
     await renderSignedIn(user);
-    closeAuthModal();
+    setAccountError(((_b = (_a = requireAccount()).getSyncError) === null || _b === void 0 ? void 0 : _b.call(_a)) || "");
 }
 if ((_a = window.atomAccount) === null || _a === void 0 ? void 0 : _a.onAuthChange) {
     window.atomAccount.onAuthChange((user) => {
@@ -303,11 +308,28 @@ authModal === null || authModal === void 0 ? void 0 : authModal.addEventListener
     if (e.target === authModal)
         closeAuthModal();
 });
-googleBtn === null || googleBtn === void 0 ? void 0 : googleBtn.addEventListener("click", async () => {
+async function signInWithSocialProvider(provider) {
     setAuthError("");
     try {
         setBusy(true);
-        await requireAccount().signInWithProvider("google");
+        await requireAccount().signInWithProvider(provider);
+        closeAuthModal();
+    }
+    catch (err) {
+        setAuthError(friendlyAuthError(err));
+    }
+    finally {
+        setBusy(false);
+    }
+}
+googleBtn === null || googleBtn === void 0 ? void 0 : googleBtn.addEventListener("click", () => signInWithSocialProvider("google"));
+microsoftBtn === null || microsoftBtn === void 0 ? void 0 : microsoftBtn.addEventListener("click", () => setAuthError("Coming soon"));
+appleBtn === null || appleBtn === void 0 ? void 0 : appleBtn.addEventListener("click", () => setAuthError("Coming soon"));
+(_b = document.getElementById("resetPasswordBtn")) === null || _b === void 0 ? void 0 : _b.addEventListener("click", async () => {
+    setBusy(true);
+    try {
+        await requireAccount().resetPassword(String((signinIdentifierInput === null || signinIdentifierInput === void 0 ? void 0 : signinIdentifierInput.value) || ""));
+        setAuthError("If an account exists for that email, a password reset link has been sent.");
     }
     catch (err) {
         setAuthError(friendlyAuthError(err));
@@ -316,15 +338,20 @@ googleBtn === null || googleBtn === void 0 ? void 0 : googleBtn.addEventListener
         setBusy(false);
     }
 });
-microsoftBtn === null || microsoftBtn === void 0 ? void 0 : microsoftBtn.addEventListener("click", () => {
-    window.location.href = "microsoft_auth.html";
+signinPasswordInput === null || signinPasswordInput === void 0 ? void 0 : signinPasswordInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !(signinBtn === null || signinBtn === void 0 ? void 0 : signinBtn.disabled))
+        signinBtn === null || signinBtn === void 0 ? void 0 : signinBtn.click();
+});
+signupPassword2 === null || signupPassword2 === void 0 ? void 0 : signupPassword2.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !(signupBtn === null || signupBtn === void 0 ? void 0 : signupBtn.disabled))
+        signupBtn === null || signupBtn === void 0 ? void 0 : signupBtn.click();
 });
 signinBtn === null || signinBtn === void 0 ? void 0 : signinBtn.addEventListener("click", async () => {
     setAuthError("");
     const identifier = String((signinIdentifierInput === null || signinIdentifierInput === void 0 ? void 0 : signinIdentifierInput.value) || "").trim();
     const password = String((signinPasswordInput === null || signinPasswordInput === void 0 ? void 0 : signinPasswordInput.value) || "");
     if (!identifier || !password) {
-        setAuthError("Email/Username and password are required.");
+        setAuthError("Email and password are required.");
         return;
     }
     try {
@@ -336,6 +363,9 @@ signinBtn === null || signinBtn === void 0 ? void 0 : signinBtn.addEventListener
         else {
             await account.signInWithEmail(identifier, password);
         }
+        closeAuthModal();
+        if (signinPasswordInput)
+            signinPasswordInput.value = "";
     }
     catch (err) {
         setAuthError(friendlyAuthError(err));
@@ -410,6 +440,11 @@ signupBtn === null || signupBtn === void 0 ? void 0 : signupBtn.addEventListener
         else {
             await account.signUpWithEmail(email, password, playerName || username);
         }
+        closeAuthModal();
+        if (signupPassword)
+            signupPassword.value = "";
+        if (signupPassword2)
+            signupPassword2.value = "";
     }
     catch (err) {
         setAuthError(friendlyAuthError(err));
@@ -428,8 +463,8 @@ photoUploadInput === null || photoUploadInput === void 0 ? void 0 : photoUploadI
         setAccountError("Please choose an image file.");
         return;
     }
-    if (file.size > 1500000) {
-        setAccountError("Image is too large. Max 1.5MB.");
+    if (file.size > 250000) {
+        setAccountError("Image is too large. Max 250 KB.");
         return;
     }
     const reader = new FileReader();
@@ -447,6 +482,7 @@ saveProfileBtn === null || saveProfileBtn === void 0 ? void 0 : saveProfileBtn.a
         setBusy(true);
         const account = requireAccount();
         const next = await ((_a = account.updateAccountProfile) === null || _a === void 0 ? void 0 : _a.call(account, {
+            username: (usernameLockedInput === null || usernameLockedInput === void 0 ? void 0 : usernameLockedInput.value) || undefined,
             playerName: String((playerNameInput === null || playerNameInput === void 0 ? void 0 : playerNameInput.value) || "").trim(),
             firstName: String((firstNameInput === null || firstNameInput === void 0 ? void 0 : firstNameInput.value) || "").trim(),
             lastName: String((lastNameInput === null || lastNameInput === void 0 ? void 0 : lastNameInput.value) || "").trim(),
@@ -455,6 +491,12 @@ saveProfileBtn === null || saveProfileBtn === void 0 ? void 0 : saveProfileBtn.a
         }));
         pendingPhotoData = "";
         if (next) {
+            if (next.username && usernameLockedInput) {
+                usernameLockedInput.disabled = true;
+                usernameLockedInput.readOnly = true;
+                if (profileUsername)
+                    profileUsername.textContent = next.username;
+            }
             if (profilePlayerName)
                 profilePlayerName.textContent = String(next.playerName || "");
             if (profilePhoto && next.photoURL) {

@@ -42,6 +42,7 @@ const usernameStatus = document.getElementById("usernameStatus");
 
 const googleBtn = document.getElementById("googleBtn");
 const microsoftBtn = document.getElementById("microsoftBtn");
+const appleBtn = document.getElementById("appleBtn");
 const signinIdentifierInput = document.getElementById("signinIdentifierInput") as HTMLInputElement | null;
 const signinPasswordInput = document.getElementById("signinPasswordInput") as HTMLInputElement | null;
 const signinBtn = document.getElementById("signinBtn");
@@ -69,18 +70,7 @@ function refreshAccountCopy() {
     }
   });
 
-  if (microsoftBtn && microsoftBtn.textContent?.includes("Under Dev")) {
-    microsoftBtn.innerHTML = `
-      <img class="brand-icon" src="microsoft.svg" alt="" aria-hidden="true" />
-      Continue with Microsoft (Coming Soon)
-    `;
-  }
 
-  const signupLabels = Array.from(document.querySelectorAll("#signUpFormPanel .label"));
-  signupLabels.forEach((label) => {
-    const text = label.textContent?.trim().toLowerCase();
-    if (text === "copy password*") label.textContent = "Confirm Password*";
-  });
 }
 
 function requireAccount() {
@@ -108,19 +98,28 @@ function friendlyAuthError(err: any): string {
   switch (code) {
     case "auth/user-not-found":
     case "auth/invalid-credential":
-      return "Invalid email/username or password.";
+      return "Invalid email or password.";
     case "auth/wrong-password":
       return "Incorrect password.";
     case "auth/email-already-in-use":
       return "An account with this email already exists. Try signing in.";
     case "auth/weak-password":
-      return "Password must be at least 6 characters.";
+    case "auth/password-does-not-meet-requirements":
+      return "Use at least 8 characters with uppercase and lowercase letters, a number, and a symbol.";
     case "auth/invalid-email":
       return "Please enter a valid email address.";
     case "auth/too-many-requests":
       return "Too many attempts. Please try again later.";
     case "auth/network-request-failed":
       return "Network error. Check your connection.";
+    case "auth/popup-blocked":
+      return "Allow popups for this site and try again.";
+    case "auth/operation-not-allowed":
+      return "This sign-in provider is not enabled in Firebase. Try another sign-in method.";
+    case "auth/unauthorized-domain":
+      return "This website domain must be added to Firebase Authentication authorized domains.";
+    case "auth/account-exists-with-different-credential":
+      return "Use the sign-in method you originally used for this email.";
     case "auth/popup-closed-by-user":
       return "Sign-in popup was closed.";
     default:
@@ -175,7 +174,9 @@ function closeAuthModal() {
 
 async function renderStats() {
   const account = requireAccount();
+  const user = account.getUser();
   const stats = await account.loadPracticeStats?.();
+  if (account.getUser() !== user) return;
   const runs = Number(stats?.totalRuns || 0);
   const answered = Number(stats?.totalAnswered || 0);
   const correct = Number(stats?.totalCorrect || 0);
@@ -227,7 +228,7 @@ async function renderSignedIn(user: any) {
     statusText.textContent = "Signed In";
     statusText.classList.add("signed-in");
   }
-  if (statusSub) statusSub.textContent = "Your account is synced across devices.";
+  if (statusSub) statusSub.textContent = "Your account is connected.";
   if (guestTagEl) guestTagEl.textContent = account.getGuestTag?.() || fallbackGuestTag();
   if (profileUsername) profileUsername.textContent = username;
   if (profilePlayerName) profilePlayerName.textContent = playerName;
@@ -240,7 +241,13 @@ async function renderSignedIn(user: any) {
   if (firstNameInput) firstNameInput.value = firstName;
   if (lastNameInput) lastNameInput.value = lastName;
   if (phoneInput) phoneInput.value = phone;
-  if (usernameLockedInput) usernameLockedInput.value = username;
+  if (usernameLockedInput) {
+    usernameLockedInput.value = profile.username || "";
+    usernameLockedInput.readOnly = !!profile.username;
+    usernameLockedInput.classList.toggle("input-readonly", !!profile.username);
+    usernameLockedInput.disabled = !!profile.username;
+    usernameLockedInput.placeholder = "Choose a username";
+  }
   if (emailLockedInput) emailLockedInput.value = email;
 
   pendingPhotoData = "";
@@ -249,12 +256,12 @@ async function renderSignedIn(user: any) {
 
 async function handleAuthChange(user: any) {
   setAccountError("");
-  if (!user) {
+  if (!user || user.isAnonymous) {
     await renderSignedOut();
     return;
   }
   await renderSignedIn(user);
-  closeAuthModal();
+  setAccountError(requireAccount().getSyncError?.() || "");
 }
 
 if (window.atomAccount?.onAuthChange) {
@@ -284,20 +291,37 @@ authModal?.addEventListener("click", (e) => {
   if (e.target === authModal) closeAuthModal();
 });
 
-googleBtn?.addEventListener("click", async () => {
+async function signInWithSocialProvider(provider: "google") {
   setAuthError("");
   try {
     setBusy(true);
-    await requireAccount().signInWithProvider("google");
+    await requireAccount().signInWithProvider(provider);
+    closeAuthModal();
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
   } finally {
     setBusy(false);
   }
+}
+
+googleBtn?.addEventListener("click", () => signInWithSocialProvider("google"));
+microsoftBtn?.addEventListener("click", () => setAuthError("Coming soon"));
+appleBtn?.addEventListener("click", () => setAuthError("Coming soon"));
+
+document.getElementById("resetPasswordBtn")?.addEventListener("click", async () => {
+  setBusy(true);
+  try {
+    await requireAccount().resetPassword(String(signinIdentifierInput?.value || ""));
+    setAuthError("If an account exists for that email, a password reset link has been sent.");
+  } catch (err) { setAuthError(friendlyAuthError(err)); }
+  finally { setBusy(false); }
 });
 
-microsoftBtn?.addEventListener("click", () => {
-  window.location.href = "microsoft_auth.html";
+signinPasswordInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !signinBtn?.disabled) signinBtn?.click();
+});
+signupPassword2?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !signupBtn?.disabled) signupBtn?.click();
 });
 
 signinBtn?.addEventListener("click", async () => {
@@ -305,7 +329,7 @@ signinBtn?.addEventListener("click", async () => {
   const identifier = String(signinIdentifierInput?.value || "").trim();
   const password = String(signinPasswordInput?.value || "");
   if (!identifier || !password) {
-    setAuthError("Email/Username and password are required.");
+    setAuthError("Email and password are required.");
     return;
   }
   try {
@@ -316,6 +340,8 @@ signinBtn?.addEventListener("click", async () => {
     } else {
       await account.signInWithEmail(identifier, password);
     }
+    closeAuthModal();
+    if (signinPasswordInput) signinPasswordInput.value = "";
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
   } finally {
@@ -388,6 +414,9 @@ signupBtn?.addEventListener("click", async () => {
     } else {
       await account.signUpWithEmail(email, password, playerName || username);
     }
+    closeAuthModal();
+    if (signupPassword) signupPassword.value = "";
+    if (signupPassword2) signupPassword2.value = "";
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
   } finally {
@@ -403,8 +432,8 @@ photoUploadInput?.addEventListener("change", async () => {
     setAccountError("Please choose an image file.");
     return;
   }
-  if (file.size > 1500000) {
-    setAccountError("Image is too large. Max 1.5MB.");
+  if (file.size > 250000) {
+    setAccountError("Image is too large. Max 250 KB.");
     return;
   }
   const reader = new FileReader();
@@ -421,6 +450,7 @@ saveProfileBtn?.addEventListener("click", async () => {
     setBusy(true);
     const account = requireAccount();
     const next = await account.updateAccountProfile?.({
+      username: usernameLockedInput?.value || undefined,
       playerName: String(playerNameInput?.value || "").trim(),
       firstName: String(firstNameInput?.value || "").trim(),
       lastName: String(lastNameInput?.value || "").trim(),
@@ -429,6 +459,7 @@ saveProfileBtn?.addEventListener("click", async () => {
     });
     pendingPhotoData = "";
     if (next) {
+      if ((next as any).username && usernameLockedInput) { usernameLockedInput.disabled = true; usernameLockedInput.readOnly = true; if (profileUsername) profileUsername.textContent = (next as any).username; }
       if (profilePlayerName) profilePlayerName.textContent = String((next as any).playerName || "");
       if (profilePhoto && (next as any).photoURL) {
         (profilePhoto as HTMLImageElement).src = String((next as any).photoURL);

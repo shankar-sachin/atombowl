@@ -6,13 +6,16 @@ import {
   OAuthProvider,
   EmailAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   linkWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   linkWithCredential,
   signOut as fbSignOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail,
+  validatePassword
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import {
@@ -21,6 +24,7 @@ import {
   setDoc,
   serverTimestamp,
   increment,
+  arrayUnion,
   runTransaction
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
@@ -28,7 +32,10 @@ const SETTINGS_KEY = "atom_settings_v1";
 const BUZZER_PROFILE_KEY = "atom_buzzer_profile";
 const GUEST_TAG_KEY = "atom_guest_tag_v1";
 
-let currentUser: any = auth.currentUser || null;
+let currentUser: any = null;
+let syncError = "";
+let signupInProgress = false;
+let authGeneration = 0;
 let currentProfile: any = null;
 const listeners = new Set<(user: unknown | null) => void>();
 
@@ -68,7 +75,8 @@ function normalizeUsername(username: string) {
 }
 
 function sanitizeUsername(username: string) {
-  return normalizeUsername(username).replace(/[^a-z0-9]/g, "");
+  const clean = normalizeUsername(username);
+  return /^[a-z0-9]{3,20}$/.test(clean) ? clean : "";
 }
 
 function usersRef(uid: string) {
@@ -101,7 +109,8 @@ function randomAlphaNum(size: number) {
 }
 
 function getGuestTag() {
-  const existing = (localStorage.getItem(GUEST_TAG_KEY) || "").trim();
+  let existing = "";
+  try { existing = (localStorage.getItem(GUEST_TAG_KEY) || "").trim(); } catch {}
   if (existing && /^[A-Za-z0-9]{12}$/.test(existing)) return existing;
   const tag = randomAlphaNum(12);
   try {
@@ -123,46 +132,21 @@ async function ensureUserDoc(user: any) {
   const providerIds = Array.isArray(user.providerData)
     ? user.providerData.map((p: any) => p?.providerId).filter(Boolean)
     : [];
-  const existingProfile = await loadUserProfile(user.uid);
-  const mergedProfile = {
-    username: existingProfile?.username || "",
-    displayName: existingProfile?.displayName || user.displayName || "",
-    playerName: existingProfile?.playerName || user.displayName || "",
-    firstName: existingProfile?.firstName || "",
-    lastName: existingProfile?.lastName || "",
-    email: existingProfile?.email || user.email || "",
-    phone: existingProfile?.phone || "",
-    photoURL: existingProfile?.photoURL || user.photoURL || "",
-    providerIds
-  };
-  await setDoc(usersRef(user.uid), {
-    profile: mergedProfile,
-    createdAt: serverTimestamp(),
-    lastLoginAt: serverTimestamp()
-  }, { merge: true });
-  currentProfile = mergedProfile;
-}
-
-async function reserveUsername(username: string, uid: string, email: string) {
-  const clean = sanitizeUsername(username);
-  if (!clean || clean.length < 3 || clean.length > 20) {
-    throw new Error("Username must be 3-20 letters/numbers.");
-  }
-  await runTransaction(db, async (tx: any) => {
-    const ref = usernameRef(clean);
+  return runTransaction(db, async (tx: any) => {
+    const ref = usersRef(user.uid);
     const snap = await tx.get(ref);
-    if (snap.exists()) {
-      const ownerUid = snap.data()?.uid || "";
-      if (ownerUid && ownerUid !== uid) {
-        throw new Error("That username is already taken.");
-      }
-    }
+    const profile = {
+      username: "", displayName: user.displayName || "",
+      playerName: user.displayName || "", firstName: "", lastName: "",
+      email: user.email || "", phone: "", photoURL: user.photoURL || "",
+      ...(snap.data()?.profile || {}), providerIds
+    };
     tx.set(ref, {
-      uid,
-      email: String(email || "").trim().toLowerCase(),
-      username: clean,
-      updatedAt: serverTimestamp()
+      profile,
+      ...(!snap.exists() ? { createdAt: serverTimestamp() } : {}),
+      lastLoginAt: serverTimestamp()
     }, { merge: true });
+    return profile;
   });
 }
 
@@ -173,14 +157,6 @@ async function isUsernameAvailable(username: string) {
   if (!snap.exists()) return true;
   if (!currentUser?.uid) return false;
   return snap.data()?.uid === currentUser.uid;
-}
-
-async function resolveEmailFromUsername(username: string) {
-  const clean = sanitizeUsername(username);
-  if (!clean) return "";
-  const snap = await getDoc(usernameRef(clean));
-  if (!snap.exists()) return "";
-  return String(snap.data()?.email || "").trim();
 }
 
 async function loadRemoteSettings() {
@@ -196,6 +172,7 @@ async function syncSettings(user: any) {
   if (!user?.uid) return;
   const ref = settingsRef(user.uid);
   const snap = await getDoc(ref);
+  if (auth.currentUser?.uid !== user.uid) return;
   const local = safeJsonParse(localStorage.getItem(SETTINGS_KEY));
 
   if (snap.exists() && snap.data()?.value) {
@@ -231,6 +208,7 @@ async function syncBuzzerProfile(user: any) {
   if (!user?.uid) return;
   const ref = buzzerProfileRef(user.uid);
   const snap = await getDoc(ref);
+  if (auth.currentUser?.uid !== user.uid) return;
   const local = safeJsonParse(localStorage.getItem(BUZZER_PROFILE_KEY));
 
   if (snap.exists()) {
@@ -304,17 +282,17 @@ async function loadLearnProgress(): Promise<string[] | null> {
 async function saveLearnProgress(completedLessons: string[]) {
   if (!currentUser?.uid) return;
   await setDoc(learnProgressRef(currentUser.uid), {
-    completedLessons, updatedAt: serverTimestamp()
+    completedLessons: arrayUnion(...completedLessons), updatedAt: serverTimestamp()
   }, { merge: true });
 }
 
 function buildProvider(providerId: string) {
   if (providerId === "google") return new GoogleAuthProvider();
-  if (providerId === "microsoft") return new OAuthProvider("microsoft.com");
   return null;
 }
 
 async function signInWithProvider(providerId: string) {
+  await auth.authStateReady();
   const provider = buildProvider(providerId);
   if (!provider) throw new Error("unknown-provider");
 
@@ -325,7 +303,10 @@ async function signInWithProvider(providerId: string) {
     } catch (err: any) {
       const code = err?.code || "";
       if (code === "auth/credential-already-in-use") {
-        const res = await signInWithPopup(auth, provider);
+        const credential = providerId === "google"
+          ? GoogleAuthProvider.credentialFromError(err) : OAuthProvider.credentialFromError(err);
+        if (!credential) throw err;
+        const res = await signInWithCredential(auth, credential);
         return res.user;
       }
       throw err;
@@ -344,18 +325,31 @@ async function signInWithEmail(email: string, password: string) {
 }
 
 async function signInWithIdentifier(identifier: string, password: string) {
-  const id = String(identifier || "").trim();
-  if (!id || !password) throw new Error("Email/Username and password are required.");
-  if (id.includes("@")) {
-    return signInWithEmail(id, password);
-  }
-  const email = await resolveEmailFromUsername(id);
-  if (!email) throw new Error("Username not found.");
-  return signInWithEmail(email, password);
+  if (!String(identifier).includes("@")) throw new Error("Please sign in with your email address.");
+  return signInWithEmail(identifier, password);
+}
+
+async function resetPassword(email: string) {
+  const value = String(email || "").trim();
+  if (!value.includes("@")) throw new Error("Enter your email address first.");
+  await sendPasswordResetEmail(auth, value);
 }
 
 async function signUpWithEmail(email: string, password: string, displayName = "") {
+  const validation = await validatePassword(auth, password);
+  if (!validation.isValid) {
+    const missing = [];
+    const policy = validation.passwordPolicy?.customStrengthOptions || {};
+    if (validation.meetsMinPasswordLength === false) missing.push(`at least ${policy.minPasswordLength || 6} characters`);
+    if (validation.meetsMaxPasswordLength === false) missing.push(`no more than ${policy.maxPasswordLength} characters`);
+    if (validation.containsLowercaseLetter === false) missing.push("a lowercase letter");
+    if (validation.containsUppercaseLetter === false) missing.push("an uppercase letter");
+    if (validation.containsNumericCharacter === false) missing.push("a number");
+    if (validation.containsNonAlphanumericCharacter === false) missing.push("a symbol");
+    throw new Error(missing.length ? `Password needs ${missing.join(", ")}.` : "Please choose a stronger password.");
+  }
   const normalizedEmail = String(email || "").trim().toLowerCase();
+  await auth.authStateReady();
   if (auth.currentUser?.isAnonymous) {
     const cred = EmailAuthProvider.credential(normalizedEmail, password);
     const res = await linkWithCredential(auth.currentUser, cred);
@@ -393,29 +387,52 @@ async function signUpWithDetails(details: {
     throw new Error("Please complete all required fields.");
   }
 
-  const user = await signUpWithEmail(email, password, playerName || username);
-  await reserveUsername(username, user.uid, email);
+  if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+  if (!(await isUsernameAvailable(username))) throw new Error("That username is already taken.");
+  signupInProgress = true;
+  try {
+    const user = await signUpWithEmail(email, password, playerName || username);
 
-  const profile = {
-    username,
-    displayName: playerName || username,
-    playerName: playerName || username,
-    firstName,
-    lastName,
-    email,
-    phone,
-    photoURL: user?.photoURL || ""
-  };
-  await setDoc(usersRef(user.uid), {
-    profile,
-    createdAt: serverTimestamp(),
-    lastLoginAt: serverTimestamp()
-  }, { merge: true });
-  currentProfile = profile;
-  return user;
+    const profile = {
+      username,
+      displayName: playerName || username,
+      playerName: playerName || username,
+      firstName,
+      lastName,
+      email,
+      phone,
+      photoURL: user?.photoURL || ""
+    };
+    await runTransaction(db, async (tx: any) => {
+      const nameRef = usernameRef(username);
+      const name = await tx.get(nameRef);
+      const userRef = usersRef(user.uid);
+      const existing = await tx.get(userRef);
+      if (name.exists() && name.data()?.uid !== user.uid) {
+        throw new Error("Account created, but that username was just taken. Sign in with your email; your account is still usable.");
+      }
+      // Public username records contain no email or other private profile data.
+      tx.set(nameRef, { uid: user.uid, username });
+      tx.set(userRef, {
+        profile,
+        ...(!existing.exists() ? { createdAt: serverTimestamp() } : {}),
+        lastLoginAt: serverTimestamp()
+      }, { merge: true });
+    });
+    return user;
+  } catch (err) {
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+      throw new Error(`Your account exists. Sign in with your email to continue. Profile setup failed: ${err.message || err}`);
+    }
+    throw err;
+  } finally {
+    signupInProgress = false;
+    await refreshAccount(auth.currentUser);
+  }
 }
 
 async function updateAccountProfile(patch: {
+  username?: string;
   playerName?: string;
   firstName?: string;
   lastName?: string;
@@ -423,7 +440,9 @@ async function updateAccountProfile(patch: {
   photoURL?: string;
 }) {
   if (!currentUser?.uid) throw new Error("Not signed in.");
-  const prev = currentProfile || (await loadUserProfile(currentUser.uid)) || {};
+  if (patch?.photoURL && patch.photoURL.length > 400000) throw new Error("Profile image is too large. Choose an image under 250 KB.");
+  const user = currentUser;
+  const prev = currentProfile || (await loadUserProfile(user.uid)) || {};
   const next = {
     ...prev,
     playerName: patch?.playerName != null ? String(patch.playerName).trim() : (prev.playerName || ""),
@@ -433,15 +452,29 @@ async function updateAccountProfile(patch: {
     phone: patch?.phone != null ? String(patch.phone).trim() : (prev.phone || ""),
     photoURL: patch?.photoURL != null ? String(patch.photoURL).trim() : (prev.photoURL || "")
   };
-  await setDoc(usersRef(currentUser.uid), {
-    profile: next,
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-  currentProfile = next;
+  const username = patch.username ? sanitizeUsername(patch.username) : prev.username;
+  if (patch.username && !username) throw new Error("Username must be 3-20 letters/numbers.");
+  if (prev.username && username !== prev.username) throw new Error("Your username cannot be changed.");
+  await runTransaction(db, async tx => {
+    const ref = usersRef(user.uid);
+    const existing = await tx.get(ref);
+    if (existing.data()?.profile?.username && existing.data().profile.username !== username) {
+      throw new Error("Your profile changed. Reload before saving.");
+    }
+    if (username && !prev.username) {
+      const nameRef = usernameRef(username);
+      const name = await tx.get(nameRef);
+      if (name.exists() && name.data()?.uid !== user.uid) throw new Error("That username is already taken.");
+      tx.set(nameRef, { uid: user.uid, username });
+      next.username = username;
+    }
+    tx.set(ref, { profile: next, updatedAt: serverTimestamp() }, { merge: true });
+  });
+  if (currentUser?.uid === user.uid) currentProfile = next;
   try {
-    await updateProfile(currentUser, {
+    await updateProfile(user, {
       displayName: next.playerName || next.displayName || "",
-      photoURL: next.photoURL || ""
+      ...(!next.photoURL?.startsWith("data:") ? { photoURL: next.photoURL || "" } : {})
     });
   } catch {}
   return next;
@@ -451,23 +484,38 @@ async function signOut() {
   await fbSignOut(auth);
 }
 
-onAuthStateChanged(auth, async (user: any) => {
-  currentUser = user || null;
-  if (!user) {
-    currentProfile = null;
-    notify(currentUser);
-    return;
-  }
+async function refreshAccount(user: any) {
+  const generation = ++authGeneration;
+  const owner = user && !user.isAnonymous ? user.uid : "guest";
   try {
-    await ensureUserDoc(user);
+    const previous = localStorage.getItem("atom_cache_owner");
+    if (previous && previous !== owner && previous !== "guest") {
+      for (const key of [SETTINGS_KEY, BUZZER_PROFILE_KEY, "atom_learn_progress_v1"]) localStorage.removeItem(key);
+      document.dispatchEvent(new CustomEvent("atomSettingsSynced", { detail: {} }));
+    }
+    localStorage.setItem("atom_cache_owner", owner);
+  } catch {}
+  currentUser = user && !user.isAnonymous ? user : null;
+  currentProfile = null;
+  syncError = "";
+  if (!currentUser) { notify(null); return; }
+  try {
+    const profile = await ensureUserDoc(user);
+    if (generation !== authGeneration || auth.currentUser?.uid !== user.uid) return;
+    currentProfile = profile;
     await syncSettings(user);
+    if (generation !== authGeneration) return;
     await syncBuzzerProfile(user);
-    currentProfile = await loadUserProfile(user.uid);
   } catch (err) {
+    if (generation !== authGeneration) return;
+    syncError = "Signed in, but cloud sync failed. Check your connection and Firebase permissions.";
     console.warn("Account sync failed", err);
-  } finally {
-    notify(currentUser);
   }
+  if (generation === authGeneration) notify(currentUser);
+}
+
+onAuthStateChanged(auth, (user: any) => {
+  if (!signupInProgress) void refreshAccount(user);
 });
 
 window.atomAccount = {
@@ -486,7 +534,8 @@ window.atomAccount = {
   updatePracticeStats,
   loadPracticeStats,
   isUsernameAvailable,
-  resolveEmailFromUsername,
+  resetPassword,
+  getSyncError: () => syncError,
   updateAccountProfile,
   loadBuzzerProfile,
   saveBuzzerProfile,

@@ -961,6 +961,7 @@
   const settings = loadSettings();
   window.atomSettings = settings;
   applySettings(settings);
+  document.addEventListener("atomSettingsSynced", () => { window.atomSettings = loadSettings(); applySettings(window.atomSettings); });
   ensureHoverPillStyle();
   ensureNavMoreStyle();
   ensureNavWeightStyle();

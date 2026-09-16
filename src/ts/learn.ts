@@ -99,6 +99,7 @@ async function syncProgress() {
 
   try {
     const remote = await account.loadLearnProgress?.();
+    if (account.getUser?.() !== user) return;
     if (Array.isArray(remote)) {
       remote.forEach((id: string) => completedLessons.add(id));
     }
@@ -403,11 +404,13 @@ async function init() {
   const account = (window as any).atomAccount;
   if (account?.onAuthChange) {
     account.onAuthChange(async (user: unknown) => {
+      completedLessons.clear();
+      loadLocalProgress().forEach((id) => completedLessons.add(id));
       if (user) {
         await syncProgress();
         renderGrid();
         updateProgressUI();
-      }
+      } else { renderGrid(); updateProgressUI(); updateCompleteUI(); }
     });
   }
 }

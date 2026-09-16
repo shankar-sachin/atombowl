@@ -1,9 +1,9 @@
 // @ts-nocheck
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
+import { getAnalytics, isSupported } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 const firebaseConfig = {
     apiKey: "AIzaSyBNvcpI84hInA_iRWnF9R7k6FCnRkZ_Xtk",
     authDomain: "nsbatombowl.firebaseapp.com",
@@ -15,31 +15,22 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 let analytics = null;
-try {
-    analytics = getAnalytics(app);
-}
-catch { }
+void isSupported().then(supported => {
+    if (supported)
+        analytics = getAnalytics(app);
+}).catch(() => { });
 const db = getFirestore(app);
 const auth = getAuth(app);
-function ensureAnonAuth() {
-    return new Promise((resolve, reject) => {
-        const unsub = onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                unsub();
-                resolve(user);
-                return;
-            }
-            try {
-                const cred = await signInAnonymously(auth);
-                unsub();
-                resolve(cred.user);
-            }
-            catch (err) {
-                unsub();
-                reject(err);
-            }
-        });
-    });
+let anonymousSignIn = null;
+async function ensureAnonAuth() {
+    await auth.authStateReady();
+    if (auth.currentUser)
+        return auth.currentUser;
+    if (!anonymousSignIn) {
+        anonymousSignIn = signInAnonymously(auth).then((credential) => credential.user)
+            .finally(() => { anonymousSignIn = null; });
+    }
+    return anonymousSignIn;
 }
 export { app, analytics, db, auth, ensureAnonAuth };
 //# sourceMappingURL=firebase.js.map

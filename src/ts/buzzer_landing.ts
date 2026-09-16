@@ -1,10 +1,10 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { db, ensureAnonAuth } from "./firebase.js";
 import "./account_store.js";
 import {
   doc,
   collection,
-  setDoc,
+  runTransaction,
   serverTimestamp,
   getDoc,
   query,
@@ -86,6 +86,7 @@ let lookupTimer = null;
 joinCodeInput.addEventListener("input", () => {
   joinCodeInput.value = joinCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const code = joinCodeInput.value.trim();
+  state.roomId = null;
   if (lookupTimer) clearTimeout(lookupTimer);
   if (code.length < 5) {
     teamHint.textContent = "Teams will load when a valid code is entered.";
@@ -95,6 +96,7 @@ joinCodeInput.addEventListener("input", () => {
   }
   lookupTimer = setTimeout(() => {
     lookupRoomTeams(code).catch(() => {
+      if (joinCodeInput.value.trim() !== code) return;
       teamHint.textContent = "Room not found yet.";
       setTeamOptions(2);
       state.roomId = null;
@@ -109,16 +111,16 @@ goCreateBtn.addEventListener("click", () => {
 async function joinRoom() {
   joinError.textContent = "";
   const code = joinCodeInput.value.trim().toUpperCase();
-  if (!code) {
+  if (!/^[A-Z0-9]{5}$/.test(code)) {
     joinError.textContent = "Enter a room code.";
     return;
   }
   const user = await ensureAnonAuth();
-  const name = displayNameInput.value.trim() || "Player";
+  const name = displayNameInput.value.trim().slice(0, 40) || "Player";
   const roomDoc = state.roomId
     ? await getDoc(doc(db, "rooms", state.roomId))
     : null;
-  let room = roomDoc?.exists() ? roomDoc : null;
+  let room = roomDoc?.exists() && roomDoc.data().roomCode === code ? roomDoc : null;
   if (!room) {
     const q = query(collection(db, "rooms"), where("roomCode", "==", code));
     const snap = await getDocs(q);
@@ -128,12 +130,21 @@ async function joinRoom() {
     joinError.textContent = "Room not found.";
     return;
   }
-  await setDoc(doc(collection(room.ref, "players"), user.uid), {
-    name,
-    team: state.team,
-    joinedAt: serverTimestamp(),
-    isHost: false
+  const team = teamSelect.value;
+  let isHost = false;
+  await runTransaction(db, async tx => {
+    const fresh = await tx.get(room.ref);
+    if (!fresh.exists() || fresh.data().status === "ended") throw new Error("Room is no longer available.");
+    if (!Object.prototype.hasOwnProperty.call(fresh.data().scores || {}, team)) throw new Error("Choose a valid team for this room.");
+    const ref = doc(db, "rooms", room.id, "players", user.uid);
+    const member = await tx.get(ref);
+    isHost = fresh.data().hostUid === user.uid;
+    if (member.exists() && member.data().team !== team && fresh.data().status !== "lobby") {
+      throw new Error("Team changes are only allowed in the lobby.");
+    }
+    tx.set(ref, { name, team, joinedAt: member.data()?.joinedAt || serverTimestamp(), isHost });
   });
+  state.team = team;
   localStorage.setItem("atom_buzzer_profile", JSON.stringify({
     name,
     team: state.team
@@ -145,7 +156,7 @@ async function joinRoom() {
       team: state.team
     }).catch(() => {});
   }
-  window.location.href = `buzzer_room_player.html?roomId=${room.id}`;
+  window.location.href = `${isHost ? "buzzer_room.html" : "buzzer_room_player.html"}?roomId=${encodeURIComponent(room.id)}`;
 }
 
 async function lookupRoomTeams(code) {
@@ -153,6 +164,7 @@ async function lookupRoomTeams(code) {
   const q = query(collection(db, "rooms"), where("roomCode", "==", code));
   const snap = await getDocs(q);
   if (snap.empty) throw new Error("not found");
+  if (joinCodeInput.value.trim() !== code) return;
   const roomDoc = snap.docs[0];
   const data = roomDoc.data();
   const teamCount = data?.settings?.teamCount || 2;
@@ -163,10 +175,18 @@ async function lookupRoomTeams(code) {
 }
 
 joinRoomBtn.addEventListener("click", () => {
+  if (joinRoomBtn.disabled) return;
+  joinRoomBtn.disabled = true;
   joinRoom().catch((err) => {
     console.error(err);
-    joinError.textContent = "Join failed. Try again.";
-  });
+    joinError.textContent = `Join failed: ${err.message || "Check Firebase permissions and connection."}`;
+  }).finally(() => { joinRoomBtn.disabled = false; });
 });
 
 
+
+const invitedCode = new URLSearchParams(window.location.search).get("code");
+if (invitedCode) {
+  joinCodeInput.value = invitedCode;
+  joinCodeInput.dispatchEvent(new Event("input"));
+}

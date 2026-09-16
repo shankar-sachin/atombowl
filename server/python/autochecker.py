@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+import math
 
 NUMBER_WORDS = {
     "zero": "0",
@@ -167,7 +168,26 @@ def autocorrect_tokens(user_tokens, cand_tokens):
     return corrected
 
 
+def numeric_answer(raw):
+    value = str(raw or "").strip().replace("−", "-")
+    value = NUMBER_WORDS.get(value.lower(), value)
+    atom = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
+    if not re.fullmatch(atom + r"(?:\s*/\s*" + atom + r")?", value):
+        return None
+    parts = value.split("/")
+    try:
+        number = float(parts[0]) / (float(parts[1]) if len(parts) == 2 else 1)
+        return number if math.isfinite(number) else None
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
 def grade_short_answer(user_answer, correct_answer, threshold):
+    numeric = numeric_answer(correct_answer)
+    if numeric is not None:
+        candidate = numeric_answer(user_answer)
+        correct = candidate is not None and candidate == numeric
+        return {"isCorrect": correct, "score": 1.0 if correct else 0.0, "matched": str(correct_answer)}
     user = normalize(user_answer)
     candidates = [normalize(c) for c in split_candidates(correct_answer)]
     candidates = [c for c in candidates if c]

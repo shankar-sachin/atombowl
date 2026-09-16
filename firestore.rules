@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+      match /{document=**} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+    match /usernames/{username} {
+      // Legacy documents containing email stay private until administratively sanitized.
+      allow get: if !exists(/databases/$(database)/documents/usernames/$(username))
+        || resource.data.keys().hasOnly(['uid', 'username'])
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow list: if false;
+      allow create: if signedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && username.matches('^[a-z0-9]{3,20}$')
+        && request.resource.data.keys().hasOnly(['uid', 'username'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == username
+        && getAfter(/databases/$(database)/documents/users/$(request.auth.uid)).data.profile.username == username;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.username == username
+        && request.resource.data.keys().hasOnly(['uid', 'username']);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /rooms/{roomId} {
+      function isHost() { return signedIn() && resource.data.hostUid == request.auth.uid; }
+      function validBuzz() {
+        let old = resource.data;
+        let next = request.resource.data;
+        let player = get(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid)).data;
+        return next.diff(old).affectedKeys().hasOnly(['currentBuzz', 'status', 'timers'])
+          && old.currentBuzz == null
+          && old.status in ['tossup_open', 'bonus_open']
+          && (old.timers == null || old.timers.phaseEndAt > request.time.toMillis())
+          && player.team in old.scores
+          && (old.status != 'bonus_open' || old.bonusTeam == player.team)
+          && (old.status != 'tossup_open' || !(player.team in old.get('lockoutTeams', [old.lockoutTeam])))
+          && next.status == (old.status == 'bonus_open' ? 'bonus_locked' : 'tossup_locked')
+          && next.timers == null
+          && next.currentBuzz.keys().hasOnly(['uid', 'name', 'team', 'at'])
+          && next.currentBuzz.uid == request.auth.uid
+          && next.currentBuzz.name == player.name
+          && next.currentBuzz.team == player.team
+          && next.currentBuzz.at is number;
+      }
+      allow read: if signedIn();
+      allow create: if signedIn() && roomId == request.resource.data.roomCode
+        && roomId.matches('^[A-Z0-9]{5}$')
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.status == 'lobby'
+        && request.resource.data.currentBuzz == null
+        && request.resource.data.roomName is string
+        && request.resource.data.roomName.size() <= 80
+        && request.resource.data.settings.teamCount in [2, 3, 4]
+        && request.resource.data.settings.tuTime >= 1 && request.resource.data.settings.tuTime <= 300
+        && request.resource.data.settings.bonusTime >= 1 && request.resource.data.settings.bonusTime <= 300;
+      allow update: if signedIn() && (
+        (isHost() && request.resource.data.hostUid == resource.data.hostUid
+          && request.resource.data.roomCode == resource.data.roomCode)
+        || validBuzz());
+      allow delete: if isHost();
+      match /players/{uid} {
+        function roomAfter() { return getAfter(/databases/$(database)/documents/rooms/$(roomId)).data; }
+        function validPlayer() {
+          let room = roomAfter();
+          return request.resource.data.keys().hasOnly(['name', 'team', 'joinedAt', 'isHost'])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+            && request.resource.data.team in room.scores
+            && request.resource.data.isHost == (room.hostUid == uid)
+            && room.status != 'ended';
+        }
+        allow read: if signedIn();
+        allow create: if signedIn() && request.auth.uid == uid && validPlayer();
+        allow update: if signedIn() && request.auth.uid == uid && validPlayer()
+          && request.resource.data.joinedAt == resource.data.joinedAt
+          && (request.resource.data.team == resource.data.team || roomAfter().status == 'lobby');
+        allow delete: if signedIn() && (request.auth.uid == uid
+          || get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid);
+      }
+    }
+  }
+}

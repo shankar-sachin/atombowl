@@ -139,7 +139,23 @@
     });
   }
 
+  function numericAnswer(raw) {
+    let value = String(raw ?? '').trim().replace(/−/g, '-');
+    value = NUMBER_WORDS.get(value.toLowerCase()) || value;
+    const atom = '[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?';
+    if (!new RegExp('^' + atom + '(?:\\s*/\\s*' + atom + ')?$').test(value)) return null;
+    const parts = value.split('/');
+    const number = Number(parts[0]) / (parts.length === 2 ? Number(parts[1]) : 1);
+    return Number.isFinite(number) ? number : null;
+  }
+
   function gradeShortAnswer(userAnswer, correctAnswer, threshold) {
+    const numeric = numericAnswer(correctAnswer);
+    if (numeric !== null) {
+      const candidate = numericAnswer(userAnswer);
+      const correct = candidate !== null && candidate === numeric;
+      return { isCorrect: correct, score: correct ? 1 : 0, matched: String(correctAnswer) };
+    }
     const user = normalize(userAnswer);
     const candidates = splitCandidates(correctAnswer).map(normalize).filter(Boolean);
     if (!user || !candidates.length) return { isCorrect: false, score: 0, matched: '' };
