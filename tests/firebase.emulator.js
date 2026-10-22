@@ -88,18 +88,3 @@ test('private accounts are owner-only and username reservation atomically create
  });
  await assertFails(sdk.getDoc(sdk.doc(publicDB, 'usernames', 'legacy')));
 });
-test('HTTP server serves the site, validates malformed queries, and runs repaired APIs', async () => {
- const { app } = require('../server');
- const server = await new Promise(resolve => { const instance = app.listen(0, '127.0.0.1', () => resolve(instance)); });
- const base = `http://127.0.0.1:${server.address().port}`;
- try {
-  const page = await fetch(base + '/account.html'); assert.equal(page.status, 200); assert.match(await page.text(), /resetPasswordBtn/);
-  const health = await fetch(base + '/api/health'); assert.equal((await health.json()).ok, true);
-  const invalid = await fetch(base + '/api/validate?checks[x]=bad'); assert.equal(invalid.status, 400);
-  const search = await fetch(base + '/api/search?pageSize=1'); const result = await search.json();
-  assert.equal(search.status, 200); assert.equal(result.engine, 'ruby'); assert.equal(result.items.length, 1);
-  const stats = await fetch(base + '/api/stats'); assert.equal(stats.status, 200); assert.ok((await stats.json()).total > 0);
-  const grade = await fetch(base + '/api/grade', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correctAnswer: '-1', userAnswer: '1', questionType: 'SA' }) });
-  assert.equal(grade.status, 200); assert.equal((await grade.json()).isCorrect, false);
- } finally { await new Promise(resolve => server.close(resolve)); }
-});

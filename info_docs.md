@@ -12,8 +12,8 @@
 - Click the `Advanced Filters` button to explore 20+ subtopics of the main NSB topics
 - When you're ready, choose from the 6 different game modes at the bottom
 - The "moderator" will read out the question (Note: text and speech will not be 100% synced) and text will follow in typewriter format, letter by letter, when you know the answer, buzz using the spacebar or click on the question
-- Autocorrect is powered by AtomCorrect(R) which uses Python to create a perfect auto-correcting system (turn off in settings)
-- This experience is powered by the Atom Engine, which works on Python and TypeScript to create powerful autocorrect features and synced text and speech
+- Autocorrect is powered by AtomCorrect(R) which uses TypeScript to create a perfect auto-correcting system (turn off in settings)
+- This experience is powered by the Atom Engine, which works on TypeScript to create powerful autocorrect features and synced text and speech
 
 ## Step 2a - Practice Rules (NSB rules)
 - Buzzing correctly on a tossup will result in 4 points added to your score
@@ -39,7 +39,7 @@
 - You will see upon entering the Question Bank that there are three important options
 ### Filters
 - Filters match questions based on bank, division, and topic
-- Filters uses a specialized and efficient script built on Ruby to sort questions
+- Filters uses a specialized and efficient TypeScript filter to sort questions
 ### Practice Question
 - Click this button to open the question in the Atom Engine
 - This feature is currently experiencing bugs, so do not expect it to work (Updated 2/12/2026)
@@ -69,7 +69,7 @@
 - Everything is cached and stored on your browser, so you don't need to update your preferences every time you refresh the page
 - Use Ctrl+Shift+R or the `Reset to Defaults` button to reset to default settings and preferences
 - Change the browser voice setting to a different voice
-- Turn on the extremely powerful AtomCorrect(R) powered by Python
+- Turn on the extremely powerful AtomCorrect(R) powered by TypeScript
 
 ## Step 7 - Game Clock
 - Click the `Buzzers` dropdown and then select Game Clock or click [this link](https://atom-bowl.github.io/Atom_Bowl/game_clock.html)

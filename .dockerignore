@@ -1,9 +1,0 @@
-node_modules
-.git
-.github
-docs/**/*.map
-*.log
-*.md
-README.md
-Dockerfile
-.dockerignore

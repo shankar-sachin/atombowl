@@ -120,44 +120,6 @@
     let ttsEnabled = settings.tts;
     let autoCheckEnabled = !!settings.autoCheck;
     let autoCheckThreshold = Number((_b = settings.autoThreshold) !== null && _b !== void 0 ? _b : 0.72);
-    let serverOk = false;
-    const API_BASE = window.ATOM_API_BASE || '';
-    function apiUrl(path) {
-        if (!API_BASE)
-            return path;
-        return `${API_BASE.replace(/\/+$/, '')}${path}`;
-    }
-    async function checkServer() {
-        if (window.location.protocol === 'file:')
-            return false;
-        try {
-            const res = await fetch(apiUrl('/api/health'), { cache: 'no-store' });
-            return !!res.ok;
-        }
-        catch {
-            return false;
-        }
-    }
-    const serverCheckPromise = checkServer().then((ok) => {
-        serverOk = ok;
-        return ok;
-    });
-    async function fetchJsonWithTimeout(url, options, timeoutMs = 1500) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const res = await fetch(url, { ...options, signal: controller.signal });
-            if (!res.ok)
-                return null;
-            return await res.json();
-        }
-        catch {
-            return null;
-        }
-        finally {
-            clearTimeout(timer);
-        }
-    }
     async function gradeAnswer(userAnswer, correctAnswer, questionType) {
         if (!autoCheckEnabled)
             return null;
@@ -167,16 +129,6 @@
             questionType,
             threshold: autoCheckThreshold
         };
-        if (serverOk) {
-            const data = await fetchJsonWithTimeout(apiUrl('/api/grade'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }, 2000);
-            if (data && typeof data.isCorrect !== 'undefined')
-                return data;
-            serverOk = false;
-        }
         if (window.autoChecker) {
             return window.autoChecker.grade(payload);
         }

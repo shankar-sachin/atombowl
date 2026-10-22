@@ -22,15 +22,15 @@ Note: Atom Bowl v1 is coming! It will include AI Generate using Gemini API, a wo
 - 🆕 **New Features from v0.9.1 update**
   - Buzzer Rooms v1
   - Game Clock
-  - Autocorrect (using efficient Python scripts)
+  - Autocorrect (runs in the browser, written in TypeScript)
   - Light mode
   - Interrupt
   - AtomScore(R)
   - Learn using 90+ lessons across 6 topics
   - Practice Engine v0.3
   - Subtopics
-  - Strong backend powered by Firebase and Render Docker
-  - Question Bank Upgrade (Bank A + B powered by Ruby)
+  - Backend powered by Firebase (Hosting, Auth, Firestore)
+  - Question Bank Upgrade (Bank A + B, searched in the browser)
 
 - 📚 **Real NSB-style questions**
   - Physics
@@ -47,9 +47,7 @@ Note: Atom Bowl v1 is coming! It will include AI Generate using Gemini API, a wo
 
 - 🧑‍💻 **Used Languages**
   - HTML / CSS / JavaScript for frontend loader
-  - Python for Autocorrect using Render Docker
-  - Ruby for Filter Searching using Render Docker
-  - TypeScript for source code, built using `tsc config`
+  - TypeScript for all logic (autocorrect, search, validation), built using `tsc config`
 
 - 🧩 **Multiple question sets**
   - Clean JSON-based data
@@ -95,3 +93,12 @@ Production dependency audit passes with the pinned lockfile (`npm audit --omit=d
 ## License
 
 Atom Bowl’s original source code is licensed under the [MIT License](LICENSE). Third-party question banks, images, and provider artwork retain their respective licenses and terms.
+
+## Local development + Firebase Hosting
+
+Atom Bowl is fully static: no server, Python or Ruby is needed.
+
+- Build: `npm run build` (compiles `src/ts` into `docs/js`)
+- Preview: `npx firebase emulators:start --only hosting`
+- Deploy: `npx firebase deploy --only hosting`
+- Test: `npm test`

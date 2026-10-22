@@ -1,4 +1,31 @@
 {
+  "hosting": {
+    "site": "atombowl",
+    "public": "docs",
+    "cleanUrls": false,
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map", "**/*.md", "**/.gitkeep"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        ]
+      },
+      {
+        "source": "**/*.@(html|json)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+      },
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
+      },
+      {
+        "source": "**/*.@(png|jpg|jpeg|gif|svg|webp|ico|woff|woff2)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+      }
+    ]
+  },
   "firestore": { "rules": "firestore.rules" },
-  "emulators": { "firestore": { "port": 8080 }, "auth": { "port": 9099 }, "ui": { "enabled": false } }
+  "emulators": { "firestore": { "port": 8080 }, "auth": { "port": 9099 }, "hosting": { "port": 5000 }, "ui": { "enabled": false } }
 }

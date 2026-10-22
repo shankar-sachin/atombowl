@@ -49,7 +49,6 @@ declare global {
     atomNavigate?: (url: string) => void;
     go?: (page: string) => void;
     autoChecker?: AutoChecker;
-    ATOM_API_BASE?: string;
     startRun?: (mode: string) => void;
     bank?: unknown[];
     atomScoreEngine?: AtomScoreEngine;
