@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" role="img" aria-label="Atom Bowl: National Science Bowl practice platform">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16213a"/>
+      <stop offset="0.6" stop-color="#0b0f14"/>
+      <stop offset="1" stop-color="#101a33"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7aa2ff"/>
+      <stop offset="1" stop-color="#4f7cff"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0.4" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.45" stop-color="#9db8ff"/>
+      <stop offset="1" stop-color="#4f7cff"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="320" fill="url(#bg)"/>
+  <g transform="translate(1130 160)" fill="none" stroke="#4f7cff" stroke-opacity="0.18" stroke-width="3">
+    <ellipse rx="330" ry="118"/>
+    <ellipse rx="330" ry="118" transform="rotate(60)"/>
+    <ellipse rx="330" ry="118" transform="rotate(120)"/>
+  </g>
+  <g transform="translate(160 160) scale(0.52) translate(-256 -256)">
+    <g transform="translate(256 256)" fill="none" stroke="url(#orbit)" stroke-width="16" stroke-linecap="round">
+      <ellipse rx="190" ry="68"/>
+      <ellipse rx="190" ry="68" transform="rotate(60)"/>
+      <ellipse rx="190" ry="68" transform="rotate(120)"/>
+    </g>
+    <g transform="translate(256 256)">
+      <circle r="46" fill="url(#core)"/>
+      <circle cx="190" cy="0" r="17" fill="#39d98a"/>
+      <circle cx="-95" cy="164.5" r="17" fill="#ffffff"/>
+      <circle cx="-95" cy="-164.5" r="17" fill="#ff6b6b"/>
+    </g>
+  </g>
+  <g font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="300" y="164" font-size="96" font-weight="800" fill="#e6eaf0" letter-spacing="-2">Atom <tspan fill="#4f7cff">Bowl</tspan></text>
+    <text x="304" y="214" font-size="30" fill="#9aa4b2">Practice, learn and buzz like it's Nationals.</text>
+    <text x="304" y="258" font-size="22" font-weight="600" fill="#6f8cff" letter-spacing="3">NSB PRACTICE  ·  BUZZER ROOMS  ·  25K+ QUESTIONS</text>
+  </g>
+</svg>

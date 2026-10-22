@@ -1,104 +1,76 @@
-# ⚛️ Atom Bowl
+<p align="center">
+  <img src="docs/images/brand/banner.svg" alt="Atom Bowl: practice, learn and buzz like it's Nationals" width="100%">
+</p>
 
-## Note: There are many problems with Atom Bowl right now. For one, the website is quite laggy and needs to be moved to Firebase Hosting.  This will be fixed by the end of this week. Please check back soon.
+<p align="center">
+  <a href="https://atombowl.web.app"><b>Live site</b></a> ·
+  <a href="info_docs.md">How to use</a> ·
+  <a href="https://github.com/shankar-sachin/atombowl/wiki">Wiki</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="SUPPORT.md">Support</a>
+</p>
 
-**Atom Bowl** (current version 0.9.1) is a fast, clean, browser-based question platform designed for **National Science Bowl (NSB)** preparation and it also contains live NSB-like buzzer rooms and game clock settings using Firebase.
-Note: website has changed to [shankar-sachin.github.io/Atom_Bowl](https://shankar-sachin.github.io/Atom_Bowl)
-It focuses on realism, speed, and accuracy along with low latency servers designed for the pros.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-0.9.1-4f7cff" alt="Version 0.9.1">
+  <img src="https://img.shields.io/badge/license-MIT-39d98a" alt="MIT License">
+  <img src="https://img.shields.io/badge/hosting-Firebase-ffca28" alt="Firebase Hosting">
+</p>
+
+**Atom Bowl** is a fast, clean, browser-based practice platform for the **National Science Bowl (NSB)**. It has 25K+ real questions, 90+ lessons, live NSB-style buzzer rooms and a game clock, all running in the browser with no frameworks.
 
 ![Demo](docs/data/demo.gif)
 
+## Features
 
-Built for students who want to grind questions the way real rounds feel and host buzzing rounds with unmatched realism.
+- **Practice Engine**: tossup/bonus rounds with a typewriter moderator, interrupts, subtopic filters and NSB scoring.
+- **Question Bank**: Bank A (DOE questions, image format) and Bank B (text format), searched and filtered in the browser.
+- **Learn**: 90+ lessons across the NSB categories, stored as JSON.
+- **Buzzer Rooms**: live rooms with moderator controls, teams and first-buzz resolution, backed by Firestore.
+- **Game Clock**: team names, timers, scores and penalties.
+- **AtomCorrect** and **AtomScore**: in-browser answer grading and scoring, written in TypeScript.
+- **Accounts**: Google and email sign-in through Firebase Authentication.
+- Light and dark mode.
 
-Note: Atom Bowl v1 is coming! It will include AI Generate using Gemini API, a working Accounts and Authentication system, along with adding a Bank C with more questions!
+Coming in v1.0: AI Generate and Tutor, and a Bank C of invitational and regional questions.
 
-🔗 **Live site:** [shankar-sachin.github.io/Atom_Bowl](https://shankar-sachin.github.io/Atom_Bowl)
-ℹ️ **Info Docs (How to Use)** <https://www.github.com/atom-bowl/Atom_Bowl/info_docs.md>
+## Tech
 
----
+Plain HTML, CSS and TypeScript (compiled with `tsc`) on Firebase Hosting, Authentication and Firestore. There is no backend server: grading, search and bank tools all run in the browser.
 
-## 🚀 Features
-- 🆕 **New Features from v0.9.1 update**
-  - Buzzer Rooms v1
-  - Game Clock
-  - Autocorrect (runs in the browser, written in TypeScript)
-  - Light mode
-  - Interrupt
-  - AtomScore(R)
-  - Learn using 90+ lessons across 6 topics
-  - Practice Engine v0.3
-  - Subtopics
-  - Backend powered by Firebase (Hosting, Auth, Firestore)
-  - Question Bank Upgrade (Bank A + B, searched in the browser)
+## Development
 
-- 📚 **Real NSB-style questions**
-  - Physics
-  - Chemistry
-  - Biology
-  - Earth & Space Science
-  - Math
-  - General Science
-  - Astronomy
+Use Node.js 22 or 24.
 
-- ⚡ **Instant loading**
-  - Pure HCJ Stack for Frontend
-  - No frameworks, no bloat
+```bash
+npm ci                                  # install dependencies
+npm run build                           # compile src/ts into docs/js and copy HTML/CSS into docs/
+npx firebase emulators:start --only hosting   # preview at http://localhost:5000
+npm test                                # unit tests
+npm run test:firebase                   # Firestore rules tests (needs Java 21+)
+```
 
-- 🧑‍💻 **Used Languages**
-  - HTML / CSS / JavaScript for frontend loader
-  - TypeScript for all logic (autocorrect, search, validation), built using `tsc config`
+`docs/` is the built site and is committed. It is the Firebase Hosting public directory. Edit `src/`, never `docs/js`.
 
-- 🧩 **Multiple question sets**
-  - Clean JSON-based data
-  - Easy to expand and maintain
+Deploy (maintainers only):
 
-- 📖 **Over 90+ target-based lessons**
-  - Easy-to-access JSON-based datta
-  - Mainstream focused NSB-oriented lessons
-  - Throughout all 6 official NSB categories + General Science
+```bash
+npm run build
+npx firebase deploy --only hosting      # https://atombowl.web.app
+npx firebase deploy --only firestore:rules
+```
 
-- 🎯 **Practice-focused design**
-  - Straight to the question
-  - No distractions
-  - Built for repetition and speed
+See [Firebase setup](src/data/firebase_rules.md) for sign-in providers, authorized domains and rules.
 
----
+## Contributing
 
-## Features Under Development
-
-- Generate using AI (Gemini 3.0 and Llama)
-- Accounts (available for testing)
+Always open a pull request. Never push to `main`. See [CONTRIBUTING.md](CONTRIBUTING.md). Report security problems as described in [SECURITY.md](SECURITY.md), and read the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Credits
-- Question Bank A goes to official DOE questions parsed by @arxenix. @arxenix did not contribute to code, only to sets
-- Question Bank B goes to SciBowlDB's official question bank.
-- Question Bank C is coming soon from smaller invitationals and niche competitions.
 
-## Get going at <https://atom-bowl.github.io/Atom_Bowl/>
-
-*Last updated 2/12/2026 at 6:28 PM*
-
-
-## Development and Firebase setup
-
-Use Node.js 22 or 24. Run `npm ci`, `npm run build`, and `npm start` to serve the site and APIs locally. The build compiles TypeScript and copies source HTML/CSS to `docs`, the deployed site directory. `npm run build:watch` watches TypeScript only.
-
-- `npm test`: account, room-state, answer-grading, and backend regression tests.
-- `npm run test:firebase`: real Firestore emulator rules and transaction tests, including simultaneous buzzes. Requires Java 21+; the first run downloads the emulator.
-- [Firebase setup](src/data/firebase_rules.md): providers, authorized domains, legacy username migration, room rules, and staging verification. Deploy the new client and reviewed rules together; no production configuration is changed by building this repository.
-
-Production dependency audit passes with the pinned lockfile (`npm audit --omit=dev`). The Firebase CLI currently brings seven moderate development-only audit findings; resolving those requires upstream dependency updates or a separately reviewed toolchain change.
+- Question Bank A: official DOE questions parsed by @arxenix (sets only, no code).
+- Question Bank B: SciBowlDB's question bank.
+- Question Bank C: coming from smaller invitationals and niche competitions.
 
 ## License
 
-Atom Bowl’s original source code is licensed under the [MIT License](LICENSE). Third-party question banks, images, and provider artwork retain their respective licenses and terms.
-
-## Local development + Firebase Hosting
-
-Atom Bowl is fully static: no server, Python or Ruby is needed.
-
-- Build: `npm run build` (compiles `src/ts` into `docs/js`)
-- Preview: `npx firebase emulators:start --only hosting`
-- Deploy: `npx firebase deploy --only hosting`
-- Test: `npm test`
+Atom Bowl's original source code is licensed under the [MIT License](LICENSE). Third-party question banks, images and provider artwork keep their own licenses and terms.
