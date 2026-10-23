@@ -21,6 +21,14 @@
 
 **Atom Bowl** is a fast, clean, browser-based practice platform for the **National Science Bowl (NSB)**. It has 25K+ real questions, 90+ lessons, live NSB-style buzzer rooms and a game clock, all running in the browser with no frameworks.
 
+## Watch the tour
+
+<p align="center">
+  <a href="https://github.com/shankar-sachin/atombowl/blob/main/docs/data/tour.mp4">
+    <img src="docs/images/brand/tour-thumb.jpg" alt="Watch the 36-second Atom Bowl tour" width="720">
+  </a>
+</p>
+
 ![Demo](docs/data/demo.gif)
 
 ## Features
