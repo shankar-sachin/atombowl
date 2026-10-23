@@ -1,2 +1,4 @@
 node_modules/
 .secret.local
+.vercel
+.env*.local

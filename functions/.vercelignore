@@ -1,0 +1,6 @@
+# Secrets and local-only settings never leave this machine; Vercel gets its settings from
+# the project's environment variables.
+.secret.local
+.env
+.env.*
+node_modules

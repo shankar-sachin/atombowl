@@ -1,8 +1,9 @@
-// Status page (/status): polls the `ai` function's public `health` action once a minute.
+// Status page (/status): polls the `ai` endpoint's public `health` action once a minute.
 // It posts the callable protocol by hand ({data} in, {result} out) so it needs no Firebase SDK
 // and still loads when the rest of the AI stack is broken.
 (() => {
-  const PROD_URL = 'https://us-central1-nsbatombowl.cloudfunctions.net/ai';
+  // Same as AI_URL in ai_client.ts: the Vercel function (functions/api/ai.js).
+  const PROD_URL = 'https://atombowl-ai.vercel.app/api/ai';
   const EMULATOR_URL = 'http://127.0.0.1:5001/nsbatombowl/us-central1/ai';
   const REFRESH_MS = 60 * 1000;
   const TIMEOUT_MS = 15 * 1000;

@@ -1,12 +1,17 @@
 // @ts-nocheck
-// Calls the `ai` Cloud Function (functions/index.js) for Tutor and Generate.
-// The function checks sign-in and credits; this module only shapes requests and errors.
+// Calls the `ai` endpoint for Tutor and Generate: functions/api/ai.js on Vercel in production,
+// or the same logic as a Firebase callable (functions/index.js) in the local emulators.
+// The server checks sign-in and credits; this module only shapes requests and errors.
 import { app, useEmulators } from "./firebase.js";
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
+import { getFunctions, httpsCallable, httpsCallableFromURL, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-functions.js";
+// Also in status.ts, which loads without the Firebase SDK.
+export const AI_URL = "https://atombowl-ai.vercel.app/api/ai";
 const functions = getFunctions(app, "us-central1");
 if (useEmulators)
     connectFunctionsEmulator(functions, "127.0.0.1", 5001);
-const callAi = httpsCallable(functions, "ai", { timeout: 70000 });
+const callAi = useEmulators
+    ? httpsCallable(functions, "ai", { timeout: 70000 })
+    : httpsCallableFromURL(functions, AI_URL, { timeout: 70000 });
 // The live status page (src/html/status.html, served at /status by a hosting rewrite).
 export const STATUS_URL = "https://atombowl.web.app/status";
 export const API_ISSUE_MESSAGE = `We're extremely sorry. There seems to be an API issue. We're fixing it. Check the live status at: ${STATUS_URL}`;
