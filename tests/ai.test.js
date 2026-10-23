@@ -126,3 +126,65 @@ test('health checks report whether the configured model is still listed', async 
   assert.equal((await checkModel({ provider: 'groq', apiKey: 'g', fetchImpl: reply({ error: { message: 'Invalid API Key' } }, 401) })).ok, false);
   assert.deepEqual(await checkModel({ provider: 'groq', apiKey: '' }), { ok: false, detail: 'AI_API_KEY is not set' });
 });
+
+test('the Vercel endpoint speaks the callable protocol and only allows the site origins', async () => {
+  const { allowedOrigin, corsHeaders, bearerToken, errorResponse } = await lib('http');
+  const { AiError } = await lib('service');
+  assert.ok(allowedOrigin('https://atombowl.web.app'));
+  assert.ok(allowedOrigin('http://localhost:5056'));
+  assert.ok(!allowedOrigin('https://evil.example'));
+  assert.equal(corsHeaders('https://evil.example')['Access-Control-Allow-Origin'], undefined);
+  assert.equal(corsHeaders('https://nsbatombowl.firebaseapp.com')['Access-Control-Allow-Origin'], 'https://nsbatombowl.firebaseapp.com');
+  assert.equal(bearerToken('Bearer abc.def'), 'abc.def');
+  assert.equal(bearerToken('Basic x'), '');
+  const credits = { remaining: 0 };
+  assert.deepEqual(errorResponse(new AiError('resource-exhausted', 'No credits', { credits })),
+    { status: 429, body: { error: { status: 'RESOURCE_EXHAUSTED', message: 'No credits', details: { credits } } } });
+  assert.deepEqual(errorResponse(new Error('db password is hunter2')), { status: 500, body: { error: { status: 'INTERNAL', message: 'INTERNAL' } } });
+});
+
+test('the ai service charges, refunds and routes models', async () => {
+  const { createAiService, AiError } = await lib('service');
+  const docs = new Map();
+  const ref = (path) => ({ path, get: async () => ({ data: () => docs.get(path) }) });
+  const db = {
+    doc: ref,
+    runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, value) => docs.set(r.path, value) })
+  };
+  const calls = [];
+  let reply = 'Because.';
+  const service = createAiService({
+    config: () => ({ provider: 'groq', model: 'big', followUpModel: 'small', apiKey: 'k', dailyCredits: 5 }),
+    getDb: () => ({ db, serverTimestamp: () => 'now' }),
+    logger: { warn() {} },
+    completeImpl: async (args) => {
+      calls.push(args);
+      if (reply instanceof Error) throw reply;
+      return reply;
+    },
+    checkModelImpl: async ({ model }) => (model === 'small' ? { ok: false, detail: 'gone' } : { ok: true })
+  });
+  const user = { uid: 'u1', token: { firebase: { sign_in_provider: 'password' } } };
+
+  await assert.rejects(service.handle({ action: 'status' }, null), (e) => e instanceof AiError && e.code === 'unauthenticated');
+  await assert.rejects(service.handle({ action: 'status' }, { uid: 'a', token: { firebase: { sign_in_provider: 'anonymous' } } }), (e) => e.code === 'permission-denied');
+
+  const first = await service.handle({ action: 'tutor', messages: [{ role: 'user', text: 'Why?' }] }, user);
+  assert.equal(first.reply, 'Because.');
+  assert.equal(first.credits.remaining, 4);
+  assert.equal(calls[0].model, 'big');
+  await service.handle({ action: 'tutor', messages: [{ role: 'user', text: 'Why?' }, { role: 'assistant', text: 'Because.' }, { role: 'user', text: 'And?' }] }, user);
+  assert.equal(calls[1].model, 'small');
+
+  reply = new Error('boom');
+  await assert.rejects(service.handle({ action: 'tutor', thinking: true, messages: [{ role: 'user', text: 'Why?' }] }, user),
+    (e) => e.code === 'unavailable' && e.details.credits.remaining === 3);
+  assert.equal(docs.get('aiUsage/u1').used, 2);
+  docs.set('aiUsage/u3', { day: new Date().toISOString().slice(0, 10), used: 4 });
+  await assert.rejects(service.handle({ action: 'tutor', thinking: true, messages: [{ role: 'user', text: 'Why?' }] }, { ...user, uid: 'u3' }),
+    (e) => e.code === 'resource-exhausted' && /needs 3 credits/.test(e.message));
+
+  const health = await service.handle({ action: 'health' }, null);
+  assert.equal(health.ok, false);
+  assert.deepEqual([health.models.main.ok, health.models.followUp.detail], [true, 'gone']);
+});

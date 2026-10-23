@@ -35,7 +35,7 @@ Signed-in players also get **Generate** (new toss-ups and bonuses on a topic you
 
 ## Tech
 
-Plain HTML, CSS and TypeScript (compiled with `tsc`) on Firebase Hosting, Authentication and Firestore. Grading, search and bank tools all run in the browser. The only server code is one Cloud Function (`functions/`) that runs Generate and Tutor: it checks sign-in, charges daily credits and calls the AI model (Gemini or Groq), so the API key never reaches the browser.
+Plain HTML, CSS and TypeScript (compiled with `tsc`) on Firebase Hosting, Authentication and Firestore. Grading, search and bank tools all run in the browser. The only server code is one endpoint (`functions/`) that runs Generate and Tutor: it checks sign-in, charges daily credits and calls the AI model (Gemini or Groq), so the API key never reaches the browser. It runs on Vercel's free plan (`functions/api/ai.js`), since Firebase Cloud Functions need the paid Blaze plan; the Firebase emulators run the same logic as a callable (`functions/index.js`).
 
 ## Development
 
@@ -57,7 +57,10 @@ Deploy (maintainers only):
 npm run build
 npx firebase deploy --only hosting      # https://atombowl.web.app
 npx firebase deploy --only firestore:rules
+cd functions && vercel deploy --prod    # https://atombowl-ai.vercel.app/api/ai
 ```
+
+The Vercel project needs two secret environment variables: `AI_API_KEY` (the Groq or Gemini key) and `FIREBASE_SERVICE_ACCOUNT` (a Firebase service account key's JSON). Live AI status: https://atombowl.web.app/status
 
 See [Firebase setup](src/data/firebase_rules.md) for sign-in providers, authorized domains and rules.
 
