@@ -2,198 +2,196 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Atom Bowl -- Game Clock</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Game clock | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="A question timer, a half clock with cues, and a score keeper for two teams." />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/game_clock.css">
 </head>
-<body class="page-transition page-enter">
-
-  <div class="waves" aria-hidden="true">
-    <svg viewBox="0 0 1440 320" preserveAspectRatio="none">
-      <path class="wave1" fill="rgba(79,124,255,0.20)" d="M0,224L48,229.3C96,235,192,245,288,229.3C384,213,480,171,576,154.7C672,139,768,149,864,176C960,203,1056,245,1152,250.7C1248,256,1344,224,1392,208L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-      <path class="wave2" fill="rgba(57,217,138,0.10)" d="M0,256L60,229.3C120,203,240,149,360,138.7C480,128,600,160,720,170.7C840,181,960,171,1080,186.7C1200,203,1320,245,1380,266.7L1440,288L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
-    </svg>
-  </div>
-
-        <div class="nav" id="nav">
-    <h2 class="nav-title">&#x269B; Atom Bowl</h2>
-    <a href="index.html"><span class="icon">&#x1F3E0;</span> Home</a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span> Generate</a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span> Practice</a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span> Question Bank</a>
-    <a href="learn.html"><span class="icon">&#x1F9E0;</span> Learn</a>
-    <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-    <div class="nav-more" data-nav-more>
-      <button class="nav-more-btn" type="button" aria-haspopup="true" aria-expanded="false">...</button>
-      <div class="nav-more-menu">
-        <a href="game_clock.html">Game Clock</a>
-        <a href="buzzer_rooms.html">Buzzer Rooms</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="overlay" id="overlay"></div>
-  <div class="hamburger" id="hamburger">&#x2630;</div>
-
-  <main class="main">
-    <div class="header">
+<body>
+  <main class="main clock-page">
+    <header class="header">
       <div>
-        <h1 class="title">Game Clock</h1>
-        <div class="subtitle">Quick utilities for running live games.</div>
+        <h1 class="title">Game clock</h1>
+        <p class="subtitle">Timers and a score keeper for a live match. Everything runs in this tab.</p>
       </div>
-    </div>
+    </header>
 
-    <div class="cards">
-      <div class="top-row">
-        <section class="card pop timer-card">
-          <h3>Question Timer</h3>
-          <div class="timer-display" id="timerDisplay">00:20</div>
-          <div class="timer-modes" role="tablist" aria-label="Timer mode">
-            <button class="mode-btn active" type="button" data-duration="20" data-label="Bonus 20s">Bonus 20s</button>
-            <button class="mode-btn" type="button" data-duration="5" data-label="Tossup 5s">Tossup 5s</button>
-          </div>
-          <div class="timer-controls">
-            <button class="btn" id="timerStart" type="button">Start</button>
-            <button class="btn" id="timerPause" type="button">Pause</button>
-            <button class="btn ghost" id="timerReset" type="button">Reset</button>
-          </div>
-          <div class="timer-meta" id="timerMeta">Mode: Bonus 20s</div>
-        </section>
-
-        <section class="card pop game-clock-card">
-          <div class="card-head">
-            <div>
-              <h3>Game Clock</h3>
-              <div class="card-subtitle">Custom length with cues and a 0-second buzzer.</div>
-            </div>
-          </div>
-          <div class="game-clock-display" id="gameClockDisplay">08:00</div>
-          <div class="game-clock-settings">
-            <label>
-              Minutes
-              <input id="gameMinutes" type="number" min="0" max="99" value="8" />
-            </label>
-            <label>
-              Seconds
-              <input id="gameSeconds" type="number" min="0" max="59" value="0" />
-            </label>
-          </div>
-          <div class="game-cues">
-            <label><input type="checkbox" id="cueOneMin" checked> Cue at 1:00</label>
-            <label><input type="checkbox" id="cueThirty" checked> Cue at 0:30</label>
-            <label><input type="checkbox" id="cueSound" checked> Sound at 0s</label>
-          </div>
-          <div class="timer-controls">
-            <button class="btn" id="gameStart" type="button">Start</button>
-            <button class="btn" id="gamePause" type="button">Pause</button>
-            <button class="btn ghost" id="gameReset" type="button">Reset</button>
-          </div>
-        </section>
-      </div>
-
-      <section class="card pop score-card">
-        <div class="card-head">
+    <div class="clock-row">
+      <section class="panel timer-panel" aria-labelledby="timerTitle">
+        <div class="panel-head">
           <div>
-            <h3>NSB Score Calculator</h3>
-            <div class="card-subtitle">Standard scoring: tossup 4, bonus 10, interrupt -4.</div>
-          </div>
-          <button class="btn ghost" id="resetAll" type="button">Reset All</button>
-        </div>
-
-        <div class="scoreboard">
-          <div class="team-head">
-            <input class="team-name" type="text" value="Team A" aria-label="Team A name" />
-            <div class="team-score">
-              <span class="label">Score</span>
-              <span class="value" data-score data-team="A">0</span>
-            </div>
-          </div>
-          <div class="team-head">
-            <input class="team-name" type="text" value="Team B" aria-label="Team B name" />
-            <div class="team-score">
-              <span class="label">Score</span>
-              <span class="value" data-score data-team="B">0</span>
-            </div>
+            <h2 id="timerTitle">Question timer</h2>
+            <p class="muted">A 20 second bonus or a 5 second toss-up countdown.</p>
           </div>
         </div>
 
-        <div class="stat-grid">
-          <div class="stat-group">
-            <div class="stat-label">Tossups</div>
-            <div class="stat-controls">
-              <button class="stat-btn" data-action="dec" data-stat="tossup" data-team="A" type="button">-</button>
-              <span class="stat-value" data-stat="tossup" data-team="A">0</span>
-              <button class="stat-btn" data-action="inc" data-stat="tossup" data-team="A" type="button">+</button>
-            </div>
-            <div class="stat-controls">
-              <button class="stat-btn" data-action="dec" data-stat="tossup" data-team="B" type="button">-</button>
-              <span class="stat-value" data-stat="tossup" data-team="B">0</span>
-              <button class="stat-btn" data-action="inc" data-stat="tossup" data-team="B" type="button">+</button>
-            </div>
-          </div>
+        <div class="tab-row mode-row" role="group" aria-label="Timer mode">
+          <button class="tab mode-btn active" type="button" data-duration="20" data-label="Bonus, 20 seconds" aria-pressed="true">Bonus, 20 s</button>
+          <button class="tab mode-btn" type="button" data-duration="5" data-label="Toss-up, 5 seconds" aria-pressed="false">Toss-up, 5 s</button>
+        </div>
 
-          <div class="stat-group">
-            <div class="stat-label">Bonuses</div>
-            <div class="stat-controls">
-              <button class="stat-btn" data-action="dec" data-stat="bonus" data-team="A" type="button">-</button>
-              <span class="stat-value" data-stat="bonus" data-team="A">0</span>
-              <button class="stat-btn" data-action="inc" data-stat="bonus" data-team="A" type="button">+</button>
-            </div>
-            <div class="stat-controls">
-              <button class="stat-btn" data-action="dec" data-stat="bonus" data-team="B" type="button">-</button>
-              <span class="stat-value" data-stat="bonus" data-team="B">0</span>
-              <button class="stat-btn" data-action="inc" data-stat="bonus" data-team="B" type="button">+</button>
-            </div>
-          </div>
+        <div class="readout numerals" id="timerDisplay" aria-live="off">00:20</div>
 
-          <div class="stat-group">
-            <div class="stat-label">Interrupts</div>
-            <div class="stat-controls">
-              <button class="stat-btn" data-action="dec" data-stat="interrupt" data-team="A" type="button">-</button>
-              <span class="stat-value" data-stat="interrupt" data-team="A">0</span>
-              <button class="stat-btn" data-action="inc" data-stat="interrupt" data-team="A" type="button">+</button>
-            </div>
-            <div class="stat-controls">
-              <button class="stat-btn" data-action="dec" data-stat="interrupt" data-team="B" type="button">-</button>
-              <span class="stat-value" data-stat="interrupt" data-team="B">0</span>
-              <button class="stat-btn" data-action="inc" data-stat="interrupt" data-team="B" type="button">+</button>
-            </div>
+        <div class="button-row">
+          <button class="btn primary" id="timerStart" type="button"><i data-icon="play"></i>Start</button>
+          <button class="btn" id="timerPause" type="button"><i data-icon="pause"></i>Pause</button>
+          <button class="btn quiet" id="timerReset" type="button"><i data-icon="reset"></i>Reset</button>
+        </div>
+        <p class="timer-meta muted" id="timerMeta">Mode: Bonus, 20 seconds</p>
+      </section>
+
+      <section class="panel clock-panel" aria-labelledby="clockTitle">
+        <div class="panel-head">
+          <div>
+            <h2 id="clockTitle">Half clock</h2>
+            <p class="muted">Set any length, with cues before the end.</p>
           </div>
+        </div>
+
+        <div class="readout numerals" id="gameClockDisplay" aria-live="off">08:00</div>
+
+        <div class="clock-fields">
+          <label class="field">
+            <span class="label">Minutes</span>
+            <input id="gameMinutes" type="number" min="0" max="99" value="8" inputmode="numeric" />
+          </label>
+          <label class="field">
+            <span class="label">Seconds</span>
+            <input id="gameSeconds" type="number" min="0" max="59" value="0" inputmode="numeric" />
+          </label>
+        </div>
+
+        <fieldset class="cue-list">
+          <legend class="label">Cues</legend>
+          <label class="check"><input type="checkbox" id="cueOneMin" checked> Flash at 1:00</label>
+          <label class="check"><input type="checkbox" id="cueThirty" checked> Flash at 0:30</label>
+          <label class="check"><input type="checkbox" id="cueSound" checked> Beep at 0:00</label>
+        </fieldset>
+
+        <div class="button-row">
+          <button class="btn primary" id="gameStart" type="button"><i data-icon="play"></i>Start</button>
+          <button class="btn" id="gamePause" type="button"><i data-icon="pause"></i>Pause</button>
+          <button class="btn quiet" id="gameReset" type="button"><i data-icon="reset"></i>Reset</button>
         </div>
       </section>
     </div>
+
+    <section class="panel score-panel" aria-labelledby="scoreTitle">
+      <div class="panel-head">
+        <div>
+          <h2 id="scoreTitle">Score keeper</h2>
+          <p class="muted">Standard National Science Bowl scoring: toss-up 4, bonus 10, interrupt minus 4.</p>
+        </div>
+        <button class="btn quiet" id="resetAll" type="button"><i data-icon="reset"></i>Reset all</button>
+      </div>
+
+      <div class="teams">
+        <article class="team team-a">
+          <header class="team-head">
+            <input class="team-name" type="text" value="Team A" aria-label="Team A name" />
+            <div class="team-score">
+              <span class="numerals value" data-score data-team="A">0</span>
+              <span class="muted team-points">points</span>
+            </div>
+          </header>
+
+          <div class="stat-row">
+            <div class="stat-label">
+              <span>Toss-ups</span>
+              <span class="muted">4 points each</span>
+            </div>
+            <div class="stat-controls">
+              <button class="stat-btn" data-action="dec" data-stat="tossup" data-team="A" type="button" aria-label="Remove a toss-up, Team A">&minus;4</button>
+              <span class="stat-value numerals" data-stat="tossup" data-team="A">0</span>
+              <button class="stat-btn" data-action="inc" data-stat="tossup" data-team="A" type="button" aria-label="Add a toss-up, Team A">+4</button>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat-label">
+              <span>Bonuses</span>
+              <span class="muted">10 points each</span>
+            </div>
+            <div class="stat-controls">
+              <button class="stat-btn" data-action="dec" data-stat="bonus" data-team="A" type="button" aria-label="Remove a bonus, Team A">&minus;10</button>
+              <span class="stat-value numerals" data-stat="bonus" data-team="A">0</span>
+              <button class="stat-btn" data-action="inc" data-stat="bonus" data-team="A" type="button" aria-label="Add a bonus, Team A">+10</button>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat-label">
+              <span>Interrupts</span>
+              <span class="muted">minus 4 points each</span>
+            </div>
+            <div class="stat-controls">
+              <button class="stat-btn" data-action="dec" data-stat="interrupt" data-team="A" type="button" aria-label="Remove an interrupt, Team A">+4</button>
+              <span class="stat-value numerals" data-stat="interrupt" data-team="A">0</span>
+              <button class="stat-btn penalty" data-action="inc" data-stat="interrupt" data-team="A" type="button" aria-label="Add an interrupt, Team A">&minus;4</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="team team-b">
+          <header class="team-head">
+            <input class="team-name" type="text" value="Team B" aria-label="Team B name" />
+            <div class="team-score">
+              <span class="numerals value" data-score data-team="B">0</span>
+              <span class="muted team-points">points</span>
+            </div>
+          </header>
+
+          <div class="stat-row">
+            <div class="stat-label">
+              <span>Toss-ups</span>
+              <span class="muted">4 points each</span>
+            </div>
+            <div class="stat-controls">
+              <button class="stat-btn" data-action="dec" data-stat="tossup" data-team="B" type="button" aria-label="Remove a toss-up, Team B">&minus;4</button>
+              <span class="stat-value numerals" data-stat="tossup" data-team="B">0</span>
+              <button class="stat-btn" data-action="inc" data-stat="tossup" data-team="B" type="button" aria-label="Add a toss-up, Team B">+4</button>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat-label">
+              <span>Bonuses</span>
+              <span class="muted">10 points each</span>
+            </div>
+            <div class="stat-controls">
+              <button class="stat-btn" data-action="dec" data-stat="bonus" data-team="B" type="button" aria-label="Remove a bonus, Team B">&minus;10</button>
+              <span class="stat-value numerals" data-stat="bonus" data-team="B">0</span>
+              <button class="stat-btn" data-action="inc" data-stat="bonus" data-team="B" type="button" aria-label="Add a bonus, Team B">+10</button>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat-label">
+              <span>Interrupts</span>
+              <span class="muted">minus 4 points each</span>
+            </div>
+            <div class="stat-controls">
+              <button class="stat-btn" data-action="dec" data-stat="interrupt" data-team="B" type="button" aria-label="Remove an interrupt, Team B">+4</button>
+              <span class="stat-value numerals" data-stat="interrupt" data-team="B">0</span>
+              <button class="stat-btn penalty" data-action="inc" data-stat="interrupt" data-team="B" type="button" aria-label="Add an interrupt, Team B">&minus;4</button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
   </main>
 
-      <nav class="bottom-nav" aria-label="Primary">
-    <a href="index.html"><span class="icon">&#x269B;</span><span>Home</span></a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span><span>Generate</span></a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span><span>Practice</span></a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span><span>Bank</span></a>
-    <a href="account.html"><span class="icon">&#x1F464;</span><span>Account</span></a>
-    <div class="bottom-nav-more">
-      <button type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleBottomNavMore(event)">
-        <span class="icon">&#x22EF;</span><span>More</span>
-      </button>
-      <div class="bottom-nav-more-menu">
-        <a href="game_clock.html" class="active"><span class="icon">&#x23F1;&#xFE0F;</span> Game Clock</a>
-        <a href="buzzer_rooms.html"><span class="icon">&#x1F6A8;</span> Buzzer Rooms</a>
-        <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-        <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-      </div>
-    </div>
-  </nav>
-
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/game_clock.js"></script>
 </body>
 </html>
-
-

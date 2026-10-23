@@ -1,7 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const nav = document.getElementById('nav');
-    const overlay = document.getElementById('overlay');
-    const hamburger = document.getElementById('hamburger');
     const startNowBtn = document.getElementById('startNowBtn');
     const downloadPracticeSetBtn = document.getElementById('downloadPracticeSetBtn');
     const homeActionStatus = document.getElementById('homeActionStatus');
@@ -9,19 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!homeActionStatus)
             return;
         homeActionStatus.textContent = message;
-        homeActionStatus.style.color = isError ? '#ff9f9f' : '';
-    }
-    function toggleNav() {
-        if (!nav || !overlay || !hamburger)
-            return;
-        const isOpen = nav.classList.toggle('open');
-        overlay.classList.toggle('show');
-        hamburger.classList.toggle('open');
-        hamburger.textContent = isOpen ? 'X' : '|||';
-    }
-    if (hamburger && overlay) {
-        hamburger.addEventListener('click', toggleNav);
-        overlay.addEventListener('click', toggleNav);
+        homeActionStatus.classList.toggle('error', isError);
     }
     function go(page) {
         if (window.atomNavigate) {
@@ -127,82 +112,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function pickDivisionPopup() {
         return new Promise((resolve) => {
+            var _a;
             const overlayEl = document.createElement('div');
-            overlayEl.style.position = 'fixed';
-            overlayEl.style.inset = '0';
-            overlayEl.style.background = 'rgba(0,0,0,0.55)';
-            overlayEl.style.display = 'flex';
-            overlayEl.style.alignItems = 'center';
-            overlayEl.style.justifyContent = 'center';
-            overlayEl.style.zIndex = '2000';
-            const modal = document.createElement('div');
-            modal.style.width = 'min(92vw, 380px)';
-            modal.style.background = '#121824';
-            modal.style.color = '#e6eaf0';
-            modal.style.border = '1px solid rgba(255,255,255,0.12)';
-            modal.style.borderRadius = '14px';
-            modal.style.padding = '18px';
-            modal.style.boxShadow = '0 16px 40px rgba(0,0,0,0.45)';
-            const title = document.createElement('div');
-            title.textContent = 'Download Practice Set';
-            title.style.fontSize = '1.05rem';
-            title.style.fontWeight = '700';
-            title.style.marginBottom = '8px';
-            const subtitle = document.createElement('div');
-            subtitle.textContent = 'Choose division for 25 TU/BO pairs:';
-            subtitle.style.fontSize = '0.92rem';
-            subtitle.style.color = '#9aa4b2';
-            subtitle.style.marginBottom = '14px';
-            const btnRow = document.createElement('div');
-            btnRow.style.display = 'grid';
-            btnRow.style.gridTemplateColumns = '1fr 1fr';
-            btnRow.style.gap = '10px';
-            btnRow.style.marginBottom = '10px';
-            const msBtn = document.createElement('button');
-            msBtn.type = 'button';
-            msBtn.textContent = 'MS';
-            msBtn.style.padding = '10px 12px';
-            msBtn.style.borderRadius = '10px';
-            msBtn.style.border = '1px solid rgba(79,124,255,0.45)';
-            msBtn.style.background = 'rgba(79,124,255,0.22)';
-            msBtn.style.color = '#e6eaf0';
-            msBtn.style.fontWeight = '700';
-            msBtn.style.cursor = 'pointer';
-            const hsBtn = document.createElement('button');
-            hsBtn.type = 'button';
-            hsBtn.textContent = 'HS';
-            hsBtn.style.padding = '10px 12px';
-            hsBtn.style.borderRadius = '10px';
-            hsBtn.style.border = '1px solid rgba(79,124,255,0.45)';
-            hsBtn.style.background = 'rgba(79,124,255,0.22)';
-            hsBtn.style.color = '#e6eaf0';
-            hsBtn.style.fontWeight = '700';
-            hsBtn.style.cursor = 'pointer';
-            const cancelBtn = document.createElement('button');
-            cancelBtn.type = 'button';
-            cancelBtn.textContent = 'Cancel';
-            cancelBtn.style.width = '100%';
-            cancelBtn.style.padding = '9px 12px';
-            cancelBtn.style.borderRadius = '10px';
-            cancelBtn.style.border = '1px solid rgba(255,255,255,0.18)';
-            cancelBtn.style.background = 'transparent';
-            cancelBtn.style.color = '#c8d0db';
-            cancelBtn.style.cursor = 'pointer';
+            overlayEl.className = 'modal';
+            overlayEl.setAttribute('role', 'dialog');
+            overlayEl.setAttribute('aria-modal', 'true');
+            overlayEl.setAttribute('aria-labelledby', 'divisionTitle');
+            overlayEl.innerHTML = `
+        <div class="modal-card division-card">
+          <div class="modal-header">
+            <h2 id="divisionTitle">Download a practice set</h2>
+          </div>
+          <p class="muted">25 toss-up and bonus pairs as a printable PDF. Choose a division.</p>
+          <div class="division-choices">
+            <button class="btn large" type="button" data-division="MS">Middle school</button>
+            <button class="btn large" type="button" data-division="HS">High school</button>
+          </div>
+          <button class="btn quiet" type="button" data-division="">Cancel</button>
+        </div>`;
             const cleanup = (result) => {
+                document.removeEventListener('keydown', onKey);
                 overlayEl.remove();
+                downloadPracticeSetBtn === null || downloadPracticeSetBtn === void 0 ? void 0 : downloadPracticeSetBtn.focus();
                 resolve(result);
             };
-            msBtn.addEventListener('click', () => cleanup('MS'));
-            hsBtn.addEventListener('click', () => cleanup('HS'));
-            cancelBtn.addEventListener('click', () => cleanup(null));
-            overlayEl.addEventListener('click', (event) => {
-                if (event.target === overlayEl)
+            const onKey = (event) => {
+                if (event.key === 'Escape')
                     cleanup(null);
+            };
+            overlayEl.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target === overlayEl)
+                    return cleanup(null);
+                const choice = target.closest('[data-division]');
+                if (choice)
+                    cleanup(choice.dataset.division || null);
             });
-            btnRow.append(msBtn, hsBtn);
-            modal.append(title, subtitle, btnRow, cancelBtn);
-            overlayEl.append(modal);
+            document.addEventListener('keydown', onKey);
             document.body.append(overlayEl);
+            (_a = overlayEl.querySelector('[data-division="MS"]')) === null || _a === void 0 ? void 0 : _a.focus();
         });
     }
     function makePdf(lines) {
@@ -299,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!downloadPracticeSetBtn)
             return;
         downloadPracticeSetBtn.disabled = true;
-        setStatus('Building practice set PDF...');
+        setStatus('Building your practice set…');
         try {
             const res = await fetch('./data/set_B.json', { cache: 'no-store' });
             if (!res.ok) {
@@ -326,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             link.download = 'atom-bowl-practice-set.pdf';
             link.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-            setStatus(`Downloaded ${division} set with 25 TU/BO pairs (${round.length} questions).`);
+            setStatus(`Downloaded a ${division === 'MS' ? 'middle school' : 'high school'} set: 25 toss-up and bonus pairs.`);
         }
         catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to generate PDF.';

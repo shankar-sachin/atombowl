@@ -1,18 +1,9 @@
+// Settings page: every control saves to localStorage (atom_settings_v1) as it changes,
+// syncs to the account when signed in, and previews through common.js's applySettings.
 (() => {
-    var _a;
-    // NAV
-    const nav = document.getElementById('nav');
-    const overlay = document.getElementById('overlay');
-    const hamburger = document.getElementById('hamburger');
-    function toggleNav() {
-        const isOpen = nav.classList.toggle('open');
-        overlay.classList.toggle('show');
-        hamburger.classList.toggle('open');
-        hamburger.textContent = isOpen ? '✕' : '☰';
-    }
-    hamburger.addEventListener('click', toggleNav);
-    overlay.addEventListener('click', toggleNav);
-    // Settings model
+    var _a, _b;
+    const DEFAULT_ACCENT = '#5b83ff';
+    const LEGACY_ACCENTS = ['#4f7cff'];
     const DEFAULTS = {
         sfx: true,
         tts: true,
@@ -25,10 +16,11 @@
         rememberTopics: false,
         autoCheck: false,
         autoThreshold: 0.72,
+        externalAi: 'claude',
         highContrast: false,
         animations: true,
         fontSize: 'm',
-        accent: '#4f7cff',
+        accent: DEFAULT_ACCENT,
         theme: 'system'
     };
     const KEY = 'atom_settings_v1';
@@ -37,15 +29,18 @@
             const raw = localStorage.getItem(KEY);
             if (!raw)
                 return { ...DEFAULTS };
-            const parsed = JSON.parse(raw);
-            return { ...DEFAULTS, ...parsed };
+            return { ...DEFAULTS, ...JSON.parse(raw) };
         }
         catch {
             return { ...DEFAULTS };
         }
     }
     function saveSettings(s) {
-        localStorage.setItem(KEY, JSON.stringify(s));
+        try {
+            localStorage.setItem(KEY, JSON.stringify(s));
+        }
+        catch { }
+        window.atomSettings = s;
     }
     async function syncAccountSettings(s) {
         var _a, _b;
@@ -67,174 +62,169 @@
         el.setAttribute('aria-checked', String(!!on));
     }
     function readToggle(el) {
-        return el.classList.contains('on');
+        return el.getAttribute('aria-checked') === 'true';
     }
-    function wireToggle(el) {
-        const flip = () => setToggle(el, !readToggle(el));
-        el.addEventListener('click', flip);
-        el.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                flip();
-            }
-        });
-    }
+    const $ = (id) => document.getElementById(id);
     // Elements
-    const sfxToggle = document.getElementById('sfxToggle');
-    const ttsToggle = document.getElementById('ttsToggle');
-    const hcToggle = document.getElementById('hcToggle');
-    const animToggle = document.getElementById('animToggle');
-    const rememberTopicsToggle = document.getElementById('rememberTopicsToggle');
-    const autoCheckToggle = document.getElementById('autoCheckToggle');
-    const autoThreshold = document.getElementById('autoThreshold');
-    const autoThresholdValue = document.getElementById('autoThresholdValue');
-    const voiceSelect = document.getElementById('voiceSelect');
-    const voiceRate = document.getElementById('voiceRate');
-    const voiceRateValue = document.getElementById('voiceRateValue');
-    const voicePitch = document.getElementById('voicePitch');
-    const voicePitchValue = document.getElementById('voicePitchValue');
-    const voiceVolume = document.getElementById('voiceVolume');
-    const voiceVolumeValue = document.getElementById('voiceVolumeValue');
-    const voiceTest = document.getElementById('voiceTest');
-    const divSelect = document.getElementById('divSelect');
-    const modeSelect = document.getElementById('modeSelect');
-    const fontSelect = document.getElementById('fontSelect');
-    const accentSelect = document.getElementById('accentSelect');
-    const themeSelect = document.getElementById('themeSelect');
-    const toast = document.getElementById('toast');
-    const resetBtn = document.getElementById('reset');
-    [sfxToggle, ttsToggle, hcToggle, animToggle, rememberTopicsToggle, autoCheckToggle].forEach(wireToggle);
-    function showToast(msg) {
-        toast.textContent = msg;
+    const sfxToggle = $('sfxToggle');
+    const ttsToggle = $('ttsToggle');
+    const hcToggle = $('hcToggle');
+    const animToggle = $('animToggle');
+    const rememberTopicsToggle = $('rememberTopicsToggle');
+    const autoCheckToggle = $('autoCheckToggle');
+    const autoThreshold = $('autoThreshold');
+    const autoThresholdValue = $('autoThresholdValue');
+    const voiceSelect = $('voiceSelect');
+    const voiceRate = $('voiceRate');
+    const voiceRateValue = $('voiceRateValue');
+    const voicePitch = $('voicePitch');
+    const voicePitchValue = $('voicePitchValue');
+    const voiceVolume = $('voiceVolume');
+    const voiceVolumeValue = $('voiceVolumeValue');
+    const voiceTest = $('voiceTest');
+    const divSelect = $('divSelect');
+    const modeSelect = $('modeSelect');
+    const externalAiSelect = $('externalAiSelect');
+    const fontSelect = $('fontSelect');
+    const accentGroup = $('accentSelect');
+    const swatches = [...accentGroup.querySelectorAll('.swatch')];
+    const themeSelect = $('themeSelect');
+    const toast = $('toast');
+    const resetBtn = $('reset');
+    const toggles = [sfxToggle, ttsToggle, hcToggle, animToggle, rememberTopicsToggle, autoCheckToggle];
+    swatches.forEach((sw) => sw.style.setProperty('--swatch', sw.dataset.value || DEFAULT_ACCENT));
+    let toastTimer = 0;
+    function showToast(msg, icon = 'check') {
+        var _a, _b;
+        const svg = ((_b = (_a = window).atomIcon) === null || _b === void 0 ? void 0 : _b.call(_a, icon)) || '';
+        toast.innerHTML = `${svg}<span></span>`;
+        toast.querySelector('span').textContent = msg;
         toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 1200);
+        clearTimeout(toastTimer);
+        toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1600);
     }
     function applyThemePreview(s) {
+        var _a, _b;
+        (_b = (_a = window).atomApplySettings) === null || _b === void 0 ? void 0 : _b.call(_a, s);
+    }
+    function normalizeAccent(value) {
+        const v = String(value || '').toLowerCase();
+        if (!v || LEGACY_ACCENTS.includes(v))
+            return DEFAULT_ACCENT;
+        return swatches.some((sw) => sw.dataset.value === v) ? v : DEFAULT_ACCENT;
+    }
+    function setAccent(value) {
+        const v = normalizeAccent(value);
+        swatches.forEach((sw) => {
+            const on = sw.dataset.value === v;
+            sw.setAttribute('aria-checked', String(on));
+            sw.tabIndex = on ? 0 : -1;
+        });
+    }
+    function readAccent() {
         var _a;
-        // Accent preview
-        document.documentElement.style.setProperty('--accent', s.accent);
-        // Font size preview
-        const sizes = { s: '14px', m: '16px', l: '18px' };
-        document.body.style.fontSize = sizes[s.fontSize] || '16px';
-        // High contrast preview
-        document.body.style.filter = s.highContrast ? 'contrast(1.06) saturate(1.02)' : 'none';
-        // Theme preview
-        if (s.theme === 'light') {
-            document.documentElement.classList.add('theme-light');
-        }
-        else if (s.theme === 'dark') {
-            document.documentElement.classList.remove('theme-light');
-        }
-        else {
-            const prefersLight = (_a = window.matchMedia) === null || _a === void 0 ? void 0 : _a.call(window, '(prefers-color-scheme: light)').matches;
-            document.documentElement.classList.toggle('theme-light', !!prefersLight);
-        }
+        return ((_a = swatches.find((sw) => sw.getAttribute('aria-checked') === 'true')) === null || _a === void 0 ? void 0 : _a.dataset.value) || DEFAULT_ACCENT;
+    }
+    function showRangeValues() {
+        autoThresholdValue.textContent = Number(autoThreshold.value).toFixed(2);
+        voiceRateValue.textContent = `${Number(voiceRate.value).toFixed(2)}x`;
+        voicePitchValue.textContent = Number(voicePitch.value).toFixed(2);
+        voiceVolumeValue.textContent = `${Math.round(Number(voiceVolume.value) * 100)}%`;
     }
     function hydrateUI(s) {
         var _a, _b, _c, _d;
         setToggle(sfxToggle, s.sfx);
         setToggle(ttsToggle, s.tts);
-        if (voiceSelect)
+        if ([...voiceSelect.options].some((o) => o.value === (s.ttsVoice || '')))
             voiceSelect.value = s.ttsVoice || '';
-        if (voiceRate) {
-            voiceRate.value = String((_a = s.ttsRate) !== null && _a !== void 0 ? _a : 1.0);
-            voiceRateValue.textContent = `${Number(voiceRate.value).toFixed(2)}x`;
-        }
-        if (voicePitch) {
-            voicePitch.value = String((_b = s.ttsPitch) !== null && _b !== void 0 ? _b : 1.0);
-            voicePitchValue.textContent = Number(voicePitch.value).toFixed(2);
-        }
-        if (voiceVolume) {
-            voiceVolume.value = String((_c = s.ttsVolume) !== null && _c !== void 0 ? _c : 1.0);
-            voiceVolumeValue.textContent = `${Math.round(Number(voiceVolume.value) * 100)}%`;
-        }
+        voiceRate.value = String((_a = s.ttsRate) !== null && _a !== void 0 ? _a : 1.0);
+        voicePitch.value = String((_b = s.ttsPitch) !== null && _b !== void 0 ? _b : 1.0);
+        voiceVolume.value = String((_c = s.ttsVolume) !== null && _c !== void 0 ? _c : 1.0);
         setToggle(hcToggle, s.highContrast);
         setToggle(animToggle, s.animations);
         setToggle(rememberTopicsToggle, s.rememberTopics);
         setToggle(autoCheckToggle, s.autoCheck);
         autoThreshold.value = String((_d = s.autoThreshold) !== null && _d !== void 0 ? _d : 0.72);
-        autoThresholdValue.textContent = Number(autoThreshold.value).toFixed(2);
+        externalAiSelect.value = ['claude', 'chatgpt', 'gemini'].includes(s.externalAi) ? s.externalAi : 'claude';
         divSelect.value = s.div;
         modeSelect.value = s.mode;
         fontSelect.value = s.fontSize;
-        accentSelect.value = s.accent;
+        setAccent(s.accent);
         themeSelect.value = s.theme;
+        showRangeValues();
         applyThemePreview(s);
     }
     function collectUI() {
         var _a, _b, _c;
         return {
+            ...loadSettings(),
             sfx: readToggle(sfxToggle),
             tts: readToggle(ttsToggle),
-            ttsVoice: (voiceSelect === null || voiceSelect === void 0 ? void 0 : voiceSelect.value) || '',
-            ttsRate: Number((_a = voiceRate === null || voiceRate === void 0 ? void 0 : voiceRate.value) !== null && _a !== void 0 ? _a : 1.0),
-            ttsPitch: Number((_b = voicePitch === null || voicePitch === void 0 ? void 0 : voicePitch.value) !== null && _b !== void 0 ? _b : 1.0),
-            ttsVolume: Number((_c = voiceVolume === null || voiceVolume === void 0 ? void 0 : voiceVolume.value) !== null && _c !== void 0 ? _c : 1.0),
+            ttsVoice: voiceSelect.value || '',
+            ttsRate: Number((_a = voiceRate.value) !== null && _a !== void 0 ? _a : 1.0),
+            ttsPitch: Number((_b = voicePitch.value) !== null && _b !== void 0 ? _b : 1.0),
+            ttsVolume: Number((_c = voiceVolume.value) !== null && _c !== void 0 ? _c : 1.0),
             div: divSelect.value,
             mode: modeSelect.value,
             rememberTopics: readToggle(rememberTopicsToggle),
             autoCheck: readToggle(autoCheckToggle),
             autoThreshold: Number(autoThreshold.value),
+            externalAi: externalAiSelect.value,
             highContrast: readToggle(hcToggle),
             animations: readToggle(animToggle),
             fontSize: fontSelect.value,
-            accent: accentSelect.value,
+            accent: readAccent(),
             theme: themeSelect.value
         };
     }
-    function persistCurrentSettings() {
+    // Range inputs fire continuously; debounce the account write.
+    let syncTimer = 0;
+    function persistCurrentSettings({ announce = true } = {}) {
         const next = collectUI();
         saveSettings(next);
-        syncAccountSettings(next);
         applyThemePreview(next);
+        clearTimeout(syncTimer);
+        syncTimer = window.setTimeout(() => syncAccountSettings(next), 400);
+        if (announce)
+            showToast('Saved');
     }
-    // Live preview on dropdowns
-    [fontSelect, accentSelect, themeSelect].forEach(el => {
-        el.addEventListener('change', () => {
+    toggles.forEach((el) => {
+        el.addEventListener('click', () => {
+            setToggle(el, !readToggle(el));
             persistCurrentSettings();
         });
     });
-    [sfxToggle, ttsToggle, hcToggle, animToggle, rememberTopicsToggle, autoCheckToggle].forEach(el => {
-        el.addEventListener('click', () => persistCurrentSettings());
-        el.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ')
-                persistCurrentSettings();
-        });
-    });
-    autoThreshold.addEventListener('input', () => {
-        autoThresholdValue.textContent = Number(autoThreshold.value).toFixed(2);
-        persistCurrentSettings();
-    });
-    [divSelect, modeSelect].forEach(el => {
+    [divSelect, modeSelect, externalAiSelect, fontSelect, themeSelect, voiceSelect].forEach((el) => {
         el.addEventListener('change', () => persistCurrentSettings());
     });
-    if (voiceRate) {
-        voiceRate.addEventListener('input', () => {
-            voiceRateValue.textContent = `${Number(voiceRate.value).toFixed(2)}x`;
+    [autoThreshold, voiceRate, voicePitch, voiceVolume].forEach((el) => {
+        el.addEventListener('input', () => {
+            showRangeValues();
+            persistCurrentSettings({ announce: false });
+        });
+        el.addEventListener('change', () => showToast('Saved'));
+    });
+    swatches.forEach((sw, i) => {
+        sw.addEventListener('click', () => {
+            setAccent(sw.dataset.value || DEFAULT_ACCENT);
             persistCurrentSettings();
         });
-    }
-    if (voicePitch) {
-        voicePitch.addEventListener('input', () => {
-            voicePitchValue.textContent = Number(voicePitch.value).toFixed(2);
+        sw.addEventListener('keydown', (e) => {
+            const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+            if (!step)
+                return;
+            e.preventDefault();
+            const next = swatches[(i + step + swatches.length) % swatches.length];
+            setAccent(next.dataset.value || DEFAULT_ACCENT);
+            next.focus();
             persistCurrentSettings();
         });
-    }
-    if (voiceVolume) {
-        voiceVolume.addEventListener('input', () => {
-            voiceVolumeValue.textContent = `${Math.round(Number(voiceVolume.value) * 100)}%`;
-            persistCurrentSettings();
-        });
-    }
-    if (voiceSelect) {
-        voiceSelect.addEventListener('change', () => persistCurrentSettings());
-    }
+    });
     function populateVoices(s) {
-        if (!voiceSelect)
-            return;
         if (!window.speechSynthesis) {
-            voiceSelect.innerHTML = '<option value="">Voice not supported</option>';
+            voiceSelect.innerHTML = '<option value="">Read aloud isn\'t supported in this browser</option>';
             voiceSelect.disabled = true;
+            voiceTest.disabled = true;
             return;
         }
         const voices = window.speechSynthesis.getVoices();
@@ -250,62 +240,48 @@
             option.textContent = `${voice.name} (${voice.lang})`;
             voiceSelect.appendChild(option);
         });
-        if (s.ttsVoice && [...voiceSelect.options].some(opt => opt.value === s.ttsVoice)) {
-            voiceSelect.value = s.ttsVoice;
-        }
-        else {
-            voiceSelect.value = '';
-        }
+        voiceSelect.value = s.ttsVoice && [...voiceSelect.options].some((opt) => opt.value === s.ttsVoice) ? s.ttsVoice : '';
     }
     function buildTestUtterance() {
         var _a, _b, _c;
         if (!window.speechSynthesis)
             return null;
         const u = new SpeechSynthesisUtterance('This is a test of your Atom Bowl voice settings.');
-        u.rate = Number((_a = voiceRate === null || voiceRate === void 0 ? void 0 : voiceRate.value) !== null && _a !== void 0 ? _a : 1.0);
-        u.pitch = Number((_b = voicePitch === null || voicePitch === void 0 ? void 0 : voicePitch.value) !== null && _b !== void 0 ? _b : 1.0);
-        u.volume = Number((_c = voiceVolume === null || voiceVolume === void 0 ? void 0 : voiceVolume.value) !== null && _c !== void 0 ? _c : 1.0);
-        const voices = window.speechSynthesis.getVoices();
-        const match = voices.find(v => (v.voiceURI || v.name) === ((voiceSelect === null || voiceSelect === void 0 ? void 0 : voiceSelect.value) || ''));
+        u.rate = Number((_a = voiceRate.value) !== null && _a !== void 0 ? _a : 1.0);
+        u.pitch = Number((_b = voicePitch.value) !== null && _b !== void 0 ? _b : 1.0);
+        u.volume = Number((_c = voiceVolume.value) !== null && _c !== void 0 ? _c : 1.0);
+        const match = window.speechSynthesis.getVoices().find((v) => (v.voiceURI || v.name) === (voiceSelect.value || ''));
         if (match)
             u.voice = match;
         return u;
     }
-    if (voiceTest) {
-        voiceTest.addEventListener('click', () => {
-            if (!window.speechSynthesis) {
-                showToast('Voice not supported');
-                return;
-            }
-            window.speechSynthesis.cancel();
-            const u = buildTestUtterance();
-            if (!u)
-                return;
+    voiceTest.addEventListener('click', () => {
+        if (!window.speechSynthesis) {
+            showToast("Read aloud isn't supported in this browser", 'alert');
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const u = buildTestUtterance();
+        if (u)
             window.speechSynthesis.speak(u);
-        });
-    }
+    });
     resetBtn.addEventListener('click', () => {
         const next = { ...DEFAULTS };
         saveSettings(next);
         syncAccountSettings(next);
         hydrateUI(next);
-        showToast('Reset ✅');
+        showToast('Settings reset to defaults');
     });
     // Init
     const initial = loadSettings();
-    hydrateUI(initial);
     populateVoices(initial);
-    if ((_a = window.speechSynthesis) === null || _a === void 0 ? void 0 : _a.addEventListener) {
-        window.speechSynthesis.addEventListener('voiceschanged', () => {
-            populateVoices(loadSettings());
-        });
-    }
-    document.addEventListener('atomSettingsSynced', (event) => {
-        const detail = event === null || event === void 0 ? void 0 : event.detail;
-        if (!detail)
-            return;
-        hydrateUI(detail);
-        applyThemePreview(detail);
+    hydrateUI(initial);
+    (_b = (_a = window.speechSynthesis) === null || _a === void 0 ? void 0 : _a.addEventListener) === null || _b === void 0 ? void 0 : _b.call(_a, 'voiceschanged', () => populateVoices(loadSettings()));
+    // Account sync (sign-in, or a different user's cache cleared) rewrites localStorage; reflect it.
+    document.addEventListener('atomSettingsSynced', () => {
+        const s = loadSettings();
+        populateVoices(s);
+        hydrateUI(s);
     });
 })();
 //# sourceMappingURL=settings.js.map

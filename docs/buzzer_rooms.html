@@ -2,55 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Buzzer Rooms | Atom Bowl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Buzzer rooms | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/buzzer_rooms.css?v=20260204c">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
+  <link rel="stylesheet" href="css/buzzer_rooms.css">
 </head>
-<body class="nav-collapsed">
-  <header class="topbar">
-    <a href="index.html" class="back-link" aria-label="Back to Home">←</a>
-    <div class="topbar-title">Buzzer Rooms</div>
-  </header>
-
-  <main class="main">
-    <section class="hero">
-      <h1>Buzzer Rooms</h1>
-      <p>Create a room, share a code, and run a live match with moderation tools.</p>
-    </section>
-
-    <section class="panel-grid">
-      <div class="panel">
-        <h2>Create Room</h2>
-        <p class="muted">Set rules and tools for a live match.</p>
-        <button id="goCreateBtn" class="btn primary">Create Room</button>
+<body class="role-landing">
+  <main class="main rooms-page">
+    <header class="header">
+      <div>
+        <h1 class="title">Buzzer rooms</h1>
+        <p class="subtitle">Run a live match from one console while everyone buzzes from their own device.</p>
       </div>
+    </header>
 
-      <div class="panel">
-        <h2>Join Room</h2>
-        <label class="label">Room Code</label>
-        <input id="joinCode" type="text" maxlength="5" placeholder="ABCDE" />
-        <label class="label">Display Name</label>
-        <input id="displayName" type="text" maxlength="20" placeholder="Your name" />
-        <label class="label">Team</label>
-        <select id="teamSelect"></select>
-        <p id="teamHint" class="muted">Teams will load when a valid code is entered.</p>
-        <button id="joinRoomBtn" class="btn">Join Room</button>
-        <p id="joinError" class="error"></p>
-      </div>
-    </section>
+    <div class="rooms-grid">
+      <section class="panel join-card" aria-labelledby="joinTitle">
+        <h2 id="joinTitle">Join a room</h2>
+        <p class="muted">Enter the code your moderator shared.</p>
+        <form id="joinForm" novalidate>
+          <label class="label" for="joinCode">Room code</label>
+          <input id="joinCode" class="input code-input" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="ABCDE" />
+          <p class="status-note team-status" id="codeHint" aria-live="polite">Five letters or numbers.</p>
+
+          <label class="label" for="displayName">Your name</label>
+          <input id="displayName" type="text" maxlength="40" placeholder="Your name" autocomplete="nickname" />
+
+          <label class="label" for="teamSelect">Team</label>
+          <select id="teamSelect" class="select" disabled>
+            <option value="">Find the room first</option>
+          </select>
+
+          <div class="button-row join-actions">
+            <button id="joinRoomBtn" class="btn primary large" type="submit">Join room</button>
+          </div>
+          <p id="joinError" class="error" role="alert"></p>
+        </form>
+      </section>
+
+      <section class="panel host-card" aria-labelledby="hostTitle">
+        <h2 id="hostTitle">Host a room</h2>
+        <p class="muted">Create a room, share its code, and run the match from the moderator console. You choose the teams, the NSB timing and the half length.</p>
+        <div class="button-row">
+          <a class="btn primary" href="buzzer_create.html"><i data-icon="buzzer"></i>Create a room</a>
+        </div>
+      </section>
+    </div>
   </main>
 
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
-  <script type="module" src="js/buzzer_landing.js?v=20260204b"></script>
+  <script type="module" src="js/buzzer_landing.js"></script>
 </body>
 </html>
-
-

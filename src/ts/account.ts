@@ -1,131 +1,222 @@
 import "./account_store.js";
 
-const statusText = document.getElementById("statusText");
-const statusSub = document.getElementById("statusSub");
-const guestTagEl = document.getElementById("guestTag");
-const profileUsername = document.getElementById("profileUsername");
-const profilePlayerName = document.getElementById("profilePlayerName");
-const profileEmail = document.getElementById("profileEmail");
-const profilePhoto = document.getElementById("profilePhoto");
-const signedOutActions = document.getElementById("signedOutActions");
-const signedInPanel = document.getElementById("signedInPanel");
-const signOutBtn = document.getElementById("signOutBtn");
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T | null;
 
-const playerNameInput = document.getElementById("playerNameInput") as HTMLInputElement | null;
-const firstNameInput = document.getElementById("firstNameInput") as HTMLInputElement | null;
-const lastNameInput = document.getElementById("lastNameInput") as HTMLInputElement | null;
-const phoneInput = document.getElementById("phoneInput") as HTMLInputElement | null;
-const usernameLockedInput = document.getElementById("usernameLockedInput") as HTMLInputElement | null;
-const emailLockedInput = document.getElementById("emailLockedInput") as HTMLInputElement | null;
-const photoUploadInput = document.getElementById("photoUploadInput") as HTMLInputElement | null;
-const saveProfileBtn = document.getElementById("saveProfileBtn");
-const accountErrorEl = document.getElementById("accountError");
+const statusText = $("statusText");
+const statusSub = $("statusSub");
+const guestTagEl = $("guestTag");
+const profileUsername = $("profileUsername");
+const profileUsernameRow = $("profileUsernameRow");
+const profilePlayerName = $("profilePlayerName");
+const profileEmail = $("profileEmail");
+const profilePhoto = $<HTMLImageElement>("profilePhoto");
+const profileInitial = $("profileInitial");
+const signedOutActions = $("signedOutActions");
+const signedInPanel = $<HTMLFormElement>("signedInPanel");
+const signOutBtn = $<HTMLButtonElement>("signOutBtn");
+const syncNotice = $("syncNotice");
+const syncNoticeText = $("syncNoticeText");
+const retrySyncBtn = $<HTMLButtonElement>("retrySyncBtn");
+const toastEl = $("accountToast");
 
-const statRuns = document.getElementById("statRuns");
-const statAvgScore = document.getElementById("statAvgScore");
-const statTimePlayed = document.getElementById("statTimePlayed");
-const statAccuracy = document.getElementById("statAccuracy");
+const playerNameInput = $<HTMLInputElement>("playerNameInput");
+const firstNameInput = $<HTMLInputElement>("firstNameInput");
+const lastNameInput = $<HTMLInputElement>("lastNameInput");
+const phoneInput = $<HTMLInputElement>("phoneInput");
+const usernameLockedInput = $<HTMLInputElement>("usernameLockedInput");
+const usernameLockedHint = $("usernameLockedHint");
+const emailLockedInput = $<HTMLInputElement>("emailLockedInput");
+const photoUploadInput = $<HTMLInputElement>("photoUploadInput");
+const saveProfileBtn = $<HTMLButtonElement>("saveProfileBtn");
+const accountErrorEl = $("accountError");
+const accountStatusEl = $("accountStatus");
 
-const authModal = document.getElementById("authModal");
-const closeAuthModalBtn = document.getElementById("closeAuthModal");
-const openSignInBtn = document.getElementById("openSignInBtn");
-const openSignUpBtn = document.getElementById("openSignUpBtn");
-const showSignInTab = document.getElementById("showSignInTab");
-const showSignUpTab = document.getElementById("showSignUpTab");
-const signInFormPanel = document.getElementById("signInFormPanel");
-const signUpFormPanel = document.getElementById("signUpFormPanel");
-const authModalTitle = authModal?.querySelector(".modal-header h2") as HTMLElement | null;
-const gotoSignupLink = document.getElementById("gotoSignupLink");
-const gotoSigninLink = document.getElementById("gotoSigninLink");
-const authError = document.getElementById("authError");
-const usernameStatus = document.getElementById("usernameStatus");
+const statRuns = $("statRuns");
+const statAvgScore = $("statAvgScore");
+const statTimePlayed = $("statTimePlayed");
+const statAccuracy = $("statAccuracy");
+const statsNote = $("statsNote");
 
-const googleBtn = document.getElementById("googleBtn");
-const microsoftBtn = document.getElementById("microsoftBtn");
-const appleBtn = document.getElementById("appleBtn");
-const signinIdentifierInput = document.getElementById("signinIdentifierInput") as HTMLInputElement | null;
-const signinPasswordInput = document.getElementById("signinPasswordInput") as HTMLInputElement | null;
-const signinBtn = document.getElementById("signinBtn");
+const authModal = $("authModal");
+const closeAuthModalBtn = $("closeAuthModal");
+const openSignInBtn = $("openSignInBtn");
+const openSignUpBtn = $("openSignUpBtn");
+const showSignInTab = $("showSignInTab");
+const showSignUpTab = $("showSignUpTab");
+const signInFormPanel = $<HTMLFormElement>("signInFormPanel");
+const signUpFormPanel = $<HTMLFormElement>("signUpFormPanel");
+const authModalTitle = $("authModalTitle");
+const gotoSignupLink = $("gotoSignupLink");
+const gotoSigninLink = $("gotoSigninLink");
+const authError = $("authError");
+const authStatus = $("authStatus");
+const usernameStatus = $("usernameStatus");
 
-const signupFirstName = document.getElementById("signupFirstName") as HTMLInputElement | null;
-const signupLastName = document.getElementById("signupLastName") as HTMLInputElement | null;
-const signupEmail = document.getElementById("signupEmail") as HTMLInputElement | null;
-const signupPhone = document.getElementById("signupPhone") as HTMLInputElement | null;
-const signupUsername = document.getElementById("signupUsername") as HTMLInputElement | null;
-const signupPlayerName = document.getElementById("signupPlayerName") as HTMLInputElement | null;
-const signupPassword = document.getElementById("signupPassword") as HTMLInputElement | null;
-const signupPassword2 = document.getElementById("signupPassword2") as HTMLInputElement | null;
-const signupBtn = document.getElementById("signupBtn");
+const googleBtn = $<HTMLButtonElement>("googleBtn");
+const signinIdentifierInput = $<HTMLInputElement>("signinIdentifierInput");
+const signinPasswordInput = $<HTMLInputElement>("signinPasswordInput");
+const signinBtn = $<HTMLButtonElement>("signinBtn");
+const resetPasswordBtn = $<HTMLButtonElement>("resetPasswordBtn");
+
+const signupFirstName = $<HTMLInputElement>("signupFirstName");
+const signupLastName = $<HTMLInputElement>("signupLastName");
+const signupEmail = $<HTMLInputElement>("signupEmail");
+const signupPhone = $<HTMLInputElement>("signupPhone");
+const signupUsername = $<HTMLInputElement>("signupUsername");
+const signupPlayerName = $<HTMLInputElement>("signupPlayerName");
+const guestNameForm = $("guestNameForm");
+const guestNameInput = $<HTMLInputElement>("guestNameInput");
+const guestNameHint = $("guestNameHint");
+const signupPassword = $<HTMLInputElement>("signupPassword");
+const signupPassword2 = $<HTMLInputElement>("signupPassword2");
+const signupBtn = $<HTMLButtonElement>("signupBtn");
+
+const USERNAME_RE = /^[a-z0-9]{3,20}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 let pendingPhotoData = "";
+let lastFocus: HTMLElement | null = null;
+let toastTimer = 0;
 
-function refreshAccountCopy() {
-  const signinPasswordLabel = document.querySelector('label[for="signinPasswordInput"]');
-  if (signinPasswordLabel) signinPasswordLabel.textContent = "Password";
-
-  const signinPanelLabels = Array.from(document.querySelectorAll("#signInFormPanel .label"));
-  signinPanelLabels.forEach((label) => {
-    if (label.textContent?.trim().toLowerCase() === "p-word") {
-      label.textContent = "Password";
-    }
-  });
-
-
-}
-
-function requireAccount() {
-  const account = window.atomAccount;
-  if (!account) throw new Error("Account module failed to load.");
+// The shared Window typing in globals.d.ts predates the newer store helpers.
+function requireAccount(): any {
+  const account = (window as any).atomAccount;
+  if (!account) throw new Error("The account module did not load. Check your connection and reload the page.");
   return account;
 }
 
+/* ---------- Messages ---------- */
+
 function setAuthError(msg = "") {
   if (authError) authError.textContent = msg;
+  if (msg && authStatus) authStatus.textContent = "";
+}
+
+function setAuthStatus(msg = "") {
+  if (authStatus) authStatus.textContent = msg;
+  if (msg && authError) authError.textContent = "";
 }
 
 function setAccountError(msg = "") {
   if (accountErrorEl) accountErrorEl.textContent = msg;
+  if (msg && accountStatusEl) accountStatusEl.textContent = "";
 }
 
-function setBusy(isBusy: boolean) {
-  document.querySelectorAll("[data-auth-action]").forEach((el) => {
-    (el as HTMLButtonElement).disabled = isBusy;
-  });
+function setAccountStatus(msg = "") {
+  if (accountStatusEl) accountStatusEl.textContent = msg;
 }
+
+function showToast(msg: string) {
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => toastEl.classList.remove("show"), 3200);
+}
+
+function renderSyncNotice() {
+  if (!syncNotice || !syncNoticeText) return;
+  let msg = "";
+  try {
+    const account = requireAccount();
+    if (account.getUser?.()) {
+      msg = account.getSyncError?.() || "";
+      const writeErr = account.getLastWriteError?.();
+      if (!msg && writeErr) {
+        const when = new Date(Number(writeErr.at) || Date.now()).toLocaleString();
+        msg = `Your ${writeErr.what} did not save on ${when} (${writeErr.code}). Check your connection, then try again.`;
+      }
+    }
+  } catch {}
+  syncNoticeText.textContent = msg;
+  syncNotice.classList.toggle("hidden", !msg);
+}
+
+/* ---------- Busy state ---------- */
+
+function setBusy(isBusy: boolean, active?: HTMLButtonElement | null, busyText?: string) {
+  document.querySelectorAll<HTMLButtonElement>("[data-auth-action]").forEach((el) => {
+    el.disabled = isBusy;
+  });
+  if (!active) return;
+  active.disabled = isBusy;
+  const label = active.querySelector(".btn-label") as HTMLElement | null || active;
+  if (isBusy) {
+    if (active.dataset.idleHtml == null) active.dataset.idleHtml = label.innerHTML;
+    if (busyText) label.textContent = busyText;
+    active.setAttribute("aria-busy", "true");
+  } else {
+    if (active.dataset.idleHtml != null) label.innerHTML = active.dataset.idleHtml;
+    delete active.dataset.idleHtml;
+    active.removeAttribute("aria-busy");
+  }
+}
+
+async function withBusy<T>(button: HTMLButtonElement | null, busyText: string, task: () => Promise<T>) {
+  setBusy(true, button, busyText);
+  try {
+    return await task();
+  } finally {
+    setBusy(false, button);
+  }
+}
+
+/* ---------- Errors ---------- */
 
 function friendlyAuthError(err: any): string {
   const code = err?.code || "";
   switch (code) {
     case "auth/user-not-found":
     case "auth/invalid-credential":
-      return "Invalid email or password.";
+    case "auth/invalid-login-credentials":
+      return "That email and password don't match an account. Check both, or create an account.";
     case "auth/wrong-password":
-      return "Incorrect password.";
+      return "Wrong password. Try again, or use \"Forgot password?\" to reset it.";
+    case "auth/missing-password":
+      return "Enter your password.";
+    case "auth/missing-email":
+      return "Enter your email address.";
     case "auth/email-already-in-use":
-      return "An account with this email already exists. Try signing in.";
+      return "An account with this email already exists. Sign in instead.";
+    case "auth/credential-already-in-use":
+      return "That sign-in is already linked to another account. Sign in with it instead.";
     case "auth/weak-password":
     case "auth/password-does-not-meet-requirements":
-      return "Use at least 8 characters with uppercase and lowercase letters, a number, and a symbol.";
+      return err?.message && !String(err.message).startsWith("Firebase:")
+        ? err.message
+        : "Use 8 or more characters with an uppercase letter, a lowercase letter, a number and a symbol.";
     case "auth/invalid-email":
-      return "Please enter a valid email address.";
+      return "Enter a valid email address, like you@example.com.";
     case "auth/too-many-requests":
-      return "Too many attempts. Please try again later.";
+      return "Too many attempts. Wait a few minutes, then try again.";
     case "auth/network-request-failed":
-      return "Network error. Check your connection.";
+      return "Couldn't reach the sign-in server. Check your connection and try again.";
     case "auth/popup-blocked":
-      return "Allow popups for this site and try again.";
+      return "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.";
     case "auth/operation-not-allowed":
-      return "This sign-in provider is not enabled in Firebase. Try another sign-in method.";
+      return "This sign-in method isn't turned on for Atom Bowl yet. Use another method.";
     case "auth/unauthorized-domain":
-      return "This website domain must be added to Firebase Authentication authorized domains.";
+      return "Sign-in isn't allowed from this web address yet. Use atombowl.web.app.";
     case "auth/account-exists-with-different-credential":
-      return "Use the sign-in method you originally used for this email.";
+      return "This email already uses a different sign-in method. Sign in that way instead.";
     case "auth/popup-closed-by-user":
-      return "Sign-in popup was closed.";
-    default:
-      return err?.message || "Authentication failed.";
+    case "auth/cancelled-popup-request":
+      return "The sign-in window was closed before finishing.";
+    case "permission-denied":
+    case "firestore/permission-denied":
+      return "The server refused to save your profile (permission denied). Reload and try again.";
+    case "unavailable":
+    case "firestore/unavailable":
+      return "Couldn't reach the database. Check your connection and try again.";
+    default: {
+      const msg = String(err?.message || "");
+      if (!msg) return "Something went wrong. Try again.";
+      return msg.replace(/^Firebase:\s*/, "");
+    }
   }
 }
+
+/* ---------- Rendering ---------- */
 
 function toReadableTime(totalSeconds: number) {
   const s = Math.max(0, Math.round(Number(totalSeconds || 0)));
@@ -137,349 +228,589 @@ function toReadableTime(totalSeconds: number) {
 
 function fallbackGuestTag() {
   const key = "atom_guest_tag_v1";
-  const existing = (localStorage.getItem(key) || "").trim();
+  let existing = "";
+  try { existing = (localStorage.getItem(key) || "").trim(); } catch {}
   if (/^[A-Za-z0-9]{12}$/.test(existing)) return existing;
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let tag = "";
   for (let i = 0; i < 12; i += 1) tag += chars[Math.floor(Math.random() * chars.length)];
-  localStorage.setItem(key, tag);
+  try { localStorage.setItem(key, tag); } catch {}
   return tag;
 }
 
-function switchAuthPanel(mode: "signin" | "signup") {
-  if (!signInFormPanel || !signUpFormPanel || !showSignInTab || !showSignUpTab) return;
-  const isSignIn = mode === "signin";
-  signInFormPanel.classList.toggle("hidden", !isSignIn);
-  signUpFormPanel.classList.toggle("hidden", isSignIn);
-  showSignInTab.classList.toggle("active", isSignIn);
-  showSignUpTab.classList.toggle("active", !isSignIn);
-  if (authModalTitle) authModalTitle.textContent = isSignIn ? "Sign In" : "Create Account";
+function setStatusTag(state: "checking" | "out" | "in") {
+  if (!statusText) return;
+  statusText.className = state === "in" ? "tag good" : "tag";
+  statusText.textContent = state === "in" ? "Signed in" : state === "out" ? "Signed out" : "Checking sign-in";
 }
 
-function openAuthModal(mode: "signin" | "signup") {
-  if (!authModal) return;
-  switchAuthPanel(mode);
-  authModal.classList.remove("hidden");
-  authModal.classList.remove("modal-enter");
-  void (authModal as HTMLElement).offsetWidth;
-  authModal.classList.add("modal-enter");
-  setAuthError("");
+function setAvatar(photo: string, name: string) {
+  if (profilePhoto) {
+    if (photo) profilePhoto.src = photo;
+    else profilePhoto.removeAttribute("src");
+    profilePhoto.classList.toggle("hidden", !photo);
+  }
+  if (profileInitial) {
+    profileInitial.classList.toggle("hidden", !!photo);
+    const initial = name.trim().charAt(0).toUpperCase();
+    if (initial) profileInitial.textContent = initial;
+    else profileInitial.innerHTML = window.atomIcon?.("user") || "";
+  }
 }
 
-function closeAuthModal() {
-  if (!authModal) return;
-  authModal.classList.remove("modal-enter");
-  authModal.classList.add("hidden");
+function setStats(stats: any) {
+  const runs = Number(stats?.totalRuns || 0);
+  const answered = Number(stats?.totalAnswered || 0);
+  const correct = Number(stats?.totalCorrect || 0);
+  const totalTime = Number(stats?.totalTime || 0);
+  if (statRuns) statRuns.textContent = String(runs);
+  if (statAvgScore) statAvgScore.textContent = runs > 0 ? (correct / runs).toFixed(1) : "0.0";
+  if (statTimePlayed) statTimePlayed.textContent = toReadableTime(totalTime);
+  if (statAccuracy) statAccuracy.textContent = answered > 0 ? `${Math.round((correct / answered) * 100)}%` : "0%";
 }
 
 async function renderStats() {
   const account = requireAccount();
   const user = account.getUser();
-  const stats = await account.loadPracticeStats?.();
-  if (account.getUser() !== user) return;
-  const runs = Number(stats?.totalRuns || 0);
-  const answered = Number(stats?.totalAnswered || 0);
-  const correct = Number(stats?.totalCorrect || 0);
-  const totalTime = Number(stats?.totalTime || 0);
-
-  const avgScore = runs > 0 ? (correct / runs).toFixed(1) : "0.0";
-  const accuracy = answered > 0 ? `${Math.round((correct / answered) * 100)}%` : "0%";
-
-  if (statRuns) statRuns.textContent = String(runs);
-  if (statAvgScore) statAvgScore.textContent = avgScore;
-  if (statTimePlayed) statTimePlayed.textContent = toReadableTime(totalTime);
-  if (statAccuracy) statAccuracy.textContent = accuracy;
+  try {
+    const stats = await account.loadPracticeStats?.();
+    if (account.getUser() !== user) return;
+    setStats(stats);
+    if (statsNote) {
+      statsNote.className = "status-note";
+      statsNote.textContent = Number(stats?.totalRuns || 0) > 0
+        ? "Totals from every solo practice run while signed in."
+        : "No runs saved yet. Finish a solo practice run while signed in and it shows up here.";
+    }
+  } catch (err: any) {
+    if (account.getUser() !== user) return;
+    console.warn("Atom Bowl: loading practice stats failed", err);
+    if (statsNote) {
+      statsNote.className = "status-note bad";
+      statsNote.textContent = `Couldn't load your stats (${String(err?.code || err?.message || "error")}). Reload to try again.`;
+    }
+  }
 }
 
-async function renderSignedOut() {
-  const account = requireAccount();
-  if (statusText) {
-    statusText.textContent = "Not Signed In";
-    statusText.classList.remove("signed-in");
-  }
-  if (statusSub) statusSub.textContent = "Sign in to sync your profile and stats.";
-  if (profileUsername) profileUsername.textContent = "Sign In";
-  if (profilePlayerName) profilePlayerName.textContent = "Guest";
-  if (profileEmail) profileEmail.textContent = "No account connected";
-  if (profilePhoto) (profilePhoto as HTMLImageElement).src = "favicon.png";
+function renderChecking() {
+  setStatusTag("checking");
+  if (statusSub) statusSub.textContent = "Looking for a saved sign-in on this device.";
+}
+
+function localName() {
+  try { return String(requireAccount().getLocalName?.() || ""); } catch { return ""; }
+}
+
+function renderSignedOut() {
+  const name = localName();
+  if (guestNameInput && document.activeElement !== guestNameInput) guestNameInput.value = name;
+  let tag = "";
+  try { tag = requireAccount().getGuestTag?.() || ""; } catch {}
+  setStatusTag("out");
+  if (statusSub) statusSub.textContent = "You're practicing as a guest. Progress stays in this browser only.";
+  if (profileUsernameRow) profileUsernameRow.classList.add("hidden");
+  if (profileUsername) profileUsername.textContent = "";
+  if (profilePlayerName) profilePlayerName.textContent = name || "Guest";
+  if (profileEmail) profileEmail.textContent = "Not signed in";
+  setAvatar("", name);
   if (usernameLockedInput) usernameLockedInput.value = "";
   if (emailLockedInput) emailLockedInput.value = "";
-  if (guestTagEl) guestTagEl.textContent = account.getGuestTag?.() || fallbackGuestTag();
-  if (signedOutActions) signedOutActions.classList.remove("hidden");
-  if (signedInPanel) signedInPanel.classList.add("hidden");
-  if (statRuns) statRuns.textContent = "0";
-  if (statAvgScore) statAvgScore.textContent = "0.0";
-  if (statTimePlayed) statTimePlayed.textContent = "0m";
-  if (statAccuracy) statAccuracy.textContent = "0%";
+  if (guestTagEl) guestTagEl.textContent = tag || fallbackGuestTag();
+  signedOutActions?.classList.remove("hidden");
+  signedInPanel?.classList.add("hidden");
+  setStats(null);
+  if (statsNote) {
+    statsNote.className = "status-note";
+    statsNote.textContent = "Sign in to keep stats from your practice runs.";
+  }
+  setAccountError("");
+  setAccountStatus("");
+  renderSyncNotice();
 }
 
 async function renderSignedIn(user: any) {
   const account = requireAccount();
   const profile = account.getProfile?.() || {};
-  const username = String(profile?.username || "").trim() || String(user?.email || "").split("@")[0] || "player";
-  const playerName = String(profile?.playerName || profile?.displayName || user?.displayName || username);
-  const firstName = String(profile?.firstName || "");
-  const lastName = String(profile?.lastName || "");
-  const phone = String(profile?.phone || "");
+  const username = String(profile?.username || "").trim();
+  const playerName = String(profile?.playerName || profile?.displayName || user?.displayName || username || String(user?.email || "").split("@")[0] || "Player");
   const email = String(profile?.email || user?.email || "");
-  const photo = String(profile?.photoURL || user?.photoURL || "favicon.png");
+  const photo = String(profile?.photoURL || user?.photoURL || "");
 
-  if (statusText) {
-    statusText.textContent = "Signed In";
-    statusText.classList.add("signed-in");
+  setStatusTag("in");
+  if (statusSub) {
+    const providers: string[] = Array.isArray(user?.providerData) ? user.providerData.map((p: any) => p?.providerId) : [];
+    statusSub.textContent = providers.includes("google.com")
+      ? "Signed in with Google. Your stats and settings save to this account."
+      : "Signed in with email. Your stats and settings save to this account.";
   }
-  if (statusSub) statusSub.textContent = "Your account is connected.";
   if (guestTagEl) guestTagEl.textContent = account.getGuestTag?.() || fallbackGuestTag();
   if (profileUsername) profileUsername.textContent = username;
+  profileUsernameRow?.classList.toggle("hidden", !username);
   if (profilePlayerName) profilePlayerName.textContent = playerName;
-  if (profileEmail) profileEmail.textContent = email || "Linked account";
-  if (profilePhoto) (profilePhoto as HTMLImageElement).src = photo;
-  if (signedOutActions) signedOutActions.classList.add("hidden");
-  if (signedInPanel) signedInPanel.classList.remove("hidden");
+  if (profileEmail) profileEmail.textContent = email || "No email on this account";
+  setAvatar(pendingPhotoData || photo, playerName);
+  signedOutActions?.classList.add("hidden");
+  signedInPanel?.classList.remove("hidden");
 
   if (playerNameInput) playerNameInput.value = playerName;
-  if (firstNameInput) firstNameInput.value = firstName;
-  if (lastNameInput) lastNameInput.value = lastName;
-  if (phoneInput) phoneInput.value = phone;
+  if (firstNameInput) firstNameInput.value = String(profile?.firstName || "");
+  if (lastNameInput) lastNameInput.value = String(profile?.lastName || "");
+  if (phoneInput) phoneInput.value = String(profile?.phone || "");
   if (usernameLockedInput) {
-    usernameLockedInput.value = profile.username || "";
-    usernameLockedInput.readOnly = !!profile.username;
-    usernameLockedInput.classList.toggle("input-readonly", !!profile.username);
-    usernameLockedInput.disabled = !!profile.username;
-    usernameLockedInput.placeholder = "Choose a username";
+    usernameLockedInput.value = username;
+    usernameLockedInput.readOnly = !!username;
+    usernameLockedInput.classList.toggle("input-readonly", !!username);
+  }
+  if (usernameLockedHint) {
+    usernameLockedHint.textContent = username
+      ? "Usernames can't be changed once set."
+      : "Pick a username: 3 to 20 lowercase letters or numbers. It can't be changed later.";
   }
   if (emailLockedInput) emailLockedInput.value = email;
 
-  pendingPhotoData = "";
+  renderSyncNotice();
   await renderStats();
 }
 
 async function handleAuthChange(user: any) {
-  setAccountError("");
+  const account = requireAccount();
+  if (account.isReady && !account.isReady()) {
+    renderChecking();
+    return;
+  }
   if (!user || user.isAnonymous) {
-    await renderSignedOut();
+    renderSignedOut();
     return;
   }
   await renderSignedIn(user);
-  setAccountError(requireAccount().getSyncError?.() || "");
 }
 
-if (window.atomAccount?.onAuthChange) {
-  window.atomAccount.onAuthChange((user) => {
-    handleAuthChange(user).catch((err: any) => setAccountError(err?.message || "Failed to load account."));
+/* ---------- Auth modal ---------- */
+
+function moveErrorSlot(mode: "signin" | "signup") {
+  const slot = document.querySelector(`[data-error-slot="${mode}"]`);
+  if (slot && authError && authError.parentElement !== slot) {
+    slot.appendChild(authError);
+    if (authStatus) slot.appendChild(authStatus);
+  }
+}
+
+function switchAuthPanel(mode: "signin" | "signup") {
+  const isSignIn = mode === "signin";
+  signInFormPanel?.classList.toggle("hidden", !isSignIn);
+  signUpFormPanel?.classList.toggle("hidden", isSignIn);
+  showSignInTab?.classList.toggle("active", isSignIn);
+  showSignUpTab?.classList.toggle("active", !isSignIn);
+  showSignInTab?.setAttribute("aria-selected", String(isSignIn));
+  showSignUpTab?.setAttribute("aria-selected", String(!isSignIn));
+  if (authModalTitle) authModalTitle.textContent = isSignIn ? "Sign in" : "Create account";
+  moveErrorSlot(mode);
+  setAuthError("");
+  setAuthStatus("");
+}
+
+function openAuthModal(mode: "signin" | "signup") {
+  if (!authModal) return;
+  lastFocus = document.activeElement as HTMLElement | null;
+  switchAuthPanel(mode);
+  if (signupPlayerName && !signupPlayerName.value) signupPlayerName.value = localName();
+  authModal.classList.remove("hidden");
+  const first = mode === "signin" ? signinIdentifierInput : signupFirstName;
+  first?.focus();
+}
+
+function closeAuthModal() {
+  if (!authModal || authModal.classList.contains("hidden")) return;
+  authModal.classList.add("hidden");
+  lastFocus?.focus?.();
+}
+
+/* ---------- Sign-up field validation ---------- */
+
+function fieldError(input: HTMLInputElement | null, msg: string) {
+  if (!input) return;
+  const el = document.getElementById(`${input.id}Error`);
+  if (el) el.textContent = msg;
+  if (msg) input.setAttribute("aria-invalid", "true");
+  else input.removeAttribute("aria-invalid");
+}
+
+function setUsernameStatus(msg: string, tone: "" | "good" | "bad" = "") {
+  if (!usernameStatus) return;
+  usernameStatus.textContent = msg;
+  usernameStatus.className = tone ? `status-note ${tone}` : "status-note";
+  if (tone === "bad") signupUsername?.setAttribute("aria-invalid", "true");
+  else signupUsername?.removeAttribute("aria-invalid");
+}
+
+function passwordChecks(pw: string) {
+  return {
+    length: pw.length >= 8,
+    upper: /[A-Z]/.test(pw),
+    lower: /[a-z]/.test(pw),
+    number: /[0-9]/.test(pw),
+    symbol: /[^A-Za-z0-9]/.test(pw)
+  } as Record<string, boolean>;
+}
+
+function renderPasswordRules() {
+  const checks = passwordChecks(String(signupPassword?.value || ""));
+  document.querySelectorAll<HTMLElement>("#passwordHint [data-rule]").forEach((li) => {
+    li.classList.toggle("met", !!checks[li.dataset.rule || ""]);
+  });
+}
+
+function validateField(input: HTMLInputElement | null): boolean {
+  if (!input) return true;
+  const value = input.value.trim();
+  let msg = "";
+  switch (input) {
+    case signupFirstName:
+      if (!value) msg = "Enter your first name.";
+      break;
+    case signupLastName:
+      if (!value) msg = "Enter your last name.";
+      break;
+    case signupEmail:
+      if (!value) msg = "Enter your email address.";
+      else if (!EMAIL_RE.test(value)) msg = "Enter a valid email address, like you@example.com.";
+      break;
+    case signupPassword: {
+      const checks = passwordChecks(input.value);
+      const missing = [
+        !checks.length && "8 or more characters",
+        !checks.upper && "an uppercase letter",
+        !checks.lower && "a lowercase letter",
+        !checks.number && "a number",
+        !checks.symbol && "a symbol"
+      ].filter(Boolean);
+      if (!input.value) msg = "Choose a password.";
+      else if (missing.length) msg = `Add ${missing.join(", ")}.`;
+      break;
+    }
+    case signupPassword2:
+      if (!input.value) msg = "Type your password again.";
+      else if (input.value !== String(signupPassword?.value || "")) msg = "Passwords don't match.";
+      break;
+  }
+  fieldError(input, msg);
+  return !msg;
+}
+
+let usernameCheckSeq = 0;
+async function checkUsername(): Promise<boolean> {
+  if (!signupUsername) return true;
+  const username = signupUsername.value.trim().toLowerCase();
+  if (signupUsername.value !== username) signupUsername.value = username;
+  const seq = ++usernameCheckSeq;
+  if (!username) {
+    setUsernameStatus("Choose a username.", "bad");
+    return false;
+  }
+  if (!USERNAME_RE.test(username)) {
+    setUsernameStatus("Use 3 to 20 lowercase letters or numbers, no spaces or symbols.", "bad");
+    return false;
+  }
+  setUsernameStatus("Checking if it's free…");
+  try {
+    const ok = await requireAccount().isUsernameAvailable?.(username);
+    if (seq !== usernameCheckSeq) return !!ok;
+    setUsernameStatus(ok ? `"${username}" is available.` : `"${username}" is taken. Try another one.`, ok ? "good" : "bad");
+    return !!ok;
+  } catch (err: any) {
+    if (seq === usernameCheckSeq) setUsernameStatus(`Couldn't check this username (${err?.code || "network error"}). It will be checked again when you create the account.`);
+    return true;
+  }
+}
+
+const signupFields = [signupFirstName, signupLastName, signupEmail, signupPassword, signupPassword2];
+signupFields.forEach((input) => {
+  input?.addEventListener("blur", () => { if (input.value) validateField(input); });
+  input?.addEventListener("input", () => {
+    if (input.getAttribute("aria-invalid") === "true") validateField(input);
+  });
+});
+signupPassword?.addEventListener("input", () => {
+  renderPasswordRules();
+  if (signupPassword2?.value) validateField(signupPassword2);
+});
+signupUsername?.addEventListener("blur", () => { if (signupUsername.value.trim()) void checkUsername(); });
+signupUsername?.addEventListener("input", () => {
+  if (usernameStatus?.textContent) setUsernameStatus("");
+});
+
+/* ---------- Wiring ---------- */
+
+const account0 = (window as any).atomAccount;
+if (account0?.onAuthChange) {
+  renderChecking();
+  account0.onAuthChange((user: any) => {
+    handleAuthChange(user).catch((err: any) => setAccountError(friendlyAuthError(err)));
   });
 } else {
-  renderSignedOut().catch(() => {});
+  renderSignedOut();
+  if (statusSub) statusSub.textContent = "Accounts are unavailable right now because the sign-in service didn't load. Check your connection and reload.";
 }
 
-refreshAccountCopy();
+guestNameForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  let saved = "";
+  try { saved = String(requireAccount().setLocalName?.(guestNameInput?.value || "") || ""); } catch {}
+  if (guestNameInput) guestNameInput.value = saved;
+  if (profilePlayerName) profilePlayerName.textContent = saved || "Guest";
+  setAvatar("", saved);
+  if (guestNameHint) guestNameHint.textContent = saved ? "Saved. Buzzer rooms will fill this in for you." : "Name cleared.";
+});
 
 openSignInBtn?.addEventListener("click", () => openAuthModal("signin"));
 openSignUpBtn?.addEventListener("click", () => openAuthModal("signup"));
 showSignInTab?.addEventListener("click", () => switchAuthPanel("signin"));
 showSignUpTab?.addEventListener("click", () => switchAuthPanel("signup"));
-gotoSignupLink?.addEventListener("click", (e) => {
-  e.preventDefault();
-  switchAuthPanel("signup");
-});
-gotoSigninLink?.addEventListener("click", (e) => {
-  e.preventDefault();
-  switchAuthPanel("signin");
-});
+gotoSignupLink?.addEventListener("click", (e) => { e.preventDefault(); switchAuthPanel("signup"); signupFirstName?.focus(); });
+gotoSigninLink?.addEventListener("click", (e) => { e.preventDefault(); switchAuthPanel("signin"); signinIdentifierInput?.focus(); });
 closeAuthModalBtn?.addEventListener("click", closeAuthModal);
-authModal?.addEventListener("click", (e) => {
-  if (e.target === authModal) closeAuthModal();
-});
+authModal?.addEventListener("click", (e) => { if (e.target === authModal) closeAuthModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAuthModal(); });
 
-async function signInWithSocialProvider(provider: "google") {
-  setAuthError("");
+// Resolve once the store has loaded the signed-in user's profile (or after a timeout).
+function waitForAccountLoaded(timeoutMs = 6000): Promise<void> {
+  return new Promise((resolve) => {
+    let account: any;
+    try { account = requireAccount(); } catch { resolve(); return; }
+    let unsubscribe: (() => void) | null = null;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
+      queueMicrotask(() => unsubscribe?.());
+      resolve();
+    };
+    const timer = window.setTimeout(finish, timeoutMs);
+    unsubscribe = account.onAuthChange?.(() => {
+      if (account.getUser?.() && (account.getProfile?.() || account.getSyncError?.())) finish();
+    }) || null;
+    if (done) unsubscribe?.();
+  });
+}
+
+function welcomeName() {
   try {
-    setBusy(true);
-    await requireAccount().signInWithProvider(provider);
-    closeAuthModal();
-  } catch (err: any) {
-    setAuthError(friendlyAuthError(err));
-  } finally {
-    setBusy(false);
+    const account = requireAccount();
+    const p = account.getProfile?.() || {};
+    const u = account.getUser?.() || {};
+    return String(p.playerName || p.username || u.displayName || u.email || "your account");
+  } catch {
+    return "your account";
   }
 }
 
-googleBtn?.addEventListener("click", () => signInWithSocialProvider("google"));
-microsoftBtn?.addEventListener("click", () => setAuthError("Coming soon"));
-appleBtn?.addEventListener("click", () => setAuthError("Coming soon"));
-
-document.getElementById("resetPasswordBtn")?.addEventListener("click", async () => {
-  setBusy(true);
+googleBtn?.addEventListener("click", async () => {
+  setAuthError("");
   try {
-    await requireAccount().resetPassword(String(signinIdentifierInput?.value || ""));
-    setAuthError("If an account exists for that email, a password reset link has been sent.");
-  } catch (err) { setAuthError(friendlyAuthError(err)); }
-  finally { setBusy(false); }
+    await withBusy(googleBtn, "Waiting for Google…", async () => {
+      await requireAccount().signInWithProvider("google");
+      await waitForAccountLoaded();
+    });
+    closeAuthModal();
+    showToast(`Signed in as ${welcomeName()}`);
+  } catch (err: any) {
+    setAuthError(friendlyAuthError(err));
+  }
 });
 
-signinPasswordInput?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !signinBtn?.disabled) signinBtn?.click();
-});
-signupPassword2?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !signupBtn?.disabled) signupBtn?.click();
+resetPasswordBtn?.addEventListener("click", async () => {
+  const email = String(signinIdentifierInput?.value || "").trim();
+  if (!email) {
+    setAuthError("Enter your email above, then choose \"Forgot password?\" again.");
+    signinIdentifierInput?.focus();
+    return;
+  }
+  try {
+    await withBusy(resetPasswordBtn, "Sending…", () => requireAccount().resetPassword(email));
+    setAuthStatus(`If an account exists for ${email}, a reset link is on its way. Check your inbox.`);
+  } catch (err) {
+    setAuthError(friendlyAuthError(err));
+  }
 });
 
-signinBtn?.addEventListener("click", async () => {
+signInFormPanel?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (signinBtn?.disabled) return;
   setAuthError("");
   const identifier = String(signinIdentifierInput?.value || "").trim();
   const password = String(signinPasswordInput?.value || "");
-  if (!identifier || !password) {
-    setAuthError("Email and password are required.");
+  if (!identifier) {
+    setAuthError("Enter your email address.");
+    signinIdentifierInput?.focus();
+    return;
+  }
+  if (!EMAIL_RE.test(identifier)) {
+    setAuthError("Enter the email address you signed up with, like you@example.com.");
+    signinIdentifierInput?.focus();
+    return;
+  }
+  if (!password) {
+    setAuthError("Enter your password.");
+    signinPasswordInput?.focus();
     return;
   }
   try {
-    setBusy(true);
-    const account = requireAccount();
-    if (account.signInWithIdentifier) {
-      await account.signInWithIdentifier(identifier, password);
-    } else {
-      await account.signInWithEmail(identifier, password);
-    }
-    closeAuthModal();
+    await withBusy(signinBtn, "Signing in…", async () => {
+      const account = requireAccount();
+      if (account.signInWithIdentifier) await account.signInWithIdentifier(identifier, password);
+      else await account.signInWithEmail(identifier, password);
+      await waitForAccountLoaded();
+    });
     if (signinPasswordInput) signinPasswordInput.value = "";
+    closeAuthModal();
+    showToast(`Signed in as ${welcomeName()}`);
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
-  } finally {
-    setBusy(false);
+    signinPasswordInput?.select();
   }
 });
 
-signupUsername?.addEventListener("blur", async () => {
-  if (!signupUsername || !usernameStatus) return;
-  const username = signupUsername.value.trim().toLowerCase();
-  if (!username) {
-    usernameStatus.textContent = "";
-    usernameStatus.className = "status-note";
-    return;
-  }
-  if (!/^[a-z0-9]{3,20}$/.test(username)) {
-    usernameStatus.textContent = "Use 3-20 lowercase letters/numbers.";
-    usernameStatus.className = "status-note bad";
-    return;
-  }
-  usernameStatus.textContent = "Checking...";
-  usernameStatus.className = "status-note";
-  try {
-    const ok = await requireAccount().isUsernameAvailable?.(username);
-    usernameStatus.textContent = ok ? "Username is available!" : "Username is taken.";
-    usernameStatus.className = ok ? "status-note good" : "status-note bad";
-  } catch {
-    usernameStatus.textContent = "Could not check username.";
-    usernameStatus.className = "status-note bad";
-  }
-});
-
-signupBtn?.addEventListener("click", async () => {
+signUpFormPanel?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (signupBtn?.disabled) return;
   setAuthError("");
+  const fieldsOk = signupFields.map((input) => validateField(input)).every(Boolean);
+  const usernameOk = await checkUsername();
+  if (!fieldsOk || !usernameOk) {
+    setAuthError("Fix the highlighted fields to create your account.");
+    const firstBad = signUpFormPanel.querySelector<HTMLInputElement>('[aria-invalid="true"]');
+    firstBad?.focus();
+    return;
+  }
+
   const firstName = String(signupFirstName?.value || "").trim();
   const lastName = String(signupLastName?.value || "").trim();
   const email = String(signupEmail?.value || "").trim();
   const phone = String(signupPhone?.value || "").trim();
   const username = String(signupUsername?.value || "").trim().toLowerCase();
-  const playerName = String(signupPlayerName?.value || `${firstName} ${lastName}`).trim();
+  const playerName = String(signupPlayerName?.value || "").trim() || `${firstName} ${lastName}`.trim();
   const password = String(signupPassword?.value || "");
-  const password2 = String(signupPassword2?.value || "");
-
-  if (!firstName || !lastName || !email || !username || !password) {
-    setAuthError("Please complete all required fields.");
-    return;
-  }
-  if (!/^[a-z0-9]{3,20}$/.test(username)) {
-    setAuthError("Username must be 3-20 lowercase letters/numbers.");
-    return;
-  }
-  if (password !== password2) {
-    setAuthError("Passwords do not match.");
-    return;
-  }
 
   try {
-    setBusy(true);
-    const account = requireAccount();
-    if (account.signUpWithDetails) {
-      await account.signUpWithDetails({
-        firstName,
-        lastName,
-        email,
-        phone,
-        username,
-        password,
-        playerName
-      });
-    } else {
-      await account.signUpWithEmail(email, password, playerName || username);
-    }
-    closeAuthModal();
+    await withBusy(signupBtn, "Creating account…", async () => {
+      const account = requireAccount();
+      if (account.signUpWithDetails) {
+        await account.signUpWithDetails({ firstName, lastName, email, phone, username, password, playerName });
+      } else {
+        await account.signUpWithEmail(email, password, playerName || username);
+      }
+    });
     if (signupPassword) signupPassword.value = "";
     if (signupPassword2) signupPassword2.value = "";
+    renderPasswordRules();
+    closeAuthModal();
+    showToast(`Account created. Signed in as ${welcomeName()}`);
   } catch (err: any) {
+    const code = err?.code || "";
+    if (code === "atom/profile-partial") {
+      // The login exists and is signed in; show the explanation on the page.
+      closeAuthModal();
+      setAccountError(err.message);
+      return;
+    }
+    if (code === "atom/username-taken") {
+      setUsernameStatus(`"${username}" is taken. Try another one.`, "bad");
+      signupUsername?.focus();
+    } else if (code === "auth/email-already-in-use" || code === "auth/invalid-email") {
+      fieldError(signupEmail, friendlyAuthError(err));
+      signupEmail?.focus();
+    } else if (code === "auth/password-does-not-meet-requirements" || code === "auth/weak-password") {
+      fieldError(signupPassword, friendlyAuthError(err));
+      signupPassword?.focus();
+    }
     setAuthError(friendlyAuthError(err));
-  } finally {
-    setBusy(false);
   }
 });
 
-photoUploadInput?.addEventListener("change", async () => {
+photoUploadInput?.addEventListener("change", () => {
   setAccountError("");
   const file = photoUploadInput.files?.[0];
   if (!file) return;
   if (!file.type.startsWith("image/")) {
-    setAccountError("Please choose an image file.");
+    setAccountError("That file isn't an image. Choose a JPG, PNG or GIF.");
+    photoUploadInput.value = "";
     return;
   }
   if (file.size > 250000) {
-    setAccountError("Image is too large. Max 250 KB.");
+    setAccountError(`That image is ${Math.round(file.size / 1000)} KB. Choose one under 250 KB.`);
+    photoUploadInput.value = "";
     return;
   }
   const reader = new FileReader();
   reader.onload = () => {
     pendingPhotoData = String(reader.result || "");
-    if (profilePhoto && pendingPhotoData) (profilePhoto as HTMLImageElement).src = pendingPhotoData;
+    if (pendingPhotoData) setAvatar(pendingPhotoData, String(playerNameInput?.value || ""));
+    setAccountStatus("New picture ready. Save profile to keep it.");
   };
+  reader.onerror = () => setAccountError("Couldn't read that image. Try a different file.");
   reader.readAsDataURL(file);
 });
 
-saveProfileBtn?.addEventListener("click", async () => {
+signedInPanel?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (saveProfileBtn?.disabled) return;
   setAccountError("");
+  setAccountStatus("");
+  const playerName = String(playerNameInput?.value || "").trim();
+  if (!playerName) {
+    setAccountError("Enter a player name. It's the name other players see in buzzer rooms.");
+    playerNameInput?.focus();
+    return;
+  }
+  const typedUsername = usernameLockedInput && !usernameLockedInput.readOnly
+    ? usernameLockedInput.value.trim().toLowerCase()
+    : "";
+  if (typedUsername && !USERNAME_RE.test(typedUsername)) {
+    setAccountError("Usernames are 3 to 20 lowercase letters or numbers, with no spaces or symbols.");
+    usernameLockedInput?.focus();
+    return;
+  }
   try {
-    setBusy(true);
-    const account = requireAccount();
-    const next = await account.updateAccountProfile?.({
-      username: usernameLockedInput?.value || undefined,
-      playerName: String(playerNameInput?.value || "").trim(),
+    const next: any = await withBusy(saveProfileBtn, "Saving…", () => requireAccount().updateAccountProfile?.({
+      username: typedUsername || usernameLockedInput?.value || undefined,
+      playerName,
       firstName: String(firstNameInput?.value || "").trim(),
       lastName: String(lastNameInput?.value || "").trim(),
       phone: String(phoneInput?.value || "").trim(),
       photoURL: pendingPhotoData || undefined
-    });
+    }));
     pendingPhotoData = "";
+    if (photoUploadInput) photoUploadInput.value = "";
     if (next) {
-      if ((next as any).username && usernameLockedInput) { usernameLockedInput.disabled = true; usernameLockedInput.readOnly = true; if (profileUsername) profileUsername.textContent = (next as any).username; }
-      if (profilePlayerName) profilePlayerName.textContent = String((next as any).playerName || "");
-      if (profilePhoto && (next as any).photoURL) {
-        (profilePhoto as HTMLImageElement).src = String((next as any).photoURL);
-      }
+      const user = requireAccount().getUser?.();
+      if (user) await renderSignedIn(user);
     }
+    setAccountStatus("Profile saved.");
+    showToast("Profile saved");
   } catch (err: any) {
-    setAccountError(err?.message || "Failed to save profile.");
-  } finally {
-    setBusy(false);
+    setAccountError(`Profile not saved. ${friendlyAuthError(err)}`);
   }
 });
 
 signOutBtn?.addEventListener("click", async () => {
   setAccountError("");
   try {
-    setBusy(true);
-    await requireAccount().signOut();
+    await withBusy(signOutBtn, "Signing out…", () => requireAccount().signOut());
+    showToast("Signed out");
   } catch (err: any) {
-    setAccountError(err?.message || "Sign-out failed.");
-  } finally {
-    setBusy(false);
+    setAccountError(`Sign-out failed. ${friendlyAuthError(err)}`);
+  }
+});
+
+retrySyncBtn?.addEventListener("click", async () => {
+  try {
+    const account = requireAccount();
+    account.clearLastWriteError?.();
+    await withBusy(retrySyncBtn, "Trying again…", () => account.retrySync?.() || Promise.resolve());
+    renderSyncNotice();
+    if (!syncNotice || syncNotice.classList.contains("hidden")) showToast("Account synced");
+  } catch (err: any) {
+    if (syncNoticeText) syncNoticeText.textContent = `Still failing: ${friendlyAuthError(err)}`;
   }
 });

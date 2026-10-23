@@ -1,20 +1,5 @@
 // @ts-nocheck
 (() => {
-    const nav = document.getElementById('nav');
-    const overlay = document.getElementById('overlay');
-    const hamburger = document.getElementById('hamburger');
-    const toggleNav = () => {
-        if (!nav || !overlay || !hamburger)
-            return;
-        const isOpen = nav.classList.toggle('open');
-        overlay.classList.toggle('show');
-        hamburger.classList.toggle('open');
-        hamburger.textContent = isOpen ? 'Ã¢Å“â€¢' : 'Ã¢ËœÂ°';
-    };
-    if (hamburger && overlay) {
-        hamburger.addEventListener('click', toggleNav);
-        overlay.addEventListener('click', toggleNav);
-    }
     const SCORE_VALUES = {
         tossup: 4,
         bonus: 10,
@@ -92,7 +77,11 @@
             return;
         duration = nextDuration;
         remaining = duration;
-        modeButtons.forEach((item) => item.classList.toggle('active', item === btn));
+        modeButtons.forEach((item) => {
+            const selected = item === btn;
+            item.classList.toggle('active', selected);
+            item.setAttribute('aria-pressed', String(selected));
+        });
         if (timerMeta)
             timerMeta.textContent = `Mode: ${nextLabel}`;
         stopTimer();

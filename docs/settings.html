@@ -2,328 +2,247 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Atom Bowl — Settings</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Settings | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/settings.css">
 </head>
-<body class="page-transition page-enter">
-
-  <div class="waves" aria-hidden="true">
-    <svg viewBox="0 0 1440 320" preserveAspectRatio="none">
-      <path class="wave1" fill="rgba(79,124,255,0.20)" d="M0,224L48,229.3C96,235,192,245,288,229.3C384,213,480,171,576,154.7C672,139,768,149,864,176C960,203,1056,245,1152,250.7C1248,256,1344,224,1392,208L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-      <path class="wave2" fill="rgba(57,217,138,0.10)" d="M0,256L60,229.3C120,203,240,149,360,138.7C480,128,600,160,720,170.7C840,181,960,171,1080,186.7C1200,203,1320,245,1380,266.7L1440,288L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
-    </svg>
-  </div>
-
-  <!-- NAV -->
-    <div class="nav" id="nav">
-    <h2 class="nav-title">&#x269B; Atom Bowl</h2>
-    <a href="index.html"><span class="icon">&#x1F3E0;</span> Home</a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span> Generate</a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span> Practice</a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span> Question Bank</a>
-    <a href="learn.html"><span class="icon">&#x1F9E0;</span> Learn</a>
-    <a href="settings.html" class="active"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-    <div class="nav-more" data-nav-more>
-      <button class="nav-more-btn" type="button" aria-haspopup="true" aria-expanded="false">...</button>
-      <div class="nav-more-menu">
-        <a href="game_clock.html">Game Clock</a>
-        <a href="buzzer_rooms.html">Buzzer Rooms</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="overlay" id="overlay"></div>
-  <div class="hamburger" id="hamburger">☰</div>
-
-  <div class="main">
-    <div class="header">
-      <div class="pop">
+<body>
+  <main class="main settings">
+    <header class="header">
+      <div>
         <h1 class="title">Settings</h1>
-        <div class="subtitle">Preferences are stored locally in your browser.</div>
+        <p class="subtitle">Changes save as you make them. They're stored in this browser and synced to your account when you're signed in.</p>
+      </div>
+    </header>
+
+    <div class="settings-grid">
+      <div class="settings-col">
+        <section class="panel" aria-labelledby="practiceHeading">
+          <h2 id="practiceHeading"><i data-icon="practice"></i>Practice</h2>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="sfxLabel">Sound effects</span>
+              <span class="row-desc">Buzz and click sounds.</span>
+            </div>
+            <button class="toggle" id="sfxToggle" type="button" role="switch" aria-checked="false" aria-labelledby="sfxLabel"><span class="knob"></span></button>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="ttsLabel">Read aloud</span>
+              <span class="row-desc">Your browser's voice reads each question.</span>
+            </div>
+            <button class="toggle" id="ttsToggle" type="button" role="switch" aria-checked="false" aria-labelledby="ttsLabel"><span class="knob"></span></button>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <label class="row-label" for="divSelect">Default division</label>
+              <span class="row-desc">Preselected when you start practice.</span>
+            </div>
+            <select class="select" id="divSelect">
+              <option value="MS">Middle school</option>
+              <option value="HS">High school</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <label class="row-label" for="modeSelect">Default mode</label>
+              <span class="row-desc">Rapid skips the pauses between questions.</span>
+            </div>
+            <select class="select" id="modeSelect">
+              <option value="rapid">Rapid</option>
+              <option value="regular">Regular</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="rememberTopicsLabel">Remember topics</span>
+              <span class="row-desc">Restore the topics you picked last time.</span>
+            </div>
+            <button class="toggle" id="rememberTopicsToggle" type="button" role="switch" aria-checked="false" aria-labelledby="rememberTopicsLabel"><span class="knob"></span></button>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="autoCheckLabel">Auto-check short answers</span>
+              <span class="row-desc">Grade typed answers with fuzzy matching.</span>
+            </div>
+            <button class="toggle" id="autoCheckToggle" type="button" role="switch" aria-checked="false" aria-labelledby="autoCheckLabel"><span class="knob"></span></button>
+          </div>
+
+          <div class="row row-range">
+            <div class="row-text">
+              <label class="row-label" for="autoThreshold">Match strictness</label>
+              <span class="row-desc">Higher is stricter. 0.72 works well.</span>
+            </div>
+            <div class="range-wrap">
+              <input id="autoThreshold" type="range" min="0.50" max="0.95" step="0.01" value="0.72" />
+              <output id="autoThresholdValue" class="range-value" for="autoThreshold">0.72</output>
+            </div>
+          </div>
+
+          <div class="row" id="externalAi">
+            <div class="row-text">
+              <label class="row-label" for="externalAiSelect">Send missed questions to</label>
+              <span class="row-desc">The chat app the Send button opens with the question and your answer.</span>
+            </div>
+            <select class="select" id="externalAiSelect">
+              <option value="claude">Claude</option>
+              <option value="chatgpt">ChatGPT</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="voiceHeading">
+          <h2 id="voiceHeading"><i data-icon="volume"></i>Read-aloud voice</h2>
+
+          <div class="row">
+            <div class="row-text">
+              <label class="row-label" for="voiceSelect">Voice</label>
+              <span class="row-desc">Voices come from your browser and device.</span>
+            </div>
+            <select class="select" id="voiceSelect"></select>
+          </div>
+
+          <div class="row row-range">
+            <div class="row-text">
+              <label class="row-label" for="voiceRate">Speed</label>
+            </div>
+            <div class="range-wrap">
+              <input id="voiceRate" type="range" min="0.70" max="1.60" step="0.05" value="1.00" />
+              <output id="voiceRateValue" class="range-value" for="voiceRate">1.00x</output>
+            </div>
+          </div>
+
+          <div class="row row-range">
+            <div class="row-text">
+              <label class="row-label" for="voicePitch">Pitch</label>
+            </div>
+            <div class="range-wrap">
+              <input id="voicePitch" type="range" min="0.50" max="2.00" step="0.05" value="1.00" />
+              <output id="voicePitchValue" class="range-value" for="voicePitch">1.00</output>
+            </div>
+          </div>
+
+          <div class="row row-range">
+            <div class="row-text">
+              <label class="row-label" for="voiceVolume">Volume</label>
+            </div>
+            <div class="range-wrap">
+              <input id="voiceVolume" type="range" min="0.00" max="1.00" step="0.05" value="1.00" />
+              <output id="voiceVolumeValue" class="range-value" for="voiceVolume">100%</output>
+            </div>
+          </div>
+
+          <div class="row voice-test-row">
+            <div class="row-text">
+              <span class="row-label">Test the voice</span>
+              <span class="row-desc">Reads a sample sentence with the settings above.</span>
+            </div>
+            <button class="btn" id="voiceTest" type="button"><i data-icon="play"></i>Play sample</button>
+          </div>
+        </section>
+      </div>
+
+      <div class="settings-col">
+        <section class="panel" aria-labelledby="appearanceHeading">
+          <h2 id="appearanceHeading"><i data-icon="type"></i>Appearance</h2>
+
+          <div class="row">
+            <div class="row-text">
+              <label class="row-label" for="themeSelect">Theme</label>
+              <span class="row-desc">System follows your device setting.</span>
+            </div>
+            <select class="select" id="themeSelect">
+              <option value="system">System</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <label class="row-label" for="fontSelect">Text size</label>
+            </div>
+            <select class="select" id="fontSelect">
+              <option value="s">Small</option>
+              <option value="m">Medium</option>
+              <option value="l">Large</option>
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="accentLabel">Accent color</span>
+              <span class="row-desc">Buttons, links and highlights.</span>
+            </div>
+            <div class="swatches" id="accentSelect" role="radiogroup" aria-labelledby="accentLabel">
+              <button type="button" class="swatch swatch-blue" role="radio" data-value="#5b83ff" aria-checked="true" aria-label="Blue (default)" title="Blue (default)"></button>
+              <button type="button" class="swatch swatch-green" role="radio" data-value="#39d98a" aria-checked="false" aria-label="Green" title="Green"></button>
+              <button type="button" class="swatch swatch-red" role="radio" data-value="#ff6b6b" aria-checked="false" aria-label="Red" title="Red"></button>
+              <button type="button" class="swatch swatch-gold" role="radio" data-value="#f7c948" aria-checked="false" aria-label="Gold" title="Gold"></button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="hcLabel">High contrast</span>
+              <span class="row-desc">Stronger borders and brighter secondary text.</span>
+            </div>
+            <button class="toggle" id="hcToggle" type="button" role="switch" aria-checked="false" aria-labelledby="hcLabel"><span class="knob"></span></button>
+          </div>
+
+          <div class="row">
+            <div class="row-text">
+              <span class="row-label" id="animLabel">Animations</span>
+              <span class="row-desc">Short transitions on buttons and toggles.</span>
+            </div>
+            <button class="toggle" id="animToggle" type="button" role="switch" aria-checked="false" aria-labelledby="animLabel"><span class="knob"></span></button>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="hotkeysHeading">
+          <h2 id="hotkeysHeading"><i data-icon="keyboard"></i>Practice hotkeys</h2>
+          <dl class="hotkeys">
+            <div><dt>Buzz</dt><dd><span class="kbd">Space</span> or <span class="kbd">Alt</span> + <span class="kbd">B</span></dd></div>
+            <div><dt>Submit a short answer</dt><dd><span class="kbd">Enter</span></dd></div>
+            <div><dt>Choose a multiple choice answer</dt><dd><span class="kbd">W</span> <span class="kbd">X</span> <span class="kbd">Y</span> <span class="kbd">Z</span></dd></div>
+            <div><dt>Mark correct after the answer shows</dt><dd><span class="kbd">R</span> or <span class="kbd">Alt</span> + <span class="kbd">R</span></dd></div>
+            <div><dt>Mark wrong after the answer shows</dt><dd><span class="kbd">W</span> or <span class="kbd">Alt</span> + <span class="kbd">W</span></dd></div>
+            <div><dt>Next question</dt><dd><span class="kbd">N</span> or <span class="kbd">Alt</span> + <span class="kbd">N</span></dd></div>
+            <div><dt>Stop reading</dt><dd><span class="kbd">Alt</span> + <span class="kbd">S</span></dd></div>
+            <div><dt>Turn read aloud on or off</dt><dd><span class="kbd">Alt</span> + <span class="kbd">T</span></dd></div>
+            <div><dt>Focus the answer box</dt><dd><span class="kbd">Alt</span> + <span class="kbd">F</span></dd></div>
+            <div><dt>Show hotkey help</dt><dd><span class="kbd">Alt</span> + <span class="kbd">H</span></dd></div>
+            <div><dt>Leave practice</dt><dd><span class="kbd">Esc</span></dd></div>
+          </dl>
+        </section>
       </div>
     </div>
 
-    <div class="cards">
-      <div class="card pop">
-        <h3>Practice</h3>
-
-        <div class="row">
-          <div class="label">
-            <b>Sound FX</b>
-            <span>Buzz + click sounds.</span>
-          </div>
-          <div class="toggle" id="sfxToggle" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Read Aloud</b>
-            <span>Browser voice reads the question.</span>
-          </div>
-          <div class="toggle" id="ttsToggle" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Default Division</b>
-            <span>Used as the starter choice on Practice Home.</span>
-          </div>
-          <select class="select" id="divSelect">
-            <option value="MS">MS</option>
-            <option value="HS">HS</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Default Mode</b>
-            <span>Rapid vs Regular practice.</span>
-          </div>
-          <select class="select" id="modeSelect">
-            <option value="rapid">rapid</option>
-            <option value="regular">regular</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Remember Super Topics</b>
-            <span>Restore your last selected supertopics on Practice.</span>
-          </div>
-          <div class="toggle" id="rememberTopicsToggle" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Auto Check</b>
-            <span>Auto-grade short answers with fuzzy matching.</span>
-          </div>
-          <div class="toggle" id="autoCheckToggle" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Match Threshold</b>
-            <span>Higher = stricter matching. Recommended 0.72.</span>
-          </div>
-          <div class="range-wrap">
-            <input id="autoThreshold" class="range" type="range" min="0.50" max="0.95" step="0.01" value="0.72" />
-            <span id="autoThresholdValue" class="range-value">0.72</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="card pop">
-        <h3>Voice</h3>
-
-        <div class="row">
-          <div class="label">
-            <b>Voice</b>
-            <span>Select the browser voice to use.</span>
-          </div>
-          <select class="select" id="voiceSelect"></select>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Speed</b>
-            <span>Speech rate for Read Aloud.</span>
-          </div>
-          <div class="range-wrap">
-            <input id="voiceRate" class="range" type="range" min="0.70" max="1.60" step="0.05" value="1.00" />
-            <span id="voiceRateValue" class="range-value">1.00x</span>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Pitch</b>
-            <span>Lower = deeper, higher = brighter.</span>
-          </div>
-          <div class="range-wrap">
-            <input id="voicePitch" class="range" type="range" min="0.50" max="2.00" step="0.05" value="1.00" />
-            <span id="voicePitchValue" class="range-value">1.00</span>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Volume</b>
-            <span>Master voice volume.</span>
-          </div>
-          <div class="range-wrap">
-            <input id="voiceVolume" class="range" type="range" min="0.00" max="1.00" step="0.05" value="1.00" />
-            <span id="voiceVolumeValue" class="range-value">100%</span>
-          </div>
-        </div>
-
-        <div class="row voice-test-row">
-          <div class="label">
-            <b>Test Voice</b>
-            <span>Preview your current voice settings.</span>
-          </div>
-          <button class="btn" id="voiceTest" type="button">Play Test</button>
-        </div>
-      </div>
-
-      <div class="card pop">
-        <h3>UI</h3>
-
-        <div class="row">
-          <div class="label">
-            <b>High Contrast</b>
-            <span>Sharper borders + brighter text.</span>
-          </div>
-          <div class="toggle" id="hcToggle" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Animations</b>
-            <span>Pop/fade effects across pages.</span>
-          </div>
-          <div class="toggle" id="animToggle" role="switch" aria-checked="false" tabindex="0"><div class="knob"></div></div>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Font Size</b>
-            <span>Small / Medium / Large.</span>
-          </div>
-          <select class="select" id="fontSelect">
-            <option value="m">Medium</option>
-            <option value="s">Small</option>
-            <option value="l">Large</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Theme</b>
-            <span>Switch between dark and light UI.</span>
-          </div>
-          <select class="select" id="themeSelect">
-            <option value="system">System (default)</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <div class="label">
-            <b>Accent Color</b>
-            <span>Controls glow/hover color.</span>
-          </div>
-          <select class="select" id="accentSelect">
-            <option value="#4f7cff">Blue (default)</option>
-            <option value="#39d98a">Green</option>
-            <option value="#ff6b6b">Red</option>
-            <option value="#f7c948">Gold</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="card pop">
-        <h3>Hotkeys</h3>
-        <div class="hotkeys">
-          <div class="hotkey-item">
-            <span class="hotkey-label">Buzz</span>
-            <span class="kbd">Space</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Submit (Short Answer)</span>
-            <span class="kbd">Enter</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Choose W/X/Y/Z (MC)</span>
-            <span class="kbd">W / X / Y / Z</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Grade Correct (after reveal)</span>
-            <span class="kbd">R</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Grade Wrong (after reveal)</span>
-            <span class="kbd">W</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Grade Right (Alt)</span>
-            <span class="kbd">Alt + R</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Grade Wrong (Alt)</span>
-            <span class="kbd">Alt + W</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Next Question</span>
-            <span class="kbd">N</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Buzz (Alt)</span>
-            <span class="kbd">Alt + B</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Stop Voice + Typewriter</span>
-            <span class="kbd">Alt + S</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Toggle Voice</span>
-            <span class="kbd">Alt + T</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Focus Answer Input</span>
-            <span class="kbd">Alt + F</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Toggle Hotkey Help</span>
-            <span class="kbd">Alt + H</span>
-          </div>
-          <div class="hotkey-item">
-            <span class="hotkey-label">Exit Practice</span>
-            <span class="kbd">Esc</span>
-          </div>
-        </div>
-      </div>
+    <div class="settings-footer">
+      <button class="btn danger" id="reset" type="button"><i data-icon="reset"></i>Reset to defaults</button>
     </div>
+  </main>
 
-    <div class="btnrow">
-      <button class="btn danger" id="reset">Reset to Defaults</button>
-      <a class="btn" href="index.html" style="text-decoration:none; display:inline-flex; align-items:center;">Back to Home</a>
-    </div>
-  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    <nav class="bottom-nav" aria-label="Primary">
-    <a href="index.html"><span class="icon">&#x269B;</span><span>Home</span></a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span><span>Generate</span></a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span><span>Practice</span></a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span><span>Bank</span></a>
-    <a href="account.html"><span class="icon">&#x1F464;</span><span>Account</span></a>
-    <div class="bottom-nav-more">
-      <button type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleBottomNavMore(event)">
-        <span class="icon">&#x22EF;</span><span>More</span>
-      </button>
-      <div class="bottom-nav-more-menu">
-        <a href="game_clock.html"><span class="icon">&#x23F1;&#xFE0F;</span> Game Clock</a>
-        <a href="buzzer_rooms.html"><span class="icon">&#x1F6A8;</span> Buzzer Rooms</a>
-        <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-        <a href="settings.html" class="active"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-      </div>
-    </div>
-  </nav>
-
-  <div class="toast" id="toast">Saved ✅</div>
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/settings.js"></script>
 </body>
 </html>
-
-

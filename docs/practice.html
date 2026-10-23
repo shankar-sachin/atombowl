@@ -2,154 +2,161 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Atom Bowl - Practice</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Practice run | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/practice.css">
 </head>
-<body class="page-transition page-enter">
+<body data-chrome="focus">
+  <main class="main practice">
+    <p id="err" class="error run-error hidden" role="alert"></p>
 
-  <div class="waves" aria-hidden="true">
-    <svg viewBox="0 0 1440 320" preserveAspectRatio="none">
-      <path class="wave1" fill="rgba(79,124,255,0.20)" d="M0,224L48,229.3C96,235,192,245,288,229.3C384,213,480,171,576,154.7C672,139,768,149,864,176C960,203,1056,245,1152,250.7C1248,256,1344,224,1392,208L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-      <path class="wave2" fill="rgba(57,217,138,0.10)" d="M0,256L60,229.3C120,203,240,149,360,138.7C480,128,600,160,720,170.7C840,181,960,171,1080,186.7C1200,203,1320,245,1380,266.7L1440,288L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
-    </svg>
-  </div>
-  <div class="main">
-    <div id="err" class="error hidden"></div>
-
-    <div class="topbar">
-      <div class="pill"><small>Timer</small> <span id="timer">20</span></div>
-      <div class="pill"><small>Score</small> <span id="score">0</span></div>
-      <div class="pill"><small>Stopwatch</small> <span id="stopwatch">0.00 s</span></div>
-      <div class="pill"><small>Progress</small> <span id="progress">-</span></div>
-      <div class="pill"><small>Mode</small> <span id="mode">-</span></div>
-      <button id="ttsToggle" class="pill" title="Toggle voice">TTS</button>
-      <div class="pill">
-        <small>Speed</small>
-        <input
-          id="speedSlider"
-          type="range"
-          min="0.6"
-          max="1.8"
-          step="0.05"
-          value="1.0"
-          style="width: 90px;"
-        />
-        <small id="speedLabel">1.0x</small>  
+    <section class="scoreboard" aria-label="Run status">
+      <div class="readout">
+        <span class="readout-label">Time</span>
+        <span id="timer" class="numerals readout-value">20</span>
       </div>
-      <div id="hotkeyHelp" class="pill hotkey-help" aria-label="Hotkeys">
-        <span class="help-icon">?</span>
-        <small>Hotkeys</small>
-        <div class="hotkey-tooltip" role="dialog" aria-live="polite">
+      <div class="readout">
+        <span class="readout-label">Score</span>
+        <span id="score" class="numerals readout-value">0</span>
+      </div>
+      <div class="readout">
+        <span class="readout-label">Stopwatch</span>
+        <span id="stopwatch" class="numerals readout-value">0.00 s</span>
+      </div>
+      <div class="readout readout-text">
+        <span class="readout-label">Progress</span>
+        <span id="progress" class="readout-small">Loading</span>
+        <span id="mode" class="readout-mode">Rapid fire</span>
+      </div>
+    </section>
+
+    <div class="tools">
+      <button id="ttsToggle" class="btn small" type="button" aria-pressed="true">Read aloud on</button>
+      <label class="speed" for="speedSlider">
+        <span>Speed</span>
+        <input id="speedSlider" type="range" min="0.6" max="1.8" step="0.05" value="1.0" />
+        <span id="speedLabel" class="speed-value">1.00×</span>
+      </label>
+      <div id="hotkeyHelp" class="hotkey-help">
+        <button id="hotkeyBtn" class="btn small quiet" type="button" aria-expanded="false" aria-controls="hotkeyTooltip">
+          <i data-icon="keyboard"></i>Shortcuts
+        </button>
+        <div id="hotkeyTooltip" class="hotkey-tooltip" role="dialog" aria-label="Keyboard shortcuts">
           <div class="hotkey-row"><span>Buzz</span><span class="kbd">Space</span></div>
-          <div class="hotkey-row"><span>Submit (SA)</span><span class="kbd">Enter</span></div>
-          <div class="hotkey-row"><span>Choose W/X/Y/Z</span><span class="kbd">W / X / Y / Z</span></div>
-          <div class="hotkey-row"><span>Grade Right</span><span class="kbd">R</span></div>
-          <div class="hotkey-row"><span>Grade Wrong</span><span class="kbd">W</span></div>
-          <div class="hotkey-row"><span>Next Question</span><span class="kbd">N</span></div>
-          <div class="hotkey-row"><span>Stop Voice + Type</span><span class="kbd">Alt + S</span></div>
-          <div class="hotkey-row"><span>Toggle Voice</span><span class="kbd">Alt + T</span></div>
-          <div class="hotkey-row"><span>Alt Buzz</span><span class="kbd">Alt + B</span></div>
-          <div class="hotkey-row"><span>Focus Answer</span><span class="kbd">Alt + F</span></div>
-          <div class="hotkey-row"><span>Toggle Help</span><span class="kbd">Alt + H</span></div>
-          <div class="hotkey-row"><span>Exit Practice</span><span class="kbd">Esc</span></div>
+          <div class="hotkey-row"><span>Submit a short answer</span><span class="kbd">Enter</span></div>
+          <div class="hotkey-row"><span>Choose an option</span><span class="keys"><span class="kbd">W</span><span class="kbd">X</span><span class="kbd">Y</span><span class="kbd">Z</span></span></div>
+          <div class="hotkey-row"><span>Mark right</span><span class="kbd">R</span></div>
+          <div class="hotkey-row"><span>Mark wrong</span><span class="kbd">W</span></div>
+          <div class="hotkey-row"><span>Next question</span><span class="kbd">N</span></div>
+          <div class="hotkey-row"><span>Stop reading, show full text</span><span class="kbd">Alt S</span></div>
+          <div class="hotkey-row"><span>Read aloud on or off</span><span class="kbd">Alt T</span></div>
+          <div class="hotkey-row"><span>Buzz from anywhere</span><span class="kbd">Alt B</span></div>
+          <div class="hotkey-row"><span>Focus the answer box</span><span class="kbd">Alt F</span></div>
+          <div class="hotkey-row"><span>Show shortcuts</span><span class="kbd">Alt H</span></div>
+          <div class="hotkey-row"><span>Exit practice</span><span class="kbd">Esc</span></div>
         </div>
       </div>
-      <div id="interruptBadge" class="interrupt-badge hidden">INTERRUPT</div>
     </div>
 
-    <div class="question-card">
-      <div class="buzz" id="buzz">Loading...</div>
-
-      <img id="questionImg" class="question-img" src="" alt="Question" />
-      <div id="questionText" class="question-text hidden"></div>
-
-      <div class="meta">
-        <div id="metaLeft">-</div>
-        <div id="metaRight">-</div>
+    <article class="question-card">
+      <div class="q-head">
+        <div id="metaLeft" class="q-tags"></div>
+        <span id="interruptBadge" class="tag bad interrupt-badge hidden">Interrupt</span>
       </div>
 
-      <input id="answer" class="answer-box hidden" placeholder="Type your answer..." autocomplete="off" />
-
-      <div class="choices hidden" id="choices">
-        <button class="choice-btn" type="button" data-letter="W">W</button>
-        <button class="choice-btn" type="button" data-letter="X">X</button>
-        <button class="choice-btn" type="button" data-letter="Y">Y</button>
-        <button class="choice-btn" type="button" data-letter="Z">Z</button>
+      <div class="q-body">
+        <img id="questionImg" class="question-img hidden" alt="" />
+        <p id="questionText" class="question-text q-serif hidden"></p>
       </div>
 
-      <div class="row">
-        <button class="btn hidden" id="submitBtn" type="button">Submit</button>
-        <button class="btn good hidden" id="rightBtn" type="button">Right</button>
-        <button class="btn bad hidden" id="wrongBtn" type="button">Wrong</button>
-        <button class="btn hidden" id="nextBtn" type="button">Next</button>
-      </div>
+      <p id="metaRight" class="q-source"></p>
 
-      <p class="feedback" id="feedback"></p>
-      <div id="finalSummary" class="final-summary hidden">
-        <div id="finalScore" class="final-score"></div>
+      <div class="answer-zone">
+        <p class="buzz" id="buzz">Loading questions</p>
 
-        <div class="atom-score-row">
-          <span class="atom-score-label">
-            AtomScore
-            <span class="summary-info">(i)
-              <span class="summary-info-box">
-                AtomScore is a session-based performance metric that summarizes how well you played.
+        <div class="answer-row">
+          <input id="answer" class="answer-box hidden" type="text" placeholder="Type your answer" autocomplete="off" aria-label="Your answer" />
+          <button class="btn primary large hidden" id="submitBtn" type="button">Submit</button>
+        </div>
 
-                <b>What it measures</b>
-                - Accuracy (most important)<br>
-                - Average solve speed<br>
-                - Consistency (penalizes slow correct answers >=10s)
+        <div class="choices hidden" id="choices" role="group" aria-label="Choose an answer">
+          <button class="choice-btn" type="button" data-letter="W">W</button>
+          <button class="choice-btn" type="button" data-letter="X">X</button>
+          <button class="choice-btn" type="button" data-letter="Y">Y</button>
+          <button class="choice-btn" type="button" data-letter="Z">Z</button>
+        </div>
 
-                <b>Interpretation</b>
-                85-100 - Elite (nationals-level)<br>
-                70-84 - Strong and consistent<br>
-                50-69 - Competitive<br>
-                30-49 - Developing<br>
-                &lt;30 - Needs practice
+        <div id="feedback" class="feedback"></div>
 
-                AtomScore ranges from 0-100.
-              </span>
+        <div class="button-row grade-row">
+          <button class="btn good hidden" id="rightBtn" type="button"><i data-icon="check"></i>Mark right <span class="kbd">R</span></button>
+          <button class="btn danger hidden" id="wrongBtn" type="button"><i data-icon="x"></i>Mark wrong <span class="kbd">W</span></button>
+          <button class="btn primary hidden" id="nextBtn" type="button">Next question <span class="kbd">N</span></button>
+          <span class="hidden" id="learnRow">
+            <button class="btn quiet" id="searchBtn" type="button"><i data-icon="search"></i>Look up the answer</button>
+            <button class="btn hidden" id="askTutorBtn" type="button"><i data-icon="tutor"></i>Ask Tutor</button>
+            <span class="hidden" id="extAiRow">
+              <button class="btn ext-ai-btn" id="extAiBtn" type="button"><span data-ai-logo></span><span data-ai-label>Send to Claude</span></button>
+              <a class="ext-ai-switch" href="settings.html#externalAi">Wrong AI provider?</a>
+              <span class="ext-ai-note muted" id="extAiNote" role="status"></span>
             </span>
           </span>
-          <span id="atomScoreValue"></span>
+        </div>
+
+        <div id="finalSummary" class="final-summary hidden">
+          <div class="final-numbers">
+            <div id="finalScore" class="final-score"></div>
+            <div class="atom-score-row">
+              <span class="readout-label">AtomScore</span>
+              <span id="atomScoreValue" class="numerals final-value"></span>
+            </div>
+          </div>
+          <details class="atom-info">
+            <summary>What is AtomScore?</summary>
+            <div class="atom-info-body">
+              <p>A 0 to 100 summary of this run. It weighs accuracy most, then your average solve speed, then consistency (correct answers that took 10 seconds or more count against you).</p>
+              <dl>
+                <div><dt>85 to 100</dt><dd>Elite, nationals level</dd></div>
+                <div><dt>70 to 84</dt><dd>Strong and consistent</dd></div>
+                <div><dt>50 to 69</dt><dd>Competitive</dd></div>
+                <div><dt>30 to 49</dt><dd>Developing</dd></div>
+                <div><dt>Under 30</dt><dd>Needs practice</dd></div>
+              </dl>
+            </div>
+          </details>
+          <div class="button-row final-actions">
+            <a id="backToBankBtn" class="btn primary hidden" href="question_bank.html"><i data-icon="bank"></i>Back to question bank</a>
+            <button id="runAgainBtn" class="btn primary" type="button"><i data-icon="reset"></i>Start another run</button>
+            <a id="setupLink" class="btn quiet" href="practice_home.html">Change practice setup</a>
+          </div>
         </div>
       </div>
+    </article>
 
+    <p class="hint">Press <span class="kbd">Space</span> or tap the card to buzz. <span class="kbd">Esc</span> exits.</p>
 
-      <!-- Search / Learn buttons (hidden until graded) -->
-      <div class="row hidden" id="learnRow">
-        <button class="btn" id="searchBtn" type="button">Search</button>
-        <button class="btn" id="learnBtn" type="button">Learn</button>
-      </div>
+    <section class="stats" id="statsRow" aria-label="Run stats">
+      <div class="stat"><span class="readout-label">Accuracy</span><span id="statAccuracy" class="stat-value">-</span></div>
+      <div class="stat"><span class="readout-label">Average time</span><span id="statSpeed" class="stat-value">-</span></div>
+      <div class="stat"><span class="readout-label">Correct</span><span id="statCorrect" class="stat-value">-</span></div>
+      <div class="stat"><span class="readout-label">Correct after 10 s</span><span id="statSlow" class="stat-value">-</span></div>
+    </section>
+  </main>
 
-      <div class="hint">Tip: Space to buzz (tap card on mobile). W/X/Y/Z keys work after buzzing. Esc goes back. (Grading: R=Right, W=Wrong)</div>
-      <div class="row" id="statsRow" style="margin-top:32px">
-      <div class="pill"><small>Accuracy</small> <span id="statAccuracy">-</span></div>
-      <div class="pill"><small>Avg Speed</small> <span id="statSpeed">-</span></div>
-      <div class="pill"><small>QS Correct</small> <span id="statCorrect">-</span></div>
-      <div class="pill"><small>QS >=10s</small> <span id="statSlow">-</span></div>
-    </div>
-
-    </div>
-  </div>
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/autochecker.js"></script>
   <script src="js/atom_score.js"></script>
+  <script src="js/external_ai.js"></script>
   <script src="js/practice.js"></script>
 </body>
 </html>
-
-
-
-
-
-

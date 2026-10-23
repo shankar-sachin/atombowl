@@ -32,7 +32,7 @@ Preview locally with `npx firebase emulators:start --only hosting` and open http
 
 ## Guidelines
 
-- Keep the stack simple: no frameworks, no backend. Logic belongs in TypeScript.
+- Keep the stack simple: no frameworks, and no server code beyond the `ai` Cloud Function in `functions/`. Logic belongs in TypeScript.
 - Match the surrounding code style.
 - Add or update tests for behavior changes.
 - Run `npm run build` and `npm test` before opening the PR.

@@ -2,77 +2,72 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Room | Atom Bowl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Buzzer room | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/buzzer_rooms.css?v=20260204c">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
+  <link rel="stylesheet" href="css/buzzer_rooms.css">
 </head>
-<body class="nav-collapsed is-player">
-  <header class="topbar">
-    <a href="buzzer_rooms.html" class="back-link" aria-label="Back to Buzzer Rooms">←</a>
-    <div class="topbar-title" id="roomTitle">Room</div>
-  </header>
-
-  <main class="main">
-    <section id="roomSection" class="room">
-      <div class="room-header">
-        <div>
-          <h2 id="roomCodeTitle">Room</h2>
-          <p class="muted" id="roomStatus">Loading room...</p>
-          <div class="room-code-row">
-            <span class="muted">Room Code</span>
-            <span class="room-code" id="roomCodeValue">-----</span>
-          </div>
-        </div>
-        <div class="scoreboard" id="scoreboardHeader"></div>
+<body class="role-player">
+  <main class="main player">
+    <header class="player-head">
+      <div>
+        <p class="room-name" id="roomName">Loading room</p>
+        <p class="muted">Room code <span class="room-code" id="roomCode">-----</span></p>
       </div>
+      <p class="muted" id="me">Joining</p>
+    </header>
 
-      <div class="room-body">
-        <div class="desk-panel">
-          <div class="desk-section">
-            <div class="status-pill" id="statusPill">LOCKED</div>
-            <div class="question-text" id="questionText">Waiting for host.</div>
-          </div>
-          <div class="desk-section">
-            <div class="player-timers">
-              <div class="player-timer-main" id="playerPhaseTimer">00:05</div>
-              <div class="player-timer-sub" id="playerGameClock">03:00</div>
-            </div>
-            <button id="buzzBtn" class="btn primary buzz-giant">BUZZ</button>
-            <div class="buzz-row">
-              <span id="buzzStatus" class="muted">Waiting...</span>
-            </div>
-          </div>
-          <div class="desk-section">
-            <button id="toggleLogBtn" class="btn">Show Buzz Log</button>
-            <div id="playerLogPanel" class="log-panel hidden"></div>
-          </div>
-        </div>
+    <div class="rejoin" id="rejoin" hidden>
+      <p>You were removed from this room. Rejoin with the same name and team to buzz again.</p>
+      <button id="rejoinBtn" class="btn primary small" type="button">Rejoin room</button>
+    </div>
 
-        <div class="desk-panel">
-          <div class="desk-section">
-            <h3>Scoreboard</h3>
-            <div class="scoreboard" id="scoreboardPanel"></div>
-          </div>
-          <div class="desk-section">
-            <h3>Players</h3>
-            <div id="playerList" class="player-list"></div>
-          </div>
+    <section class="panel player-stage" id="stage" aria-live="polite" aria-labelledby="stateLine">
+      <div class="stage-top">
+        <p class="state-line" id="stateLine">Loading room</p>
+        <div class="phase">
+          <span class="numerals phase-time" id="phaseTime"></span>
+          <span class="phase-label" id="phaseLabel"></span>
         </div>
       </div>
+      <p class="category" id="category"></p>
+      <button id="buzzBtn" class="buzz-btn" type="button" disabled>
+        <span id="buzzLabel">Waiting</span>
+        <kbd class="kbd" id="buzzKey">Space</kbd>
+      </button>
+      <p class="buzz-status" id="buzzStatus" role="status"></p>
+      <p class="error" id="buzzError" role="alert"></p>
     </section>
+
+    <div class="player-grid">
+      <section class="panel" aria-labelledby="scoreTitle">
+        <h2 class="side-title" id="scoreTitle">Scoreboard</h2>
+        <div class="teams" id="teams"></div>
+        <p class="muted" id="gameClockLine">Game clock <span class="numerals" id="gameClock">--:--</span></p>
+      </section>
+
+      <section class="panel" aria-labelledby="playersTitle">
+        <h2 class="side-title" id="playersTitle">Players</h2>
+        <div id="roster"></div>
+      </section>
+
+      <details class="panel log">
+        <summary>Log <span class="muted" id="logCount"></span></summary>
+        <ol class="log-list" id="logList"></ol>
+      </details>
+    </div>
   </main>
 
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
-  <script type="module" src="js/buzzer_room_player.js?v=20260204c"></script>
+  <script type="module" src="js/buzzer_room_player.js"></script>
 </body>
 </html>
-
-

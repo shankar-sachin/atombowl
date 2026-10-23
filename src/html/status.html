@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Status | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Live status of Atom Bowl's AI features: Tutor, Generate and the AI provider." />
+  <meta name="theme-color" content="#0e1626" />
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/images/brand/logo.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/atom.css">
+  <link rel="stylesheet" href="/css/status.css">
+</head>
+<body>
+  <main class="main status-page">
+    <header class="header">
+      <div>
+        <h1 class="title">Status</h1>
+        <p class="subtitle">Live health of Atom Bowl's AI features. Practice, the question bank, Learn and buzzer rooms don't use AI and keep working either way.</p>
+      </div>
+    </header>
+
+    <section class="status-banner" id="statusBanner" data-state="checking" aria-live="polite">
+      <span class="status-dot" aria-hidden="true"></span>
+      <div>
+        <h2 id="statusHeadline">Checking…</h2>
+        <p class="muted" id="statusChecked"></p>
+      </div>
+      <button class="btn small" id="statusRefresh" type="button"><i data-icon="reset"></i>Check now</button>
+    </section>
+
+    <ul class="status-list panel" id="statusList" aria-label="Services">
+      <li data-service="tutor">
+        <div><span class="status-name">Tutor</span><span class="status-desc muted">Chat help with questions and concepts</span></div>
+        <span class="status-pill" data-state="checking">Checking</span>
+      </li>
+      <li data-service="generate">
+        <div><span class="status-name">Generate</span><span class="status-desc muted">New practice questions on demand</span></div>
+        <span class="status-pill" data-state="checking">Checking</span>
+      </li>
+      <li data-service="provider">
+        <div><span class="status-name">AI provider</span><span class="status-desc muted" data-detail>The model service behind both</span></div>
+        <span class="status-pill" data-state="checking">Checking</span>
+      </li>
+      <li data-service="function">
+        <div><span class="status-name">Atom Bowl AI server</span><span class="status-desc muted" data-detail>Checks sign-in and credits, then calls the provider</span></div>
+        <span class="status-pill" data-state="checking">Checking</span>
+      </li>
+    </ul>
+
+    <p class="status-foot muted">This page checks again every minute. Something still wrong? <a href="https://github.com/shankar-sachin/atombowl/issues">Open an issue on GitHub</a>.</p>
+  </main>
+
+  <script src="/js/icons.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/status.js"></script>
+</body>
+</html>

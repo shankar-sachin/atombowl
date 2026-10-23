@@ -1,18 +1,83 @@
 // @ts-nocheck
 import { auth, db } from "./firebase.js";
 // @ts-ignore
-import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onAuthStateChanged, updateProfile, sendPasswordResetEmail, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import { doc, getDoc, setDoc, serverTimestamp, increment, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const SETTINGS_KEY = "atom_settings_v1";
 const BUZZER_PROFILE_KEY = "atom_buzzer_profile";
 const GUEST_TAG_KEY = "atom_guest_tag_v1";
+const WRITE_ERROR_KEY = "atom_sync_error_v1";
 let currentUser = null;
 let syncError = "";
 let signupInProgress = false;
 let authGeneration = 0;
 let currentProfile = null;
+let lastAuthKey = null;
+let ready = false;
+let resolveReady = () => { };
+const readyPromise = new Promise((resolve) => { resolveReady = resolve; });
 const listeners = new Set();
+// Resolves once the first auth state has been read and the account (if any) loaded.
+// Callers that load this module lazily should await it before calling getUser().
+function whenReady() {
+    return readyPromise;
+}
+function isReady() {
+    return ready;
+}
+function errorLabel(err) {
+    const code = String((err === null || err === void 0 ? void 0 : err.code) || "").replace(/^(auth|firestore)\//, "");
+    return code || String((err === null || err === void 0 ? void 0 : err.message) || err || "unknown error");
+}
+// Writes from other pages (practice stats, settings, buzzer name, lessons) often run
+// in fire-and-forget code. Record failures so the account page can show them.
+function recordWriteError(what, err) {
+    console.warn(`Atom Bowl: saving ${what} failed`, err);
+    try {
+        localStorage.setItem(WRITE_ERROR_KEY, JSON.stringify({
+            what, code: errorLabel(err), at: Date.now(), uid: (currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid) || ""
+        }));
+    }
+    catch { }
+}
+function clearWriteError(what) {
+    try {
+        const prev = safeJsonParse(localStorage.getItem(WRITE_ERROR_KEY));
+        if (prev && prev.what === what)
+            localStorage.removeItem(WRITE_ERROR_KEY);
+    }
+    catch { }
+}
+function getLastWriteError() {
+    try {
+        const prev = safeJsonParse(localStorage.getItem(WRITE_ERROR_KEY));
+        if (!prev || !prev.what)
+            return null;
+        if ((currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid) && prev.uid && prev.uid !== currentUser.uid)
+            return null;
+        return prev;
+    }
+    catch {
+        return null;
+    }
+}
+function clearLastWriteError() {
+    try {
+        localStorage.removeItem(WRITE_ERROR_KEY);
+    }
+    catch { }
+}
+async function trackedWrite(what, write) {
+    try {
+        await write();
+        clearWriteError(what);
+    }
+    catch (err) {
+        recordWriteError(what, err);
+        throw err;
+    }
+}
 function notify(user) {
     listeners.forEach((cb) => {
         try {
@@ -86,6 +151,20 @@ function getGuestTag() {
     }
     catch { }
     return tag;
+}
+// The name shown in buzzer rooms, kept in this browser for guests and signed-in players alike.
+function getLocalName() {
+    const saved = safeJsonParse(localStorage.getItem(BUZZER_PROFILE_KEY));
+    return String((saved === null || saved === void 0 ? void 0 : saved.name) || "").trim().slice(0, 40);
+}
+function setLocalName(name) {
+    const clean = String(name || "").trim().slice(0, 40);
+    try {
+        const saved = safeJsonParse(localStorage.getItem(BUZZER_PROFILE_KEY)) || {};
+        localStorage.setItem(BUZZER_PROFILE_KEY, JSON.stringify({ ...saved, name: clean, team: (saved === null || saved === void 0 ? void 0 : saved.team) || "A" }));
+    }
+    catch { }
+    return clean;
 }
 async function loadUserProfile(uid) {
     if (!uid)
@@ -166,10 +245,11 @@ async function syncSettings(user) {
     }
 }
 async function saveSettings(settings) {
+    await whenReady();
     if (!(currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid))
         return;
     const ref = settingsRef(currentUser.uid);
-    await setDoc(ref, { value: settings, updatedAt: serverTimestamp() }, { merge: true });
+    await trackedWrite("settings", () => setDoc(ref, { value: settings, updatedAt: serverTimestamp() }, { merge: true }));
 }
 async function loadBuzzerProfile() {
     if (!(currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid))
@@ -209,14 +289,15 @@ async function syncBuzzerProfile(user) {
     }
 }
 async function saveBuzzerProfile(profile) {
+    await whenReady();
     if (!(currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid))
         return;
     const ref = buzzerProfileRef(currentUser.uid);
-    await setDoc(ref, {
+    await trackedWrite("buzzer name", () => setDoc(ref, {
         name: (profile === null || profile === void 0 ? void 0 : profile.name) || "",
         team: (profile === null || profile === void 0 ? void 0 : profile.team) || "A",
         updatedAt: serverTimestamp()
-    }, { merge: true });
+    }, { merge: true }));
 }
 async function loadPracticeStats() {
     if (!(currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid))
@@ -227,6 +308,7 @@ async function loadPracticeStats() {
     return snap.data() || null;
 }
 async function updatePracticeStats(patch) {
+    await whenReady();
     if (!(currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid))
         return;
     const ref = statsRef(currentUser.uid);
@@ -238,7 +320,7 @@ async function updatePracticeStats(patch) {
         totalSlowCorrect: increment(Number(patch.totalSlowCorrect || 0)),
         lastRunAt: serverTimestamp()
     };
-    await setDoc(ref, next, { merge: true });
+    await trackedWrite("practice stats", () => setDoc(ref, next, { merge: true }));
 }
 function learnProgressRef(uid) {
     return doc(db, "users", uid, "learn", "progress");
@@ -253,11 +335,13 @@ async function loadLearnProgress() {
     return Array.isArray((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.completedLessons) ? snap.data().completedLessons : null;
 }
 async function saveLearnProgress(completedLessons) {
+    await whenReady();
     if (!(currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid))
         return;
-    await setDoc(learnProgressRef(currentUser.uid), {
+    const ref = learnProgressRef(currentUser.uid);
+    await trackedWrite("lesson progress", () => setDoc(ref, {
         completedLessons: arrayUnion(...completedLessons), updatedAt: serverTimestamp()
-    }, { merge: true });
+    }, { merge: true }));
 }
 function buildProvider(providerId) {
     if (providerId === "google")
@@ -273,6 +357,8 @@ async function signInWithProvider(providerId) {
     if ((_a = auth.currentUser) === null || _a === void 0 ? void 0 : _a.isAnonymous) {
         try {
             const res = await linkWithPopup(auth.currentUser, provider);
+            // Linking keeps the uid, so onAuthStateChanged-style listeners never fire.
+            await refreshAccount(res.user);
             return res.user;
         }
         catch (err) {
@@ -309,10 +395,39 @@ async function resetPassword(email) {
         throw new Error("Enter your email address first.");
     await sendPasswordResetEmail(auth, value);
 }
+// Matches the hint shown on the sign-up form.
+function passwordProblems(password) {
+    const missing = [];
+    if (password.length < 8)
+        missing.push("at least 8 characters");
+    if (!/[a-z]/.test(password))
+        missing.push("a lowercase letter");
+    if (!/[A-Z]/.test(password))
+        missing.push("an uppercase letter");
+    if (!/[0-9]/.test(password))
+        missing.push("a number");
+    if (!/[^A-Za-z0-9]/.test(password))
+        missing.push("a symbol");
+    return missing;
+}
 async function signUpWithEmail(email, password, displayName = "") {
     var _a, _b;
-    const validation = await validatePassword(auth, password);
-    if (!validation.isValid) {
+    const local = passwordProblems(password);
+    if (local.length) {
+        const err = new Error(`Password needs ${local.join(", ")}.`);
+        err.code = "auth/password-does-not-meet-requirements";
+        throw err;
+    }
+    let validation = null;
+    try {
+        validation = await validatePassword(auth, password);
+    }
+    catch (err) {
+        // The auth emulator (and projects without a password policy endpoint) cannot
+        // report a policy. The local check above still applies; the server enforces the rest.
+        console.info("Password policy check skipped:", errorLabel(err));
+    }
+    if (validation && !validation.isValid) {
         const missing = [];
         const policy = ((_a = validation.passwordPolicy) === null || _a === void 0 ? void 0 : _a.customStrengthOptions) || {};
         if (validation.meetsMinPasswordLength === false)
@@ -327,7 +442,9 @@ async function signUpWithEmail(email, password, displayName = "") {
             missing.push("a number");
         if (validation.containsNonAlphanumericCharacter === false)
             missing.push("a symbol");
-        throw new Error(missing.length ? `Password needs ${missing.join(", ")}.` : "Please choose a stronger password.");
+        const err = new Error(missing.length ? `Password needs ${missing.join(", ")}.` : "Please choose a stronger password.");
+        err.code = "auth/password-does-not-meet-requirements";
+        throw err;
     }
     const normalizedEmail = String(email || "").trim().toLowerCase();
     await auth.authStateReady();
@@ -346,6 +463,7 @@ async function signUpWithEmail(email, password, displayName = "") {
     return res.user;
 }
 async function signUpWithDetails(details) {
+    var _a;
     const firstName = String((details === null || details === void 0 ? void 0 : details.firstName) || "").trim();
     const lastName = String((details === null || details === void 0 ? void 0 : details.lastName) || "").trim();
     const email = String((details === null || details === void 0 ? void 0 : details.email) || "").trim().toLowerCase();
@@ -356,13 +474,15 @@ async function signUpWithDetails(details) {
     if (!firstName || !lastName || !email || !username || !password) {
         throw new Error("Please complete all required fields.");
     }
-    if (password.length < 6)
-        throw new Error("Password must be at least 6 characters.");
-    if (!(await isUsernameAvailable(username)))
-        throw new Error("That username is already taken.");
+    if (!(await isUsernameAvailable(username))) {
+        const err = new Error("That username is already taken. Try another one.");
+        err.code = "atom/username-taken";
+        throw err;
+    }
     signupInProgress = true;
+    let user = null;
     try {
-        const user = await signUpWithEmail(email, password, playerName || username);
+        user = await signUpWithEmail(email, password, playerName || username);
         const profile = {
             username,
             displayName: playerName || username,
@@ -380,7 +500,9 @@ async function signUpWithDetails(details) {
             const userRef = usersRef(user.uid);
             const existing = await tx.get(userRef);
             if (name.exists() && ((_a = name.data()) === null || _a === void 0 ? void 0 : _a.uid) !== user.uid) {
-                throw new Error("Account created, but that username was just taken. Sign in with your email; your account is still usable.");
+                const err = new Error("that username was just taken");
+                err.code = "atom/username-taken";
+                throw err;
             }
             // Public username records contain no email or other private profile data.
             tx.set(nameRef, { uid: user.uid, username });
@@ -393,8 +515,26 @@ async function signUpWithDetails(details) {
         return user;
     }
     catch (err) {
-        if (auth.currentUser && !auth.currentUser.isAnonymous) {
-            throw new Error(`Your account exists. Sign in with your email to continue. Profile setup failed: ${err.message || err}`);
+        if (user && ((_a = auth.currentUser) === null || _a === void 0 ? void 0 : _a.uid) === user.uid && !auth.currentUser.isAnonymous) {
+            // The login exists now. Save the names without the username so nothing typed is lost,
+            // and tell the person to pick a username on the account page.
+            console.warn("Atom Bowl: profile setup after sign-up failed", err);
+            try {
+                await setDoc(usersRef(user.uid), {
+                    profile: {
+                        username: "", displayName: playerName || username, playerName: playerName || username,
+                        firstName, lastName, email, phone, photoURL: (user === null || user === void 0 ? void 0 : user.photoURL) || ""
+                    },
+                    createdAt: serverTimestamp(),
+                    lastLoginAt: serverTimestamp()
+                }, { merge: true });
+            }
+            catch (saveErr) {
+                console.warn("Atom Bowl: fallback profile save failed", saveErr);
+            }
+            const wrapped = new Error(`Your account was created and you are signed in, but the username "${username}" could not be saved (${errorLabel(err)}). Choose a username on your account page.`);
+            wrapped.code = "atom/profile-partial";
+            throw wrapped;
         }
         throw err;
     }
@@ -422,7 +562,7 @@ async function updateAccountProfile(patch) {
     };
     const username = patch.username ? sanitizeUsername(patch.username) : prev.username;
     if (patch.username && !username)
-        throw new Error("Username must be 3-20 letters/numbers.");
+        throw new Error("Usernames are 3 to 20 lowercase letters or numbers.");
     if (prev.username && username !== prev.username)
         throw new Error("Your username cannot be changed.");
     await runTransaction(db, async (tx) => {
@@ -436,7 +576,7 @@ async function updateAccountProfile(patch) {
             const nameRef = usernameRef(username);
             const name = await tx.get(nameRef);
             if (name.exists() && ((_c = name.data()) === null || _c === void 0 ? void 0 : _c.uid) !== user.uid)
-                throw new Error("That username is already taken.");
+                throw new Error("That username is already taken. Try another one.");
             tx.set(nameRef, { uid: user.uid, username });
             next.username = username;
         }
@@ -444,21 +584,40 @@ async function updateAccountProfile(patch) {
     });
     if ((currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid) === user.uid)
         currentProfile = next;
+    if (next.playerName)
+        setLocalName(next.playerName);
     try {
         await updateProfile(user, {
             displayName: next.playerName || next.displayName || "",
             ...(!((_a = next.photoURL) === null || _a === void 0 ? void 0 : _a.startsWith("data:")) ? { photoURL: next.photoURL || "" } : {})
         });
     }
-    catch { }
+    catch (err) {
+        console.warn("Atom Bowl: auth display name update failed (profile doc was saved)", err);
+    }
+    // Let the site chip and other listeners pick up the new name and photo.
+    if ((currentUser === null || currentUser === void 0 ? void 0 : currentUser.uid) === user.uid)
+        notify(currentUser);
     return next;
 }
 async function signOut() {
     await fbSignOut(auth);
 }
+function authKey(user) {
+    if (!user)
+        return "none";
+    return `${user.uid}:${user.isAnonymous ? "anon" : "full"}`;
+}
+function markReady() {
+    if (ready)
+        return;
+    ready = true;
+    resolveReady();
+}
 async function refreshAccount(user) {
     var _a;
     const generation = ++authGeneration;
+    lastAuthKey = authKey(user);
     const owner = user && !user.isAnonymous ? user.uid : "guest";
     try {
         const previous = localStorage.getItem("atom_cache_owner");
@@ -474,6 +633,7 @@ async function refreshAccount(user) {
     currentProfile = null;
     syncError = "";
     if (!currentUser) {
+        markReady();
         notify(null);
         return;
     }
@@ -490,15 +650,27 @@ async function refreshAccount(user) {
     catch (err) {
         if (generation !== authGeneration)
             return;
-        syncError = "Signed in, but cloud sync failed. Check your connection and Firebase permissions.";
+        syncError = `Signed in, but your profile could not be loaded or synced (${errorLabel(err)}). Check your connection and try again.`;
         console.warn("Account sync failed", err);
     }
-    if (generation === authGeneration)
+    if (generation === authGeneration) {
+        markReady();
         notify(currentUser);
+    }
 }
-onAuthStateChanged(auth, (user) => {
-    if (!signupInProgress)
-        void refreshAccount(user);
+async function retrySync() {
+    await auth.authStateReady();
+    await refreshAccount(auth.currentUser);
+}
+// onIdTokenChanged (not onAuthStateChanged) so that linking an anonymous buzzer-room
+// user to Google or email, which keeps the same uid, still refreshes the account.
+// Hourly token refreshes have the same key and are ignored.
+onIdTokenChanged(auth, (user) => {
+    if (signupInProgress)
+        return;
+    if (authKey(user) === lastAuthKey)
+        return;
+    void refreshAccount(user);
 });
 window.atomAccount = {
     getUser,
@@ -518,9 +690,17 @@ window.atomAccount = {
     isUsernameAvailable,
     resetPassword,
     getSyncError: () => syncError,
+    getLastWriteError,
+    clearLastWriteError,
+    retrySync,
+    whenReady,
+    isReady,
+    passwordProblems,
     updateAccountProfile,
     loadBuzzerProfile,
     saveBuzzerProfile,
+    getLocalName,
+    setLocalName,
     loadLearnProgress,
     saveLearnProgress
 };

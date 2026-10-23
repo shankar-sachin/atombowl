@@ -31,11 +31,11 @@
 - **Accounts**: Google and email sign-in through Firebase Authentication.
 - Light and dark mode.
 
-Coming in v1.0: AI Generate and Tutor, and a Bank C of invitational and regional questions.
+Signed-in players also get **Generate** (new toss-ups and bonuses on a topic you pick, playable in practice) and **Tutor** (a chat that explains a missed question), with free daily credits. Coming in v1.0: a Bank C of invitational and regional questions.
 
 ## Tech
 
-Plain HTML, CSS and TypeScript (compiled with `tsc`) on Firebase Hosting, Authentication and Firestore. There is no backend server: grading, search and bank tools all run in the browser.
+Plain HTML, CSS and TypeScript (compiled with `tsc`) on Firebase Hosting, Authentication and Firestore. Grading, search and bank tools all run in the browser. The only server code is one Cloud Function (`functions/`) that runs Generate and Tutor: it checks sign-in, charges daily credits and calls the AI model (Gemini or Groq), so the API key never reaches the browser.
 
 ## Development
 

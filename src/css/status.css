@@ -1,0 +1,71 @@
+/* Status: one banner for the overall state, then a row per service. */
+
+i[data-icon] { display: inline-flex; font-style: normal; }
+
+.status-page { max-width: 760px; }
+
+.status-banner {
+  --tone: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--tone);
+  border-radius: var(--r-panel);
+  background: var(--plate);
+}
+.status-banner > div { flex: 1; min-width: 0; }
+.status-banner h2 { font-size: 1.2rem; }
+.status-banner .btn .icon-svg { width: 16px; height: 16px; }
+
+[data-state="ok"] { --tone: var(--correct); }
+[data-state="degraded"] { --tone: var(--amber); }
+[data-state="down"] { --tone: var(--buzz); }
+[data-state="checking"] { --tone: var(--muted); }
+
+.status-dot {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--tone) 22%, transparent);
+}
+.status-banner[data-state="checking"] .status-dot { animation: status-pulse 1.2s ease-in-out infinite; }
+@keyframes status-pulse { 50% { opacity: 0.35; } }
+
+.status-list { list-style: none; margin: 0; padding: 4px 20px; }
+.status-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+}
+.status-list li + li { border-top: 1px solid var(--rule); }
+.status-list li > div { display: grid; gap: 2px; min-width: 0; }
+.status-name { font-weight: 600; }
+.status-desc { font-size: 0.88rem; overflow-wrap: anywhere; }
+
+.status-pill {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+
+.status-foot { margin-top: 16px; font-size: 0.9rem; }
+
+@media (max-width: 620px) {
+  .status-banner { flex-wrap: wrap; }
+  .status-banner .btn { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-banner[data-state="checking"] .status-dot { animation: none; }
+}

@@ -1,6 +1,2 @@
-﻿// @ts-nocheck
-console.log("app.js loaded");
-
-import "./js/firebase.js";
-
-
+// @ts-nocheck
+import "./firebase.js";
