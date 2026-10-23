@@ -246,9 +246,9 @@ code {
 
 .site-links {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 2px;
-  min-width: 0;
 }
 
 .site-link,
@@ -286,7 +286,9 @@ code {
 }
 .settings-gear:hover,
 .settings-gear[aria-current="page"] { color: var(--text); background: var(--plate); }
-.settings-gear .icon-svg { width: 20px; height: 20px; }
+.settings-gear .icon-svg { width: 20px; height: 20px; transition: transform 400ms var(--ease); }
+.settings-gear:hover .icon-svg,
+.settings-gear:focus-visible .icon-svg { transform: rotate(90deg); }
 
 .site-link[aria-current="page"] {
   color: var(--text);
@@ -299,7 +301,20 @@ code {
 
 .site-spacer { flex: 1; }
 
-.site-more { position: relative; }
+.site-more { position: relative; flex: none; margin-left: 10px; }
+
+/* With a mouse, the AI menu opens on hover too. The ::before bridges the gap under the button. */
+@media (hover: hover) and (pointer: fine) {
+  .site-more:hover > .menu { display: grid; }
+  .site-more > .menu::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -10px;
+    height: 10px;
+  }
+}
 
 .menu {
   position: absolute;
@@ -389,7 +404,7 @@ code {
 .sheet-backdrop { display: none; }
 body.sheet-open .tutor-fab { display: none; }
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .site-link .icon-svg { display: none; }
   .site-link, .site-more-btn { padding: 0 10px; }
 }
