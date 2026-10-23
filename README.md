@@ -60,7 +60,7 @@ npx firebase deploy --only firestore:rules
 cd functions && vercel deploy --prod    # https://atombowl-ai.vercel.app/api/ai
 ```
 
-The Vercel project needs two secret environment variables: `AI_API_KEY` (the Groq or Gemini key) and `FIREBASE_SERVICE_ACCOUNT` (a Firebase service account key's JSON). Live AI status: https://atombowl.web.app/status
+The Vercel project needs two secret environment variables: `AI_API_KEY` (the Groq or Gemini key) and `FIREBASE_SERVICE_ACCOUNT` (a Firebase service account key's JSON). Live SI status: https://atombowl.web.app/status
 
 See [Firebase setup](src/data/firebase_rules.md) for sign-in providers, authorized domains and rules.
 

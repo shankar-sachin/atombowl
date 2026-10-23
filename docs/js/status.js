@@ -1,6 +1,6 @@
 // Status page (/status): polls the `ai` endpoint's public `health` action once a minute.
 // It posts the callable protocol by hand ({data} in, {result} out) so it needs no Firebase SDK
-// and still loads when the rest of the AI stack is broken.
+// and still loads when the rest of the SI stack is broken.
 (() => {
     // Same as AI_URL in ai_client.ts: the Vercel function (functions/api/ai.js).
     const PROD_URL = 'https://atombowl-ai.vercel.app/api/ai';
@@ -81,9 +81,9 @@
             setRow('generate', main.ok ? 'ok' : 'down');
             setRow('tutor', main.ok && followUp.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down');
             if (health.ok)
-                setBanner('ok', 'All AI features are working');
+                setBanner('ok', 'All SI features are working');
             else if (main.ok || followUp.ok)
-                setBanner('degraded', 'Some AI features are having trouble. We are fixing it.');
+                setBanner('degraded', 'Some SI features are having trouble. We are fixing it.');
             else
                 setBanner('down', 'Tutor and Generate are down. We are fixing it.');
             stamp(health.checkedAt);

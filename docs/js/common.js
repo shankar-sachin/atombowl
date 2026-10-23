@@ -14,6 +14,7 @@
         mode: 'rapid',
         rememberTopics: false,
         externalAi: 'claude',
+        searchEngine: 'auto',
         highContrast: false,
         animations: true,
         fontSize: 'm',
@@ -140,7 +141,7 @@
       </nav>
       <div class="site-more">
         <button class="site-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="siteMoreMenu"${AI.some((item) => item.href === currentSection) ? ' data-current' : ''}>
-          ${icon('sparkles')}<span>AI</span>${icon('chevronDown')}
+          ${icon('sparkles')}<span>SI</span>${icon('chevronDown')}
         </button>
         <div class="menu" id="siteMoreMenu">${AI.map(menuLink).join('')}</div>
       </div>
@@ -261,7 +262,7 @@
         updateAccountChip({ uid: hint.uid, displayName: hint.name, photoURL: hint.photo }, null);
     }
     async function bindAccountChip() {
-        var _a;
+        var _a, _b;
         paintAccountHint();
         try {
             await import('./account_store.js');
@@ -270,7 +271,14 @@
             return; // Firebase blocked or offline: the chip stays "Sign in".
         }
         const account = window.atomAccount;
-        (_a = account === null || account === void 0 ? void 0 : account.onAuthChange) === null || _a === void 0 ? void 0 : _a.call(account, (user) => updateAccountChip(user, account));
+        // onAuthChange replays "no user" before Firebase answers; keep the cached chip until it is ready.
+        (_a = account === null || account === void 0 ? void 0 : account.onAuthChange) === null || _a === void 0 ? void 0 : _a.call(account, (user) => {
+            var _a;
+            if (!user && !((_a = account.isReady) === null || _a === void 0 ? void 0 : _a.call(account)))
+                return;
+            updateAccountChip(user, account);
+        });
+        (_b = account === null || account === void 0 ? void 0 : account.whenReady) === null || _b === void 0 ? void 0 : _b.call(account).then(() => { var _a; return updateAccountChip(((_a = account.getUser) === null || _a === void 0 ? void 0 : _a.call(account)) || null, account); });
     }
     // The floating Tutor button. Practice (focus chrome) opens Tutor from "Ask Tutor" instead,
     // and /tutor shows the chat inline.

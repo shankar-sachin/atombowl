@@ -117,9 +117,9 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
       logger.warn("ai call failed", { action, uid: auth.uid, error: err?.message, status: err?.status });
       const restored = await giveBack(job.cost);
       if (err?.status === 429) {
-        throw new AiError("resource-exhausted", "The AI service is busy right now. Wait a minute and try again. Your credits were not used.", { credits: restored });
+        throw new AiError("resource-exhausted", "The SI service is busy right now. Wait a minute and try again. Your credits were not used.", { credits: restored });
       }
-      throw new AiError("unavailable", "The AI service didn't give a usable answer. Try again. Your credits were not used.", { credits: restored });
+      throw new AiError("unavailable", "The SI service didn't give a usable answer. Try again. Your credits were not used.", { credits: restored });
     }
   }
 

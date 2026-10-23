@@ -70,9 +70,10 @@
         errEl.classList.add('hidden');
     }
     async function loadBank() {
+        // Scalazar (Set B, text questions) lists before Dynamazar (Set A, picture questions).
         const sources = [
-            { id: 'data/set_A.json', label: 'Dynamazar (Set A)' },
-            { id: 'data/set_B.json', label: 'Scalazar (Set B)' }
+            { id: 'data/set_B.json', label: 'Scalazar (Set B)' },
+            { id: 'data/set_A.json', label: 'Dynamazar (Set A)' }
         ];
         const results = await Promise.all(sources.map(async (source) => {
             const res = await fetch(`./${source.id}`, { cache: 'no-store' });

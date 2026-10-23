@@ -1,4 +1,4 @@
-// Daily AI credits. Each user has one doc, aiUsage/{uid} = { day: "YYYY-MM-DD", used: n },
+// Daily SI credits. Each user has one doc, aiUsage/{uid} = { day: "YYYY-MM-DD", used: n },
 // written only by the function (the rules deny client writes). The count resets at 00:00 UTC.
 
 export function dayKey(now = new Date()) {
