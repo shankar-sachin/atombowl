@@ -3,15 +3,18 @@
 </p>
 
 <p align="center">
-  <a href="https://atombowl.web.app"><b>Live site</b></a> ·
-  <a href="info_docs.md">How to use</a> ·
+  <a href="https://atombowl.web.app"><img src="https://img.shields.io/badge/Live_Site-atombowl.web.app-4f7cff?style=for-the-badge" alt="Live Site"></a>
+  <a href="https://atombowl.pages.dev"><img src="https://img.shields.io/badge/Docs-atombowl.pages.dev-39d98a?style=for-the-badge" alt="Docs"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/shankar-sachin/atombowl/wiki">Wiki</a> ·
   <a href="CONTRIBUTING.md">Contribute</a> ·
   <a href="SUPPORT.md">Support</a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.9.1-4f7cff" alt="Version 0.9.1">
+  <img src="https://img.shields.io/badge/version-1.0.1-4f7cff" alt="Version 1.0.1">
   <img src="https://img.shields.io/badge/license-MIT-39d98a" alt="MIT License">
   <img src="https://img.shields.io/badge/hosting-Firebase-ffca28" alt="Firebase Hosting">
 </p>
