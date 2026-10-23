@@ -56,6 +56,10 @@ declare global {
     startRun?: (mode: string) => void;
     bank?: unknown[];
     atomScoreEngine?: AtomScoreEngine;
+    atomRoundTex?: Record<string, (...args: any[]) => any>;
+    atomPacket?: {
+      download: (packet: { division: string; createdAt: number; questions: unknown[] }, progress?: (message: string) => void) => Promise<void>;
+    };
     atomAccount?: {
       getUser: () => unknown | null;
       getProfile?: () => {
