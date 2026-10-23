@@ -1,5 +1,5 @@
 // "Send to Claude / ChatGPT / Gemini" after a miss: opens the chosen chat app in a new tab with
-// a prompt about the question. The app is the externalAi setting (settings.html#externalAi).
+// a prompt about the question. The app is the externalAi setting (/settings#externalAi).
 // Classic script, loaded before practice.js, so the tab opens inside the click (no popup block).
 // None of these apps document a prefill URL; claude.ai/new?q= and chatgpt.com/?q= work today,
 // and none can pick the model, so the user's own default model is used. Gemini has no prefill,

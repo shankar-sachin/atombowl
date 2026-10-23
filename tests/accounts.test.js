@@ -20,6 +20,7 @@ function setup() {
    },
    updateProfile: async (user, value) => Object.assign(user, value),
    sendPasswordResetEmail: async (_, email) => { resetEmail = email; },
+   sendEmailVerification: async () => {},
    signOut: async () => { auth.currentUser = null; observer(null); }
  };
  const dbApi = {

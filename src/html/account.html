@@ -30,6 +30,15 @@
       <button class="btn small" id="retrySyncBtn" type="button">Try again</button>
     </div>
 
+    <div id="verifyNotice" class="notice verify-notice hidden" role="status">
+      <i data-icon="alert"></i>
+      <p id="verifyNoticeText">Confirm your email to use Tutor and Generate. We sent a link to your inbox.</p>
+      <div class="button-row">
+        <button class="btn small" id="verifyResendBtn" type="button">Send a new link</button>
+        <button class="btn small primary" id="verifyCheckBtn" type="button">I've confirmed it</button>
+      </div>
+    </div>
+
     <section class="panel profile-panel" aria-labelledby="profilePlayerName">
       <div class="profile">
         <div class="avatar" id="profileAvatar" aria-hidden="true">
@@ -98,8 +107,9 @@
             <input class="input" type="tel" id="phoneInput" autocomplete="tel" />
           </div>
           <div class="field full-span">
-            <label class="label" for="photoUploadInput">Profile picture (up to 250 KB)</label>
-            <input class="input" type="file" id="photoUploadInput" accept="image/*" />
+            <label class="label" for="photoUploadInput">Profile picture</label>
+            <input class="input" type="file" id="photoUploadInput" accept="image/png, image/jpeg, image/gif, image/webp" aria-describedby="photoHint" />
+            <p class="field-hint" id="photoHint" role="status" aria-live="polite">A JPG, PNG, GIF or WebP. It's cropped to a square and saves right away.</p>
           </div>
         </div>
         <p id="accountError" class="error error-box" role="alert"></p>

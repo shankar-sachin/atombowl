@@ -79,39 +79,45 @@
     // ---------- Nav ----------
     const icon = (name) => { var _a, _b; return ((_b = (_a = window).atomIcon) === null || _b === void 0 ? void 0 : _b.call(_a, name)) || ''; };
     const PRIMARY = [
-        { href: 'practice_home.html', label: 'Practice', icon: 'practice' },
-        { href: 'question_bank.html', label: 'Question bank', short: 'Bank', icon: 'bank' },
-        { href: 'learn.html', label: 'Learn', icon: 'learn' },
-        { href: 'buzzer_rooms.html', label: 'Buzzer rooms', short: 'Rooms', icon: 'buzzer' },
-        { href: 'game_clock.html', label: 'Game clock', icon: 'clock' }
+        { href: '/practice-home', label: 'Practice', icon: 'practice' },
+        { href: '/question-bank', label: 'Question bank', short: 'Bank', icon: 'bank' },
+        { href: '/learn', label: 'Learn', icon: 'learn' },
+        { href: '/buzzer-rooms', label: 'Buzzer rooms', short: 'Rooms', icon: 'buzzer' },
+        { href: '/game-clock', label: 'Game clock', icon: 'clock' }
     ];
-    const MORE = [
-        { href: 'settings.html', label: 'Settings', icon: 'settings' },
-        { href: 'generate.html', label: 'Generate', icon: 'sparkles' },
-        { href: 'tutor.html', label: 'Tutor', icon: 'tutor' }
+    const AI = [
+        { href: '/generate', label: 'Generate', icon: 'sparkles' },
+        { href: '/tutor', label: 'Tutor', icon: 'tutor' }
     ];
+    const SETTINGS = { href: '/settings', label: 'Settings', icon: 'gear' };
     const TABS = [
-        { href: 'index.html', label: 'Home', icon: 'home' },
+        { href: '/', label: 'Home', icon: 'home' },
         PRIMARY[0],
         PRIMARY[1],
         PRIMARY[3]
     ];
+    // No Account here: the avatar in the top bar already links there.
     const SHEET = [
         PRIMARY[2],
         PRIMARY[4],
-        { href: 'account.html', label: 'Account', icon: 'user' },
-        ...MORE
+        SETTINGS,
+        ...AI
     ];
     // Pages that belong to a nav section without being its link target.
     const SECTION_ALIASES = {
-        'practice.html': 'practice_home.html',
-        'more_options.html': 'game_clock.html',
-        'buzzer_create.html': 'buzzer_rooms.html',
-        'buzzer_room.html': 'buzzer_rooms.html',
-        'buzzer_room_player.html': 'buzzer_rooms.html',
-        'microsoft_auth.html': 'account.html'
+        '/practice': '/practice-home',
+        '/more-options': '/game-clock',
+        '/buzzer-create': '/buzzer-rooms',
+        '/buzzer-room': '/buzzer-rooms',
+        '/buzzer-room-player': '/buzzer-rooms',
+        '/microsoft-auth': '/account'
     };
-    const pageFile = (window.location.pathname.split('/').pop() || 'index.html') || 'index.html';
+    // The current page as its clean path (/practice-home), however it was opened:
+    // /practice-home, /practice-home.html or an old /practice_home.html link.
+    const pageFile = (() => {
+        const name = (window.location.pathname.split('/').pop() || '').replace(/\.html$/, '').replace(/_/g, '-');
+        return !name || name === 'index' ? '/' : `/${name}`;
+    })();
     const currentSection = SECTION_ALIASES[pageFile] || pageFile;
     const current = (href) => (href === currentSection ? ' aria-current="page"' : '');
     function menuLink(item) {
@@ -126,24 +132,25 @@
         const bar = document.createElement('header');
         bar.className = focusMode ? 'site-bar focus-bar' : 'site-bar';
         bar.innerHTML = `
-      <a class="brand" href="index.html" aria-label="Atom Bowl home">
+      <a class="brand" href="/" aria-label="Atom Bowl home">
         <img src="images/brand/logo.svg" alt="" width="32" height="32"><span>Atom Bowl</span>
       </a>
       <nav class="site-links" aria-label="Primary">
         ${PRIMARY.map((item) => `<a class="site-link" href="${item.href}"${current(item.href)}>${icon(item.icon)}<span>${item.label}</span></a>`).join('')}
       </nav>
       <div class="site-more">
-        <button class="site-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="siteMoreMenu">
-          <span>More</span>${icon('chevronDown')}
+        <button class="site-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="siteMoreMenu"${AI.some((item) => item.href === currentSection) ? ' data-current' : ''}>
+          ${icon('sparkles')}<span>AI</span>${icon('chevronDown')}
         </button>
-        <div class="menu" id="siteMoreMenu">${MORE.map(menuLink).join('')}</div>
+        <div class="menu" id="siteMoreMenu">${AI.map(menuLink).join('')}</div>
       </div>
       <span class="site-spacer"></span>
-      ${focusMode ? '<a class="btn quiet small" href="practice_home.html">Exit practice</a>' : ''}
-      <a class="account-chip" href="account.html"${current('account.html')}>
+      ${focusMode ? '<a class="btn quiet small" href="/practice-home">Exit practice</a>' : ''}
+      <a class="account-chip" href="/account"${current('/account')}>
         <span class="avatar-dot" data-account-avatar>${icon('user')}</span>
         <span class="chip-name" data-account-name>Sign in</span>
-      </a>`;
+      </a>
+      ${focusMode ? '' : `<a class="settings-gear" href="${SETTINGS.href}" aria-label="Settings" title="Settings"${current(SETTINGS.href)}>${icon(SETTINGS.icon)}</a>`}`;
         body.insertBefore(bar, body.firstChild);
         if (focusMode)
             return;
@@ -171,6 +178,9 @@
             var _a;
             menu.classList.toggle('open', open);
             backdrop === null || backdrop === void 0 ? void 0 : backdrop.classList.toggle('open', open);
+            // The floating Tutor button would sit on top of the mobile sheet.
+            if (backdrop)
+                document.body.classList.toggle('sheet-open', open);
             button.setAttribute('aria-expanded', String(open));
             if (open)
                 (_a = menu.querySelector('a')) === null || _a === void 0 ? void 0 : _a.focus();
@@ -197,7 +207,7 @@
         const footer = document.createElement('footer');
         footer.className = 'site-footer';
         footer.innerHTML = '<span>Atom Bowl is an unofficial practice tool for the National Science Bowl.</span>'
-            + '<span>Made by Sachin Shankar. <a href="https://github.com/shankar-sachin/atombowl">Source on GitHub</a> · <a href="status.html">Status</a></span>';
+            + '<span>Made by Sachin Shankar. <a href="https://github.com/shankar-sachin/atombowl">Source on GitHub</a> · <a href="/status">Status</a></span>';
         const anchor = document.querySelector('.tab-bar');
         if (anchor)
             document.body.insertBefore(footer, anchor);
@@ -239,8 +249,20 @@
             avatar.textContent = label.charAt(0).toUpperCase();
         }
     }
+    // Paint the last signed-in account right away; account_store corrects it once Firebase loads.
+    function paintAccountHint() {
+        let hint = null;
+        try {
+            hint = JSON.parse(localStorage.getItem('atom_account_hint_v1') || 'null');
+        }
+        catch { }
+        if (!(hint === null || hint === void 0 ? void 0 : hint.uid))
+            return;
+        updateAccountChip({ uid: hint.uid, displayName: hint.name, photoURL: hint.photo }, null);
+    }
     async function bindAccountChip() {
         var _a;
+        paintAccountHint();
         try {
             await import('./account_store.js');
         }
@@ -251,9 +273,9 @@
         (_a = account === null || account === void 0 ? void 0 : account.onAuthChange) === null || _a === void 0 ? void 0 : _a.call(account, (user) => updateAccountChip(user, account));
     }
     // The floating Tutor button. Practice (focus chrome) opens Tutor from "Ask Tutor" instead,
-    // and tutor.html shows the chat inline.
+    // and /tutor shows the chat inline.
     async function mountTutorLauncher() {
-        if (['tutor.html', 'status', 'status.html'].includes(pageFile))
+        if (['/tutor', '/status'].includes(pageFile))
             return;
         try {
             const widget = await import('./tutor_widget.js');

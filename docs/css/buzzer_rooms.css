@@ -84,7 +84,8 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
 
 .create-form { display: grid; gap: 20px; }
 
-.create-form h2 { font-size: 1.2rem; margin-bottom: 4px; }
+.create-form h2 { font-size: 1.2rem; margin-bottom: 8px; }
+.create-form .rule-row { margin-bottom: 4px; padding: 4px 0 8px; }
 
 .rule-row {
   display: flex;
@@ -159,15 +160,25 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
   .scoreband { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 }
 
+/* Room code block: small label, then the code with Copy invite beside it, then the room name. */
 .invite {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+@media (min-width: 820px) {
+  .invite { justify-items: end; text-align: right; }
+}
+
+.invite-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px 14px;
+  gap: 10px 14px;
 }
 
-.invite-label { color: var(--muted); font-size: 0.85rem; width: 100%; text-align: right; }
+.invite-label { color: var(--muted); font-size: 0.85rem; }
 
 .room-code {
   margin: 0;
@@ -395,13 +406,27 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
   margin-bottom: 12px;
 }
 
-.roster { display: grid; gap: 14px; }
+.roster { display: grid; gap: 0; }
 
-.roster-group h3 { color: var(--team); font-size: 0.98rem; margin-bottom: 6px; }
+.roster-group { padding: 12px 0; }
+.roster-group:first-child { padding-top: 0; }
+.roster-group + .roster-group { border-top: 1px solid var(--rule); }
+.roster-group:last-child { padding-bottom: 0; }
+
+.roster-group h3 {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--team);
+  font-size: 0.98rem;
+  margin-bottom: 8px;
+}
+.roster-group h3 .roster-count { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+.roster-group.moderator h3 { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 
 .roster-list {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -480,6 +505,7 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
 }
 
 .player-head .room-code { font-size: 2rem; }
+.player-head .invite { justify-items: start; text-align: left; }
 
 .player-stage {
   display: grid;

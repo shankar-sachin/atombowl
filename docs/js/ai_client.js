@@ -40,11 +40,13 @@ function isApiIssue(code, message) {
     return code === "internal" || code === "not-found" || code === "deadline-exceeded";
 }
 function friendlyError(err) {
-    var _a;
+    var _a, _b;
     const code = String((err === null || err === void 0 ? void 0 : err.code) || "").replace(/^functions\//, "");
     const message = String((err === null || err === void 0 ? void 0 : err.message) || "");
     if ((_a = err === null || err === void 0 ? void 0 : err.details) === null || _a === void 0 ? void 0 : _a.credits)
         setCredits(err.details.credits);
+    if (((_b = err === null || err === void 0 ? void 0 : err.details) === null || _b === void 0 ? void 0 : _b.reason) === "email-unverified")
+        return message;
     if (code === "unauthenticated" || code === "permission-denied")
         return "Sign in to use Tutor and Generate.";
     if (isApiIssue(code, message))

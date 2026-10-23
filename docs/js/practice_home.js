@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // startRun stays on window for anything else that launches a run.
     window.startRun = function startRun(mode) {
         localStorage.setItem('atom_run', JSON.stringify(getRunConfig(mode)));
-        window.location.href = 'practice.html';
+        window.location.href = '/practice';
     };
     (_a = document.getElementById('modeList')) === null || _a === void 0 ? void 0 : _a.addEventListener('click', (e) => {
         var _a;

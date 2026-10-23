@@ -1,8 +1,10 @@
+var _a, _b;
 import "./account_store.js";
 const $ = (id) => document.getElementById(id);
 const statusText = $("statusText");
 const statusSub = $("statusSub");
 const guestTagEl = $("guestTag");
+const guestRow = (_a = guestTagEl === null || guestTagEl === void 0 ? void 0 : guestTagEl.closest) === null || _a === void 0 ? void 0 : _a.call(guestTagEl, ".guest-row");
 const profileUsername = $("profileUsername");
 const profileUsernameRow = $("profileUsernameRow");
 const profilePlayerName = $("profilePlayerName");
@@ -13,6 +15,10 @@ const signedOutActions = $("signedOutActions");
 const signedInPanel = $("signedInPanel");
 const signOutBtn = $("signOutBtn");
 const syncNotice = $("syncNotice");
+const verifyNotice = $("verifyNotice");
+const verifyNoticeText = $("verifyNoticeText");
+const verifyResendBtn = $("verifyResendBtn");
+const verifyCheckBtn = $("verifyCheckBtn");
 const syncNoticeText = $("syncNoticeText");
 const retrySyncBtn = $("retrySyncBtn");
 const toastEl = $("accountToast");
@@ -24,6 +30,7 @@ const usernameLockedInput = $("usernameLockedInput");
 const usernameLockedHint = $("usernameLockedHint");
 const emailLockedInput = $("emailLockedInput");
 const photoUploadInput = $("photoUploadInput");
+const photoHint = $("photoHint");
 const saveProfileBtn = $("saveProfileBtn");
 const accountErrorEl = $("accountError");
 const accountStatusEl = $("accountStatus");
@@ -105,6 +112,35 @@ function showToast(msg) {
     toastEl.classList.add("show");
     window.clearTimeout(toastTimer);
     toastTimer = window.setTimeout(() => toastEl.classList.remove("show"), 3200);
+}
+const VERIFY_TEXT = "Confirm your email to use Tutor and Generate. We sent a link to your inbox.";
+function renderVerifyNotice(user) {
+    var _a, _b;
+    let needed = false;
+    try {
+        needed = !!((_b = (_a = requireAccount()).needsEmailVerification) === null || _b === void 0 ? void 0 : _b.call(_a, user));
+    }
+    catch { }
+    verifyNotice === null || verifyNotice === void 0 ? void 0 : verifyNotice.classList.toggle("hidden", !needed);
+    if (!needed && verifyNoticeText)
+        verifyNoticeText.textContent = VERIFY_TEXT;
+}
+async function checkVerification({ quiet = false } = {}) {
+    var _a, _b, _c, _d;
+    try {
+        const ok = await ((_b = (_a = requireAccount()).refreshVerification) === null || _b === void 0 ? void 0 : _b.call(_a));
+        if (ok) {
+            renderVerifyNotice((_d = (_c = requireAccount()).getUser) === null || _d === void 0 ? void 0 : _d.call(_c));
+            showToast("Email confirmed. Tutor and Generate are ready.");
+        }
+        else if (!quiet && verifyNoticeText) {
+            verifyNoticeText.textContent = "Not confirmed yet. Open the link in the email, then press I've confirmed it.";
+        }
+    }
+    catch (err) {
+        if (!quiet && verifyNoticeText)
+            verifyNoticeText.textContent = `Couldn't check (${friendlyAuthError(err)}). Try again.`;
+    }
 }
 function renderSyncNotice() {
     var _a, _b, _c;
@@ -304,10 +340,32 @@ async function renderStats() {
         }
     }
 }
+// While Firebase loads, show the last signed-in account from the hint common.ts also uses,
+// instead of a guest card that then flips to signed in.
 function renderChecking() {
     setStatusTag("checking");
+    let hint = null;
+    try {
+        hint = JSON.parse(localStorage.getItem("atom_account_hint_v1") || "null");
+    }
+    catch { }
+    if (!(hint === null || hint === void 0 ? void 0 : hint.uid)) {
+        if (statusSub)
+            statusSub.textContent = "Looking for a saved sign-in on this device.";
+        return;
+    }
     if (statusSub)
-        statusSub.textContent = "Looking for a saved sign-in on this device.";
+        statusSub.textContent = "Loading your account…";
+    if (profilePlayerName)
+        profilePlayerName.textContent = hint.name || "Player";
+    if (profileUsername)
+        profileUsername.textContent = hint.username || "";
+    profileUsernameRow === null || profileUsernameRow === void 0 ? void 0 : profileUsernameRow.classList.toggle("hidden", !hint.username);
+    if (profileEmail)
+        profileEmail.textContent = hint.email || "";
+    setAvatar(hint.photo || "", hint.name || "");
+    signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.add("hidden");
+    guestRow === null || guestRow === void 0 ? void 0 : guestRow.classList.add("hidden");
 }
 function localName() {
     var _a, _b;
@@ -329,6 +387,7 @@ function renderSignedOut() {
     }
     catch { }
     setStatusTag("out");
+    verifyNotice === null || verifyNotice === void 0 ? void 0 : verifyNotice.classList.add("hidden");
     if (statusSub)
         statusSub.textContent = "You're practicing as a guest. Progress stays in this browser only.";
     if (profileUsernameRow)
@@ -346,6 +405,7 @@ function renderSignedOut() {
         emailLockedInput.value = "";
     if (guestTagEl)
         guestTagEl.textContent = tag || fallbackGuestTag();
+    guestRow === null || guestRow === void 0 ? void 0 : guestRow.classList.remove("hidden");
     signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.remove("hidden");
     signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.classList.add("hidden");
     setStats(null);
@@ -358,7 +418,7 @@ function renderSignedOut() {
     renderSyncNotice();
 }
 async function renderSignedIn(user) {
-    var _a, _b;
+    var _a;
     const account = requireAccount();
     const profile = ((_a = account.getProfile) === null || _a === void 0 ? void 0 : _a.call(account)) || {};
     const username = String((profile === null || profile === void 0 ? void 0 : profile.username) || "").trim();
@@ -366,14 +426,19 @@ async function renderSignedIn(user) {
     const email = String((profile === null || profile === void 0 ? void 0 : profile.email) || (user === null || user === void 0 ? void 0 : user.email) || "");
     const photo = String((profile === null || profile === void 0 ? void 0 : profile.photoURL) || (user === null || user === void 0 ? void 0 : user.photoURL) || "");
     setStatusTag("in");
+    renderVerifyNotice(user);
+    // Arriving from the verification email's continue link.
+    if (new URLSearchParams(location.search).get("verified") === "1") {
+        history.replaceState(null, "", location.pathname + location.hash);
+        void checkVerification({ quiet: true });
+    }
     if (statusSub) {
         const providers = Array.isArray(user === null || user === void 0 ? void 0 : user.providerData) ? user.providerData.map((p) => p === null || p === void 0 ? void 0 : p.providerId) : [];
         statusSub.textContent = providers.includes("google.com")
             ? "Signed in with Google. Your stats and settings save to this account."
             : "Signed in with email. Your stats and settings save to this account.";
     }
-    if (guestTagEl)
-        guestTagEl.textContent = ((_b = account.getGuestTag) === null || _b === void 0 ? void 0 : _b.call(account)) || fallbackGuestTag();
+    guestRow === null || guestRow === void 0 ? void 0 : guestRow.classList.add("hidden");
     if (profileUsername)
         profileUsername.textContent = username;
     profileUsernameRow === null || profileUsernameRow === void 0 ? void 0 : profileUsernameRow.classList.toggle("hidden", !username);
@@ -398,6 +463,7 @@ async function renderSignedIn(user) {
         usernameLockedInput.classList.toggle("input-readonly", !!username);
     }
     if (usernameLockedHint) {
+        usernameLockedHint.classList.remove("good", "bad");
         usernameLockedHint.textContent = username
             ? "Usernames can't be changed once set."
             : "Pick a username: 3 to 20 lowercase letters or numbers. It can't be changed later.";
@@ -542,37 +608,61 @@ function validateField(input) {
     fieldError(input, msg);
     return !msg;
 }
-let usernameCheckSeq = 0;
-async function checkUsername() {
-    var _a, _b;
-    if (!signupUsername)
-        return true;
-    const username = signupUsername.value.trim().toLowerCase();
-    if (signupUsername.value !== username)
-        signupUsername.value = username;
-    const seq = ++usernameCheckSeq;
-    if (!username) {
-        setUsernameStatus("Choose a username.", "bad");
-        return false;
-    }
-    if (!USERNAME_RE.test(username)) {
-        setUsernameStatus("Use 3 to 20 lowercase letters or numbers, no spaces or symbols.", "bad");
-        return false;
-    }
-    setUsernameStatus("Checking if it's free…");
-    try {
-        const ok = await ((_b = (_a = requireAccount()).isUsernameAvailable) === null || _b === void 0 ? void 0 : _b.call(_a, username));
-        if (seq !== usernameCheckSeq)
+// Username fields check Firestore as you type (after a short pause) and say whether the name
+// is free. Signup uses #usernameStatus; the profile form uses the username hint.
+const USERNAME_DEBOUNCE_MS = 350;
+function usernameChecker(input, show) {
+    let seq = 0;
+    let timer = 0;
+    async function check() {
+        var _a, _b;
+        window.clearTimeout(timer);
+        if (!input || input.readOnly)
+            return true;
+        const username = input.value.trim().toLowerCase();
+        if (input.value !== username)
+            input.value = username;
+        const mine = ++seq;
+        if (!username) {
+            show("Choose a username.", "bad");
+            return false;
+        }
+        if (!USERNAME_RE.test(username)) {
+            show("Use 3 to 20 lowercase letters or numbers, no spaces or symbols.", "bad");
+            return false;
+        }
+        show("Checking…");
+        try {
+            const ok = await ((_b = (_a = requireAccount()).isUsernameAvailable) === null || _b === void 0 ? void 0 : _b.call(_a, username));
+            if (mine === seq)
+                show(ok ? "Yes, available" : `"${username}" is taken. Try another one.`, ok ? "good" : "bad");
             return !!ok;
-        setUsernameStatus(ok ? `"${username}" is available.` : `"${username}" is taken. Try another one.`, ok ? "good" : "bad");
-        return !!ok;
+        }
+        catch (err) {
+            if (mine === seq)
+                show(`Couldn't check this username (${(err === null || err === void 0 ? void 0 : err.code) || "network error"}). It's checked again when you save.`);
+            return true;
+        }
     }
-    catch (err) {
-        if (seq === usernameCheckSeq)
-            setUsernameStatus(`Couldn't check this username (${(err === null || err === void 0 ? void 0 : err.code) || "network error"}). It will be checked again when you create the account.`);
-        return true;
-    }
+    input === null || input === void 0 ? void 0 : input.addEventListener("input", () => {
+        window.clearTimeout(timer);
+        seq++;
+        if (!input.value.trim()) {
+            show("");
+            return;
+        }
+        timer = window.setTimeout(() => void check(), USERNAME_DEBOUNCE_MS);
+    });
+    return check;
 }
+const checkUsername = usernameChecker(signupUsername, setUsernameStatus);
+const checkProfileUsername = usernameChecker(usernameLockedInput, (msg, tone = "") => {
+    if (!usernameLockedHint)
+        return;
+    usernameLockedHint.textContent = msg || "Pick a username: 3 to 20 lowercase letters or numbers. It can't be changed later.";
+    usernameLockedHint.classList.toggle("good", tone === "good");
+    usernameLockedHint.classList.toggle("bad", tone === "bad");
+});
 const signupFields = [signupFirstName, signupLastName, signupEmail, signupPassword, signupPassword2];
 signupFields.forEach((input) => {
     input === null || input === void 0 ? void 0 : input.addEventListener("blur", () => { if (input.value)
@@ -589,10 +679,6 @@ signupPassword === null || signupPassword === void 0 ? void 0 : signupPassword.a
 });
 signupUsername === null || signupUsername === void 0 ? void 0 : signupUsername.addEventListener("blur", () => { if (signupUsername.value.trim())
     void checkUsername(); });
-signupUsername === null || signupUsername === void 0 ? void 0 : signupUsername.addEventListener("input", () => {
-    if (usernameStatus === null || usernameStatus === void 0 ? void 0 : usernameStatus.textContent)
-        setUsernameStatus("");
-});
 /* ---------- Wiring ---------- */
 const account0 = window.atomAccount;
 if (account0 === null || account0 === void 0 ? void 0 : account0.onAuthChange) {
@@ -808,31 +894,74 @@ signUpFormPanel === null || signUpFormPanel === void 0 ? void 0 : signUpFormPane
         setAuthError(friendlyAuthError(err));
     }
 });
-photoUploadInput === null || photoUploadInput === void 0 ? void 0 : photoUploadInput.addEventListener("change", () => {
-    var _a;
+// Photos are cropped to a square and shrunk to a small JPEG here, so any camera photo fits in
+// the profile document, then saved straight away.
+const PHOTO_SIZE = 256;
+const PHOTO_HINT = "A JPG, PNG, GIF or WebP. It's cropped to a square and saves right away.";
+function setPhotoHint(text, tone = "") {
+    if (!photoHint)
+        return;
+    photoHint.textContent = text || PHOTO_HINT;
+    photoHint.classList.toggle("good", tone === "good");
+    photoHint.classList.toggle("bad", tone === "bad");
+}
+async function shrinkPhoto(file) {
+    const url = URL.createObjectURL(file);
+    try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        if (!side)
+            throw new Error("empty image");
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = PHOTO_SIZE;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, PHOTO_SIZE, PHOTO_SIZE);
+        ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+        return canvas.toDataURL("image/jpeg", 0.85);
+    }
+    finally {
+        URL.revokeObjectURL(url);
+    }
+}
+photoUploadInput === null || photoUploadInput === void 0 ? void 0 : photoUploadInput.addEventListener("change", async () => {
+    var _a, _b, _c;
     setAccountError("");
     const file = (_a = photoUploadInput.files) === null || _a === void 0 ? void 0 : _a[0];
     if (!file)
         return;
-    if (!file.type.startsWith("image/")) {
-        setAccountError("That file isn't an image. Choose a JPG, PNG or GIF.");
+    if (file.size > 20000000) {
+        setPhotoHint("That file is over 20 MB. Choose a smaller picture.", "bad");
         photoUploadInput.value = "";
         return;
     }
-    if (file.size > 250000) {
-        setAccountError(`That image is ${Math.round(file.size / 1000)} KB. Choose one under 250 KB.`);
+    let photo = "";
+    try {
+        photo = await shrinkPhoto(file);
+    }
+    catch {
+        setPhotoHint("Couldn't open that picture. Choose a JPG, PNG, GIF or WebP.", "bad");
         photoUploadInput.value = "";
         return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-        pendingPhotoData = String(reader.result || "");
-        if (pendingPhotoData)
-            setAvatar(pendingPhotoData, String((playerNameInput === null || playerNameInput === void 0 ? void 0 : playerNameInput.value) || ""));
-        setAccountStatus("New picture ready. Save profile to keep it.");
-    };
-    reader.onerror = () => setAccountError("Couldn't read that image. Try a different file.");
-    reader.readAsDataURL(file);
+    setAvatar(photo, String((playerNameInput === null || playerNameInput === void 0 ? void 0 : playerNameInput.value) || ""));
+    setPhotoHint("Saving your picture…");
+    try {
+        await ((_c = (_b = requireAccount()).updateAccountProfile) === null || _c === void 0 ? void 0 : _c.call(_b, { photoURL: photo }));
+        pendingPhotoData = "";
+        setPhotoHint("Picture saved.", "good");
+        showToast("Picture saved");
+    }
+    catch (err) {
+        // Keep it so Save profile can try again.
+        pendingPhotoData = photo;
+        setPhotoHint(`Picture not saved. ${friendlyAuthError(err)} Press Save profile to try again.`, "bad");
+    }
+    finally {
+        photoUploadInput.value = "";
+    }
 });
 signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.addEventListener("submit", async (event) => {
     var _a, _b;
@@ -852,6 +981,10 @@ signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.addE
         : "";
     if (typedUsername && !USERNAME_RE.test(typedUsername)) {
         setAccountError("Usernames are 3 to 20 lowercase letters or numbers, with no spaces or symbols.");
+        usernameLockedInput === null || usernameLockedInput === void 0 ? void 0 : usernameLockedInput.focus();
+        return;
+    }
+    if (typedUsername && !(await checkProfileUsername())) {
         usernameLockedInput === null || usernameLockedInput === void 0 ? void 0 : usernameLockedInput.focus();
         return;
     }
@@ -881,6 +1014,25 @@ signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.addE
     catch (err) {
         setAccountError(`Profile not saved. ${friendlyAuthError(err)}`);
     }
+});
+verifyResendBtn === null || verifyResendBtn === void 0 ? void 0 : verifyResendBtn.addEventListener("click", async () => {
+    try {
+        await withBusy(verifyResendBtn, "Sending…", () => requireAccount().sendVerification());
+        if (verifyNoticeText)
+            verifyNoticeText.textContent = "New link sent. Check your inbox and spam folder.";
+    }
+    catch (err) {
+        if (verifyNoticeText)
+            verifyNoticeText.textContent = (err === null || err === void 0 ? void 0 : err.code) === "auth/too-many-requests"
+                ? "We just sent one. Wait a minute before asking for another."
+                : `Couldn't send the link (${friendlyAuthError(err)}).`;
+    }
+});
+verifyCheckBtn === null || verifyCheckBtn === void 0 ? void 0 : verifyCheckBtn.addEventListener("click", () => withBusy(verifyCheckBtn, "Checking…", () => checkVerification()));
+// Coming back from the email link, or back to this tab after clicking it elsewhere.
+(_b = window.addEventListener) === null || _b === void 0 ? void 0 : _b.call(window, "focus", () => {
+    if (verifyNotice && !verifyNotice.classList.contains("hidden"))
+        void checkVerification({ quiet: true });
 });
 signOutBtn === null || signOutBtn === void 0 ? void 0 : signOutBtn.addEventListener("click", async () => {
     setAccountError("");

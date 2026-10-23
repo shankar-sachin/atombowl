@@ -21,7 +21,7 @@ async function createRoom(code = 'ABCDE', extra = {}) {
   scores: { A: 0, B: 0 }, bonusTeam: 'A', lockoutTeam: null, lockoutTeams: [], timers: null, settings: { ...settings }, ...extra };
  const batch = sdk.writeBatch(db);
  batch.set(roomRef(db, code), room);
- batch.set(memberRef(db, 'host', code), { name: 'Host', team: 'A', joinedAt: sdk.serverTimestamp(), isHost: true });
+ batch.set(memberRef(db, 'host', code), { name: 'Host', team: '', joinedAt: sdk.serverTimestamp(), isHost: true });
  await assertSucceeds(batch.commit());
  return db;
 }
@@ -178,4 +178,12 @@ test('AI credit docs are readable by their owner only and never writable by clie
  await assertFails(sdk.getDoc(sdk.doc(bob, 'aiUsage', 'alice')));
  await assertFails(sdk.setDoc(sdk.doc(alice, 'aiUsage', 'alice'), { day: '2026-10-22', used: 0 }));
  await assertFails(sdk.getDocs(sdk.collection(alice, 'aiUsage')));
+});
+
+test('the host moderates with no team, but players must pick one of the room teams', async () => {
+ await createRoom();
+ const db = dbFor('p1');
+ await assertFails(sdk.setDoc(memberRef(db, 'p1'), { name: 'p1', team: '', joinedAt: sdk.serverTimestamp(), isHost: false }));
+ await assertFails(sdk.setDoc(memberRef(db, 'p1'), { name: 'p1', team: 'Z', joinedAt: sdk.serverTimestamp(), isHost: false }));
+ await join('p2', 'B');
 });
