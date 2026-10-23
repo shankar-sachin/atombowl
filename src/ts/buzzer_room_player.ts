@@ -158,17 +158,41 @@ function renderTeams(room) {
   });
 }
 
+function rosterGroup(className, title, countText) {
+  const group = document.createElement("div");
+  group.className = `roster-group ${className}`;
+  const heading = document.createElement("h3");
+  const label = document.createElement("span");
+  label.textContent = title;
+  heading.appendChild(label);
+  if (countText) {
+    const count = document.createElement("span");
+    count.className = "roster-count";
+    count.textContent = countText;
+    heading.appendChild(count);
+  }
+  const list = document.createElement("ul");
+  list.className = "roster-list";
+  group.append(heading, list);
+  return { group, list };
+}
+
+// Same layout as the host page: the moderator first, then each team with its players.
 function renderRoster(room) {
-  paint("roster", JSON.stringify([members, room.settings?.teamNames, uid]), () => {
+  paint("roster", JSON.stringify([members, room.settings?.teamNames, uid, room.hostUid]), () => {
     els.roster.replaceChildren();
+    const host = members.find((person) => person.id === room.hostUid);
+    if (host) {
+      const { group, list } = rosterGroup("moderator", "Moderator", "");
+      const item = document.createElement("li");
+      item.textContent = host.name || "Host";
+      list.appendChild(item);
+      els.roster.appendChild(group);
+    }
     for (const team of teamIds(room)) {
-      const group = document.createElement("div");
-      group.className = `roster-group ${teamClass(team)}`;
-      const heading = document.createElement("h3");
-      heading.textContent = teamName(room, team);
-      const list = document.createElement("ul");
-      list.className = "roster-list";
-      const people = members.filter((person) => person.team === team).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      const people = members.filter((person) => person.team === team && person.id !== room.hostUid)
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      const { group, list } = rosterGroup(teamClass(team), teamName(room, team), people.length === 1 ? "1 player" : `${people.length} players`);
       if (!people.length) {
         const empty = document.createElement("li");
         empty.className = "muted";
@@ -185,15 +209,9 @@ function renderRoster(room) {
           you.className = "muted";
           you.textContent = "You";
           item.appendChild(you);
-        } else if (person.id === room.hostUid) {
-          const host = document.createElement("span");
-          host.className = "muted";
-          host.textContent = "Host";
-          item.appendChild(host);
         }
         list.appendChild(item);
       }
-      group.append(heading, list);
       els.roster.appendChild(group);
     }
   });
@@ -308,7 +326,7 @@ function attach(room) {
     }
     const data = snapshot.data();
     if (data.hostUid === uid) {
-      window.location.replace(`buzzer_room.html?roomId=${encodeURIComponent(room)}`);
+      window.location.replace(`/buzzer-room?roomId=${encodeURIComponent(room)}`);
       return;
     }
     snap = data;
@@ -373,7 +391,7 @@ document.addEventListener("keydown", handleSpace);
       els.stateLine.textContent = "Room not found.";
       return;
     }
-    window.location.replace(`buzzer_rooms.html?code=${encodeURIComponent(room.data().roomCode)}`);
+    window.location.replace(`/buzzer-rooms?code=${encodeURIComponent(room.data().roomCode)}`);
     return;
   }
   member = saved;

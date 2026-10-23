@@ -35,7 +35,7 @@
       : null;
     const singleMode = !!singleQ;
 
-    // Generate's "Practice these" plays its set in order: practice.html?generated=1.
+    // Generate's "Practice these" plays its set in order: /practice?generated=1.
     const generatedQs = (() => {
       if (new URLSearchParams(window.location.search).get('generated') !== '1') return null;
       const list = safeParseJSON(sessionStorage.getItem('atom_generated_set'), null);
@@ -143,7 +143,7 @@
     };
     const modeKey = String(runCfg.mode || 'rapid').toLowerCase();
     document.getElementById('mode').textContent = MODE_NAMES[modeKey] || 'Practice';
-    const exitUrl = singleMode ? 'question_bank.html' : generatedQs ? 'generate.html' : 'practice_home.html';
+    const exitUrl = singleMode ? '/question-bank' : generatedQs ? '/generate' : '/practice-home';
 
     // ---------- Display helpers (data values stay as they are) ----------
     function sentenceCase(text) {

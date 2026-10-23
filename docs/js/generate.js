@@ -1,7 +1,7 @@
 var _a, _b, _c;
 // @ts-nocheck
 // Generate: asks the `ai` function for new questions in the bank's format, shows them,
-// and hands them to practice.html?generated=1 through sessionStorage.
+// and hands them to /practice?generated=1 through sessionStorage.
 import "./account_store.js";
 const RESULT_KEY = "atom_generated_set";
 const $ = (id) => document.getElementById(id);
@@ -174,7 +174,7 @@ els.practice.addEventListener("click", () => {
         sessionStorage.setItem(RESULT_KEY, JSON.stringify(questions));
     }
     catch { }
-    window.location.href = "practice.html?generated=1";
+    window.location.href = "/practice?generated=1";
 });
 // Start from the account's division, then restore the last set from this tab.
 const division = String(((_a = window.atomSettings) === null || _a === void 0 ? void 0 : _a.div) || "MS").toUpperCase();

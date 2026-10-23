@@ -58,6 +58,9 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
     if (auth.token?.firebase?.sign_in_provider === "anonymous") {
       throw new AiError("permission-denied", "Create a free account or sign in to use Tutor and Generate.");
     }
+    if (auth.token?.firebase?.sign_in_provider === "password" && auth.token?.email_verified !== true) {
+      throw new AiError("permission-denied", "Confirm your email to use Tutor and Generate. Open the link we emailed you, or send a new one from your account page.", { reason: "email-unverified" });
+    }
 
     const { provider, model, followUpModel, apiKey, dailyCredits: limit } = config();
     const { db, serverTimestamp } = getDb();

@@ -2,8 +2,19 @@
   "hosting": {
     "site": "atombowl",
     "public": "docs",
-    "cleanUrls": false,
-    "rewrites": [{ "source": "/status", "destination": "/status.html" }],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "redirects": [
+      {"regex": "^/practice_home(?:\\.html)?$", "destination": "/practice-home", "type": 301},
+      {"regex": "^/question_bank(?:\\.html)?$", "destination": "/question-bank", "type": 301},
+      {"regex": "^/buzzer_rooms(?:\\.html)?$", "destination": "/buzzer-rooms", "type": 301},
+      {"regex": "^/buzzer_create(?:\\.html)?$", "destination": "/buzzer-create", "type": 301},
+      {"regex": "^/buzzer_room_player(?:\\.html)?$", "destination": "/buzzer-room-player", "type": 301},
+      {"regex": "^/buzzer_room(?:\\.html)?$", "destination": "/buzzer-room", "type": 301},
+      {"regex": "^/game_clock(?:\\.html)?$", "destination": "/game-clock", "type": 301},
+      {"regex": "^/more_options(?:\\.html)?$", "destination": "/game-clock", "type": 301},
+      {"regex": "^/microsoft_auth(?:\\.html)?$", "destination": "/microsoft-auth", "type": 301}
+    ],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map", "**/*.md", "**/.gitkeep"],
     "headers": [
       {
@@ -19,7 +30,7 @@
       },
       {
         "source": "**/*.@(js|css)",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }]
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
       },
       {
         "source": "**/*.@(png|jpg|jpeg|gif|svg|webp|ico|woff|woff2)",

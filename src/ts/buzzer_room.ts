@@ -423,15 +423,35 @@ function renderRoster(room) {
   const key = JSON.stringify([members, room.hostUid, room.settings?.teamNames, teamIds(room)]);
   paint("roster", key, () => {
     els.roster.replaceChildren();
+    const host = members.find((member) => member.id === room.hostUid);
+    if (host) {
+      const group = document.createElement("div");
+      group.className = "roster-group moderator";
+      const heading = document.createElement("h3");
+      heading.textContent = "Moderator";
+      const list = document.createElement("ul");
+      list.className = "roster-list";
+      const item = document.createElement("li");
+      item.textContent = host.name || "Host";
+      list.appendChild(item);
+      group.append(heading, list);
+      els.roster.appendChild(group);
+    }
     const teams = teamIds(room);
     for (const team of teams) {
       const group = document.createElement("div");
       group.className = `roster-group ${teamClass(team)}`;
+      const people = members.filter((member) => member.team === team && member.id !== room.hostUid)
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       const heading = document.createElement("h3");
-      heading.textContent = teamName(room, team);
+      const title = document.createElement("span");
+      title.textContent = teamName(room, team);
+      const count = document.createElement("span");
+      count.className = "roster-count";
+      count.textContent = people.length === 1 ? "1 player" : `${people.length} players`;
+      heading.append(title, count);
       const list = document.createElement("ul");
       list.className = "roster-list";
-      const people = members.filter((member) => member.team === team).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       if (!people.length) {
         const empty = document.createElement("li");
         empty.className = "muted";
@@ -443,12 +463,6 @@ function renderRoster(room) {
         const name = document.createElement("span");
         name.textContent = person.name || "Player";
         item.appendChild(name);
-        if (person.id === room.hostUid) {
-          const tag = document.createElement("span");
-          tag.className = "muted";
-          tag.textContent = "Host";
-          item.appendChild(tag);
-        }
         list.appendChild(item);
       }
       group.append(heading, list);
@@ -589,7 +603,7 @@ function exportCsv() {
 
 async function copyInvite() {
   if (!snap) return;
-  const link = new URL(`buzzer_rooms.html?code=${encodeURIComponent(snap.roomCode)}`, window.location.href).href;
+  const link = new URL(`/buzzer-rooms?code=${encodeURIComponent(snap.roomCode)}`, window.location.href).href;
   const text = `Join my Atom Bowl room${snap.roomName ? ` "${snap.roomName}"` : ""} with code ${snap.roomCode}: ${link}`;
   let copied = false;
   try {
@@ -659,7 +673,7 @@ function attach(room) {
     }
     const data = snapshot.data();
     if (data.hostUid !== uid) {
-      window.location.replace(`buzzer_room_player.html?roomId=${encodeURIComponent(room)}`);
+      window.location.replace(`/buzzer-room-player?roomId=${encodeURIComponent(room)}`);
       return;
     }
     snap = data;

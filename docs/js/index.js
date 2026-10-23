@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         window.location.href = page;
     }
-    // Required by existing onclick handlers in index.html cards.
+    // Required by existing onclick handlers in / cards.
     window.go = go;
     function startNow() {
         const defaultRun = {
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bankFile: 'data/set_B.json',
         };
         localStorage.setItem('atom_run', JSON.stringify(defaultRun));
-        go('practice.html');
+        go('/practice');
     }
     function pdfEscape(input) {
         return input.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');

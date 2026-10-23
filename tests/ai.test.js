@@ -164,7 +164,7 @@ test('the ai service charges, refunds and routes models', async () => {
     },
     checkModelImpl: async ({ model }) => (model === 'small' ? { ok: false, detail: 'gone' } : { ok: true })
   });
-  const user = { uid: 'u1', token: { firebase: { sign_in_provider: 'password' } } };
+  const user = { uid: 'u1', token: { email_verified: true, firebase: { sign_in_provider: 'password' } } };
 
   await assert.rejects(service.handle({ action: 'status' }, null), (e) => e instanceof AiError && e.code === 'unauthenticated');
   await assert.rejects(service.handle({ action: 'status' }, { uid: 'a', token: { firebase: { sign_in_provider: 'anonymous' } } }), (e) => e.code === 'permission-denied');
@@ -187,4 +187,18 @@ test('the ai service charges, refunds and routes models', async () => {
   const health = await service.handle({ action: 'health' }, null);
   assert.equal(health.ok, false);
   assert.deepEqual([health.models.main.ok, health.models.followUp.detail], [true, 'gone']);
+});
+
+test('email/password accounts must confirm their email before using credits', async () => {
+  const { createAiService } = await lib('service');
+  const service = createAiService({
+    config: () => ({ provider: 'groq', model: 'big', followUpModel: '', apiKey: 'k', dailyCredits: 5 }),
+    getDb: () => { throw new Error('should not reach the database'); },
+    logger: { warn() {} }
+  });
+  const unverified = { uid: 'e', token: { email_verified: false, firebase: { sign_in_provider: 'password' } } };
+  await assert.rejects(service.handle({ action: 'status' }, unverified),
+    (e) => e.code === 'permission-denied' && e.details.reason === 'email-unverified');
+  const google = { uid: 'g', token: { email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
+  await assert.rejects(service.handle({ action: 'status' }, google), /should not reach the database/);
 });

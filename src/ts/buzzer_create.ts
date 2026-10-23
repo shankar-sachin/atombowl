@@ -8,14 +8,13 @@ const PROFILE_KEY = "atom_buzzer_profile";
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const $ = (id) => document.getElementById(id);
 const els = {
-  form: $("createForm"), roomName: $("roomName"), hostName: $("hostName"), hostTeam: $("hostTeam"),
+  form: $("createForm"), roomName: $("roomName"), hostName: $("hostName"),
   teamCount: $("teamCount"), teamFields: $("teamNameFields"), nsbToggle: $("nsbToggle"), nsbHelp: $("nsbHelp"),
   customTiming: $("customTiming"), tuTime: $("tuTime"), bonusTime: $("bonusTime"), halfMinutes: $("halfMinutes"),
   create: $("createRoomBtn"), error: $("createError")
 };
 
 const TEAM_NAME_MAX = 20;
-let preferredTeam = "";
 
 function safeParse(raw) {
   try { return raw ? JSON.parse(raw) : null; } catch { return null; }
@@ -39,17 +38,11 @@ function currentTeamNames() {
   return names;
 }
 
-function fillHostTeams(count) {
-  const names = currentTeamNames();
-  const previous = els.hostTeam.value || preferredTeam;
-  els.hostTeam.replaceChildren(...teamLetters(count).map((team) => new Option(names[team] || `Team ${team}`, team)));
-  if (previous && teamLetters(count).includes(previous)) els.hostTeam.value = previous;
-}
-
 function buildTeamFields(count) {
   const existing = currentTeamNames();
   els.teamFields.replaceChildren();
   for (const team of teamLetters(count)) {
+    const field = document.createElement("div");
     const label = document.createElement("label");
     label.className = "label";
     label.htmlFor = `teamName${team}`;
@@ -61,15 +54,14 @@ function buildTeamFields(count) {
     input.dataset.team = team;
     input.placeholder = `Team ${team}`;
     input.value = existing[team] && existing[team] !== `Team ${team}` ? existing[team] : "";
-    input.addEventListener("input", () => fillHostTeams(parseInt(els.teamCount.value, 10) || 2));
-    els.teamFields.append(label, input);
+    field.append(label, input);
+    els.teamFields.append(field);
   }
 }
 
 els.teamCount.addEventListener("change", () => {
   const count = clampInt(els.teamCount.value, 2, 4, 2);
   buildTeamFields(count);
-  fillHostTeams(count);
 });
 
 function setNsb(on) {
@@ -100,7 +92,6 @@ async function create(event) {
   const halfMinutes = clampInt(els.halfMinutes.value, 1, 60, 8);
   const roomName = els.roomName.value.trim().slice(0, 60) || "Buzzer room";
   const hostName = els.hostName.value.trim().slice(0, 40) || "Host";
-  const hostTeam = els.hostTeam.value || "A";
   const teamNames = currentTeamNames();
   const scores = Object.fromEntries(teamLetters(teamCount).map((team) => [team, 0]));
 
@@ -134,7 +125,8 @@ async function create(event) {
           settings: { teamCount, nsbRules: useNsb, tuTime, bonusTime, halfMinutes, teamNames }
         });
         tx.set(doc(db, "rooms", roomCode, "players", user.uid), {
-          name: hostName, team: hostTeam, joinedAt: serverTimestamp(), isHost: true
+          // The host moderates and doesn't play, so they have no team.
+          name: hostName, team: "", joinedAt: serverTimestamp(), isHost: true
         });
         return true;
       });
@@ -142,10 +134,12 @@ async function create(event) {
     }
     if (!created) throw new Error("Could not find a free room code. Try again.");
 
-    localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: hostName, team: hostTeam }));
+    // Keep the team from the last time they joined as a player.
+    const team = safeParse(localStorage.getItem(PROFILE_KEY))?.team || "";
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: hostName, team }));
     localStorage.setItem("atom_buzzer_role", "host");
-    if (window.atomAccount?.getUser?.()) window.atomAccount.saveBuzzerProfile({ name: hostName, team: hostTeam }).catch(() => {});
-    window.location.href = `buzzer_room.html?roomId=${encodeURIComponent(roomCode)}`;
+    if (window.atomAccount?.getUser?.()) window.atomAccount.saveBuzzerProfile({ name: hostName, team }).catch(() => {});
+    window.location.href = `/buzzer-room?roomId=${encodeURIComponent(roomCode)}`;
   } catch (err) {
     els.error.textContent = `Could not create the room: ${err.message || "check your connection and try again."}`;
     els.create.disabled = false;
@@ -157,9 +151,7 @@ els.form.addEventListener("submit", create);
 // Start from the saved profile, then the account profile when it loads.
 const saved = safeParse(localStorage.getItem(PROFILE_KEY)) || {};
 if (saved.name) els.hostName.value = saved.name.slice(0, 40);
-if (saved.team) preferredTeam = saved.team;
 buildTeamFields(clampInt(els.teamCount.value, 2, 4, 2));
-fillHostTeams(clampInt(els.teamCount.value, 2, 4, 2));
 setNsb(true);
 
 if (window.atomAccount?.onAuthChange) {
@@ -168,10 +160,6 @@ if (window.atomAccount?.onAuthChange) {
     try {
       const remote = await window.atomAccount.loadBuzzerProfile();
       if (remote?.name && !els.hostName.value) els.hostName.value = remote.name.slice(0, 40);
-      if (remote?.team) {
-        preferredTeam = remote.team;
-        fillHostTeams(clampInt(els.teamCount.value, 2, 4, 2));
-      }
     } catch {}
   });
 }

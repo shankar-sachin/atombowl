@@ -88,7 +88,9 @@ service cloud.firestore {
           return request.resource.data.keys().hasOnly(['name', 'team', 'joinedAt', 'isHost'])
             && request.resource.data.name is string
             && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
-            && request.resource.data.team in room.scores
+            // The host moderates with no team; everyone else picks one of the room's teams.
+            && (request.resource.data.team in room.scores
+              || (room.hostUid == uid && request.resource.data.team == ''))
             && request.resource.data.isHost == (room.hostUid == uid)
             && room.status != 'ended';
         }

@@ -2,7 +2,7 @@
   "name": "Atom Bowl",
   "short_name": "Atom Bowl",
   "description": "National Science Bowl practice: timed toss-ups and bonuses, a question bank, lessons and buzzer rooms.",
-  "start_url": "index.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0e1626",
   "theme_color": "#0e1626",

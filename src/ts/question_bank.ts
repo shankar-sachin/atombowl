@@ -123,6 +123,44 @@
       render();
     }
 
+    // Picture questions: the same path fallbacks as practice.ts (resolveImgCandidates).
+    function imageCandidates(q: any): string[] {
+      const raw = String(q?.question_image || '').trim();
+      if (!raw) return [];
+      if (/^https?:\/\//i.test(raw)) return [raw];
+      const p = raw.replace(/^\.\/+/, '').replace(/^\/+/, '');
+      if (p.startsWith('images/')) return [p];
+      const cands: string[] = [];
+      if (p.startsWith('ms/') || p.startsWith('hs/')) cands.push('images/' + p);
+      const lvl = String(q?.level || '').toLowerCase();
+      if (lvl === 'ms' || lvl === 'hs') cands.push(`images/${lvl}/${p}`);
+      cands.push('images/' + p, p);
+      return [...new Set(cands)];
+    }
+
+    // Shows a shimmer until the picture loads, trying each candidate path in turn.
+    function loadTileImages(root: HTMLElement) {
+      root.querySelectorAll<HTMLElement>('.tile-figure[data-src]').forEach((figure) => {
+        const img = figure.querySelector('img') as HTMLImageElement;
+        let cands: string[] = [];
+        try { cands = JSON.parse(figure.dataset.src || '[]'); } catch {}
+        let i = 0;
+        img.onload = () => figure.classList.remove('loading');
+        img.onerror = () => {
+          i += 1;
+          if (i < cands.length) {
+            img.src = cands[i];
+            return;
+          }
+          figure.classList.remove('loading');
+          figure.classList.add('failed');
+          figure.innerHTML = '<p class="muted">The picture didn\'t load. Press Practice to try it there.</p>';
+        };
+        if (cands.length) img.src = cands[0];
+        else img.onerror(new Event('error'));
+      });
+    }
+
     function tile(q: any, idx: number): string {
       const isBonus = !!q.bonus;
       const tags = [
@@ -134,7 +172,9 @@
 
       const questionText = norm(q.question_text)
         ? `<p class="q-serif tile-question">${escapeHtml(q.question_text)}</p>`
-        : `<p class="tile-question tile-image muted">Question shown as an image. Press Practice to see it.</p>`;
+        : `<div class="tile-figure loading" data-src="${escapeHtml(JSON.stringify(imageCandidates(q)))}" role="img" aria-label="Question picture">
+            <img alt="" decoding="async" loading="lazy" />
+          </div>`;
 
       const answer = norm(q.parsed_answer) || '—';
       const where = [setName(q.set_name), roundName(q.round_name), q.num !== undefined && q.num !== null && q.num !== '' ? `question ${q.num}` : '']
@@ -173,6 +213,7 @@
       const slice = filtered.slice(start, start + PAGE_SIZE);
 
       grid.innerHTML = slice.map((q, i) => tile(q, start + i)).join('');
+      loadTileImages(grid);
 
       statusEl.textContent = total
         ? `Showing ${start + 1}–${Math.min(start + PAGE_SIZE, total)}.`
@@ -196,7 +237,7 @@
         showErr('Your browser blocked local storage, so this question cannot be sent to practice.');
         return;
       }
-      window.location.href = 'practice.html';
+      window.location.href = '/practice';
     });
 
     const debounced = (() => {

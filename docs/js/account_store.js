@@ -1,13 +1,15 @@
 // @ts-nocheck
 import { auth, db } from "./firebase.js";
 // @ts-ignore
-import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, sendEmailVerification, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import { doc, getDoc, setDoc, serverTimestamp, increment, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const SETTINGS_KEY = "atom_settings_v1";
 const BUZZER_PROFILE_KEY = "atom_buzzer_profile";
 const GUEST_TAG_KEY = "atom_guest_tag_v1";
 const WRITE_ERROR_KEY = "atom_sync_error_v1";
+// Last signed-in name and photo, so pages can show them before Firebase loads (common.ts reads it).
+const ACCOUNT_HINT_KEY = "atom_account_hint_v1";
 let currentUser = null;
 let syncError = "";
 let signupInProgress = false;
@@ -78,7 +80,26 @@ async function trackedWrite(what, write) {
         throw err;
     }
 }
+function saveHint(user) {
+    try {
+        if (!user) {
+            localStorage.removeItem(ACCOUNT_HINT_KEY);
+            return;
+        }
+        const profile = currentProfile || {};
+        localStorage.setItem(ACCOUNT_HINT_KEY, JSON.stringify({
+            uid: user.uid,
+            name: String(profile.playerName || profile.username || user.displayName || String(user.email || "").split("@")[0] || ""),
+            username: String(profile.username || ""),
+            email: String(profile.email || user.email || ""),
+            photo: String(profile.photoURL || user.photoURL || "")
+        }));
+    }
+    catch { }
+}
 function notify(user) {
+    if (ready)
+        saveHint(user);
     listeners.forEach((cb) => {
         try {
             cb(user);
@@ -389,6 +410,34 @@ async function signInWithIdentifier(identifier, password) {
         throw new Error("Please sign in with your email address.");
     return signInWithEmail(identifier, password);
 }
+// Email/password accounts must confirm their address before Tutor and Generate work (the `ai`
+// server checks the token's email_verified), so new accounts can't be made just for credits.
+function needsEmailVerification(user = currentUser) {
+    if (!user || user.isAnonymous || user.emailVerified)
+        return false;
+    const providers = (user.providerData || []).map((p) => p === null || p === void 0 ? void 0 : p.providerId);
+    return providers.includes("password");
+}
+async function sendVerification(user = auth.currentUser) {
+    if (!user)
+        throw new Error("Sign in first.");
+    const settings = typeof location === "undefined" ? undefined : { url: new URL("/account?verified=1", location.href).href };
+    await sendEmailVerification(user, settings);
+}
+// After the link is clicked: reload the user and refresh the ID token so the server sees
+// email_verified. Returns whether the address is confirmed now.
+async function refreshVerification() {
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous)
+        return false;
+    await user.reload();
+    if (user.emailVerified) {
+        await user.getIdToken(true);
+        currentUser = user;
+        notify(user);
+    }
+    return user.emailVerified;
+}
 async function resetPassword(email) {
     const value = String(email || "").trim();
     if (!value.includes("@"))
@@ -454,12 +503,14 @@ async function signUpWithEmail(email, password, displayName = "") {
         if (displayName) {
             await updateProfile(res.user, { displayName });
         }
+        await sendVerification(res.user).catch((err) => console.warn("Atom Bowl: verification email failed", err));
         return res.user;
     }
     const res = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
     if (displayName) {
         await updateProfile(res.user, { displayName });
     }
+    await sendVerification(res.user).catch((err) => console.warn("Atom Bowl: verification email failed", err));
     return res.user;
 }
 async function signUpWithDetails(details) {
@@ -615,7 +666,7 @@ function markReady() {
     resolveReady();
 }
 async function refreshAccount(user) {
-    var _a;
+    var _a, _b;
     const generation = ++authGeneration;
     lastAuthKey = authKey(user);
     const owner = user && !user.isAnonymous ? user.uid : "guest";
@@ -637,9 +688,20 @@ async function refreshAccount(user) {
         notify(null);
         return;
     }
+    // A plain read is much faster than the transaction below, so a returning user's page
+    // renders from it and the sync finishes in the background.
+    try {
+        const existing = await loadUserProfile(user.uid);
+        if (existing && generation === authGeneration && ((_a = auth.currentUser) === null || _a === void 0 ? void 0 : _a.uid) === user.uid) {
+            currentProfile = existing;
+            markReady();
+            notify(currentUser);
+        }
+    }
+    catch { }
     try {
         const profile = await ensureUserDoc(user);
-        if (generation !== authGeneration || ((_a = auth.currentUser) === null || _a === void 0 ? void 0 : _a.uid) !== user.uid)
+        if (generation !== authGeneration || ((_b = auth.currentUser) === null || _b === void 0 ? void 0 : _b.uid) !== user.uid)
             return;
         currentProfile = profile;
         await syncSettings(user);
@@ -689,6 +751,9 @@ window.atomAccount = {
     loadPracticeStats,
     isUsernameAvailable,
     resetPassword,
+    needsEmailVerification,
+    sendVerification,
+    refreshVerification,
     getSyncError: () => syncError,
     getLastWriteError,
     clearLastWriteError,

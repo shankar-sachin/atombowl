@@ -273,6 +273,20 @@ code {
 
 .site-link:hover,
 .site-more-btn:hover { color: var(--text); background: var(--plate); }
+.site-more-btn[data-current] { color: var(--text); background: var(--plate); box-shadow: inset 0 -2px 0 var(--signal); }
+
+.settings-gear {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-left: 4px;
+  border-radius: 999px;
+  color: var(--muted);
+}
+.settings-gear:hover,
+.settings-gear[aria-current="page"] { color: var(--text); background: var(--plate); }
+.settings-gear .icon-svg { width: 20px; height: 20px; }
 
 .site-link[aria-current="page"] {
   color: var(--text);
@@ -373,6 +387,7 @@ code {
 
 .tab-bar { display: none; }
 .sheet-backdrop { display: none; }
+body.sheet-open .tutor-fab { display: none; }
 
 @media (max-width: 1180px) {
   .site-link .icon-svg { display: none; }

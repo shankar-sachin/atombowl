@@ -45,6 +45,7 @@ function friendlyError(err) {
   const code = String(err?.code || "").replace(/^functions\//, "");
   const message = String(err?.message || "");
   if (err?.details?.credits) setCredits(err.details.credits);
+  if (err?.details?.reason === "email-unverified") return message;
   if (code === "unauthenticated" || code === "permission-denied") return "Sign in to use Tutor and Generate.";
   if (isApiIssue(code, message)) return API_ISSUE_MESSAGE;
   if (code === "unavailable") return "Couldn't reach Atom Bowl. Check your connection and try again.";

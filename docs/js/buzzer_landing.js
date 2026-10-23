@@ -136,7 +136,7 @@ async function join(event) {
         localStorage.setItem("atom_buzzer_role", isHost ? "host" : "player");
         if ((_b = (_a = window.atomAccount) === null || _a === void 0 ? void 0 : _a.getUser) === null || _b === void 0 ? void 0 : _b.call(_a))
             window.atomAccount.saveBuzzerProfile({ name, team }).catch(() => { });
-        window.location.href = `${isHost ? "buzzer_room.html" : "buzzer_room_player.html"}?roomId=${encodeURIComponent(code)}`;
+        window.location.href = `${isHost ? "/buzzer-room" : "/buzzer-room-player"}?roomId=${encodeURIComponent(code)}`;
     }
     catch (err) {
         joinError.textContent = `Could not join: ${err.message || "check your connection and try again."}`;

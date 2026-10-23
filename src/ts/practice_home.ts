@@ -350,7 +350,7 @@
       // startRun stays on window for anything else that launches a run.
       window.startRun = function startRun(mode) {
         localStorage.setItem('atom_run', JSON.stringify(getRunConfig(mode)));
-        window.location.href = 'practice.html';
+        window.location.href = '/practice';
       };
 
       document.getElementById('modeList')?.addEventListener('click', (e) => {

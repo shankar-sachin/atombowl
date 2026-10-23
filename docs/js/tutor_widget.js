@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Tutor chat. common.js mounts it with a floating button on every page except practice
 // (focus chrome), where practice.js opens it from "Ask Tutor" with the missed question.
-// tutor.html mounts it inline. The chat lives in sessionStorage so it follows the tab across pages.
+// /tutor mounts it inline. The chat lives in sessionStorage so it follows the tab across pages.
 import "./account_store.js";
 const STORE_KEY = "atom_tutor_v1";
 const icon = (name) => { var _a; return ((_a = window.atomIcon) === null || _a === void 0 ? void 0 : _a.call(window, name)) || ""; };
@@ -153,7 +153,7 @@ function build(container) {
     <div class="tutor-log" data-log aria-live="polite"></div>
     <div class="tutor-gate" data-gate hidden>
       <p><strong>Tutor is for signed-in players.</strong> Create a free account or sign in to ask questions. Every account gets free credits each day.</p>
-      <a class="btn primary" href="account.html">Sign in</a>
+      <a class="btn primary" href="/account">Sign in</a>
     </div>
     <form class="tutor-form" data-form>
       <label class="visually-hidden" for="tutorInput">Message the tutor</label>
