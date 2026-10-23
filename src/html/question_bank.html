@@ -2,130 +2,104 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Atom Bowl — Question Bank</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Question bank | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/question_bank.css">
 </head>
-<body class="page-transition page-enter">
-
-  <div class="waves" aria-hidden="true">
-    <svg viewBox="0 0 1440 320" preserveAspectRatio="none">
-      <path class="wave1" fill="rgba(79,124,255,0.20)" d="M0,224L48,229.3C96,235,192,245,288,229.3C384,213,480,171,576,154.7C672,139,768,149,864,176C960,203,1056,245,1152,250.7C1248,256,1344,224,1392,208L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-      <path class="wave2" fill="rgba(57,217,138,0.10)" d="M0,256L60,229.3C120,203,240,149,360,138.7C480,128,600,160,720,170.7C840,181,960,171,1080,186.7C1200,203,1320,245,1380,266.7L1440,288L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
-    </svg>
-  </div>
-
-  <!-- NAV -->
-    <div class="nav" id="nav">
-    <h2 class="nav-title">&#x269B; Atom Bowl</h2>
-    <a href="index.html"><span class="icon">&#x1F3E0;</span> Home</a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span> Generate</a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span> Practice</a>
-    <a href="question_bank.html" class="active"><span class="icon">&#x1F4DA;</span> Question Bank</a>
-    <a href="learn.html"><span class="icon">&#x1F9E0;</span> Learn</a>
-    <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-    <div class="nav-more" data-nav-more>
-      <button class="nav-more-btn" type="button" aria-haspopup="true" aria-expanded="false">...</button>
-      <div class="nav-more-menu">
-        <a href="game_clock.html">Game Clock</a>
-        <a href="buzzer_rooms.html">Buzzer Rooms</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="overlay" id="overlay"></div>
-  <div class="hamburger" id="hamburger">☰</div>
-
-  <div class="main">
-    <div class="header">
+<body>
+  <main class="main bank">
+    <header class="header">
       <div>
-        <h1 class="title">Question Bank</h1>
-        <div class="subtitle">Browse everything in our <b>question bank</b>. Hit <a href="practice_home.html" style="text-decoration: underline;">Practice</a> to open it in the engine.</div>
-      </div> 
-
-      <div class="controls">
-        <input id="search" class="input" placeholder="Search (set, round, category, answer...)" />
-
-        <select id="bankSelect" class="select">
-          <option value="ALL">Bank: All</option>
-          <option value="data/set_A.json">Dynamazar (Set A)</option>
-          <option value="data/set_B.json">Scalazar (Set B)</option>
-        </select>
-
-        <select id="level" class="select">
-          <option value="ANY">Level: Any</option>
-          <option value="MS">MS</option>
-          <option value="HS">HS</option>
-        </select>
-
-        <select id="category" class="select">
-          <option value="ANY">Category: Any</option>
-          <option value="EARTH SCIENCE">EARTH SCIENCE</option>
-          <option value="MATH">MATH</option>
-          <option value="MATHEMATICS">MATHEMATICS</option>
-          <option value="ASTRONOMY">ASTRONOMY</option>
-          <option value="EARTH AND SPACE">EARTH AND SPACE</option>
-          <option value="EARTH AND SPACE SCIENCE">EARTH AND SPACE SCIENCE</option>
-          <option value="BIOLOGY">BIOLOGY</option>
-          <option value="LIFE SCIENCE">LIFE SCIENCE</option>
-          <option value="GENERAL SCIENCE">GENERAL SCIENCE</option>
-          <option value="CHEMISTRY">CHEMISTRY</option>
-          <option value="PHYSICS">PHYSICS</option>
-          <option value="PHYSICAL SCIENCE">PHYSICAL SCIENCE</option>
-          <option value="ENERGY">ENERGY</option>
-        </select>
-
-        <select id="bonus" class="select">
-          <option value="ANY">TU/Bonus: Any</option>
-          <option value="false">Toss-up</option>
-          <option value="true">Bonus</option>
-        </select>
-
-        <div class="pill"><small>Showing</small> <span id="count">0</span></div>
+        <h1 class="title">Question bank</h1>
+        <p class="subtitle">Search every toss-up and bonus. Press Practice on a question to play it in the practice engine.</p>
       </div>
-    </div>
+    </header>
 
-    <div id="grid" class="grid"></div>
+    <section class="filters" aria-label="Filter questions">
+      <label class="search-field" for="search">
+        <span class="visually-hidden">Search questions</span>
+        <i data-icon="search"></i>
+        <input id="search" type="search" placeholder="Search answers, question text, sets and rounds" autocomplete="off" />
+      </label>
 
-    <div class="pager">
-      <button class="pbtn" id="prev">← Prev</button>
-      <div class="pill"><small>Page</small> <span id="page">1</span>/<span id="pages">1</span></div>
-      <button class="pbtn" id="next">Next →</button>
-    </div>
+      <div class="filter-selects">
+        <div class="filter">
+          <label class="label" for="bankSelect">Bank</label>
+          <select id="bankSelect">
+            <option value="ALL">All banks</option>
+            <option value="data/set_A.json">Dynamazar (Set A)</option>
+            <option value="data/set_B.json">Scalazar (Set B)</option>
+          </select>
+        </div>
 
-    <div id="status" class="status"></div>
-    <div id="err" class="error" style="display:none"></div>
-  </div>
+        <div class="filter">
+          <label class="label" for="level">Level</label>
+          <select id="level">
+            <option value="ANY">Any level</option>
+            <option value="MS">Middle school</option>
+            <option value="HS">High school</option>
+          </select>
+        </div>
 
-    <nav class="bottom-nav" aria-label="Primary">
-    <a href="index.html"><span class="icon">&#x269B;</span><span>Home</span></a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span><span>Generate</span></a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span><span>Practice</span></a>
-    <a href="question_bank.html" class="active"><span class="icon">&#x1F4DA;</span><span>Bank</span></a>
-    <a href="account.html"><span class="icon">&#x1F464;</span><span>Account</span></a>
-    <div class="bottom-nav-more">
-      <button type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleBottomNavMore(event)">
-        <span class="icon">&#x22EF;</span><span>More</span>
-      </button>
-      <div class="bottom-nav-more-menu">
-        <a href="game_clock.html"><span class="icon">&#x23F1;&#xFE0F;</span> Game Clock</a>
-        <a href="buzzer_rooms.html"><span class="icon">&#x1F6A8;</span> Buzzer Rooms</a>
-        <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-        <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
+        <div class="filter">
+          <label class="label" for="category">Category</label>
+          <select id="category">
+            <option value="ANY">Any category</option>
+            <option value="ASTRONOMY">Astronomy</option>
+            <option value="BIOLOGY">Biology</option>
+            <option value="CHEMISTRY">Chemistry</option>
+            <option value="COMPUTER SCIENCE">Computer science</option>
+            <option value="EARTH AND SPACE">Earth and space</option>
+            <option value="EARTH AND SPACE SCIENCE">Earth and space science</option>
+            <option value="EARTH SCIENCE">Earth science</option>
+            <option value="ENERGY">Energy</option>
+            <option value="GENERAL SCIENCE">General science</option>
+            <option value="LIFE SCIENCE">Life science</option>
+            <option value="MATH">Math</option>
+            <option value="MATHEMATICS">Mathematics</option>
+            <option value="PHYSICAL SCIENCE">Physical science</option>
+            <option value="PHYSICS">Physics</option>
+          </select>
+        </div>
+
+        <div class="filter">
+          <label class="label" for="bonus">Type</label>
+          <select id="bonus">
+            <option value="ANY">Any type</option>
+            <option value="false">Toss-ups</option>
+            <option value="true">Bonuses</option>
+          </select>
+        </div>
       </div>
+    </section>
+
+    <div class="results-bar">
+      <p class="result-count"><span id="count" class="numerals">0</span> <span id="countLabel">questions</span></p>
+      <p id="status" class="status muted" aria-live="polite"></p>
     </div>
-  </nav>
+
+    <p id="err" class="error bank-error hidden" role="alert"></p>
+
+    <div id="grid" class="results"></div>
+
+    <nav class="pager" aria-label="Pages">
+      <button class="btn" id="prev" type="button"><i data-icon="chevronLeft"></i>Previous</button>
+      <span class="pager-label">Page <span id="page">1</span> of <span id="pages">1</span></span>
+      <button class="btn" id="next" type="button">Next<i data-icon="chevronRight"></i></button>
+    </nav>
+  </main>
+
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/question_bank.js"></script>
 </body>
 </html>
-
-

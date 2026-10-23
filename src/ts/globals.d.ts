@@ -10,6 +10,7 @@
   rememberTopics: boolean;
   autoCheck?: boolean;
   autoThreshold?: number;
+  externalAi?: string;
   highContrast: boolean;
   animations: boolean;
   fontSize: string;
@@ -47,6 +48,9 @@ declare global {
   interface Window {
     atomSettings?: AtomSettings;
     atomNavigate?: (url: string) => void;
+    atomIcon?: (name: string, label?: string) => string;
+    atomHydrateIcons?: (root?: ParentNode) => void;
+    atomApplySettings?: (settings: AtomSettings) => void;
     go?: (page: string) => void;
     autoChecker?: AutoChecker;
     startRun?: (mode: string) => void;

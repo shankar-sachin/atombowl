@@ -1,20 +1,5 @@
     // Everything waits for DOM so we never attach listeners to null nodes.
     document.addEventListener('DOMContentLoaded', () => {
-      // NAV
-      const nav = document.getElementById('nav');
-      const overlay = document.getElementById('overlay');
-      const hamburger = document.getElementById('hamburger');
-
-      function toggleNav() {
-        const isOpen = nav.classList.toggle('open');
-        overlay.classList.toggle('show');
-        hamburger.classList.toggle('open');
-        hamburger.textContent = isOpen ? 'X' : '|||';
-      }
-
-      hamburger.addEventListener('click', toggleNav);
-      overlay.addEventListener('click', toggleNav);
-
       // Filters
       const els = {
         bankSelect: document.getElementById('bankSelect'),
@@ -82,7 +67,7 @@
       const TOPIC_GROUPS = [
         {
           id: 'PHYSICS',
-          label: 'PHYSICS',
+          label: 'Physics',
           categories: ['PHYSICS', 'PHYSICAL SCIENCE'],
           detailed: [
             'Kinematics',
@@ -102,7 +87,7 @@
         },
         {
           id: 'CHEMISTRY',
-          label: 'CHEM',
+          label: 'Chemistry',
           categories: ['CHEMISTRY'],
           detailed: [
             'Stoichiometry & Moles',
@@ -123,7 +108,7 @@
         },
         {
           id: 'MATH',
-          label: 'MATH',
+          label: 'Math',
           categories: ['MATH', 'MATHEMATICS'],
           detailed: [
             'Algebra',
@@ -140,7 +125,7 @@
         },
         {
           id: 'EARTH_SCIENCE',
-          label: 'ESS',
+          label: 'Earth science',
           categories: ['EARTH SCIENCE', 'EARTH AND SPACE', 'EARTH AND SPACE SCIENCE'],
           detailed: [
             'Meteorology',
@@ -159,7 +144,7 @@
         },
         {
           id: 'ASTRONOMY',
-          label: 'ASTRO',
+          label: 'Astronomy',
           categories: ['ASTRONOMY'],
           detailed: [
             'Celestial Coordinates',
@@ -175,7 +160,7 @@
         },
         {
           id: 'BIOLOGY',
-          label: 'BIO',
+          label: 'Biology',
           categories: ['BIOLOGY', 'LIFE SCIENCE'],
           detailed: [
             'Cell Structure & Function',
@@ -195,7 +180,7 @@
         },
         {
           id: 'GENERAL_SCIENCE',
-          label: 'GEN SCI',
+          label: 'General science',
           categories: ['GENERAL SCIENCE'],
           detailed: [
             'Scientific Measurement',
@@ -208,7 +193,7 @@
         },
         {
           id: 'ENERGY',
-          label: 'ENERGY',
+          label: 'Energy',
           categories: ['ENERGY'],
           detailed: [
             'Renewable Energy',
@@ -221,22 +206,31 @@
         },
       ];
 
+      // Display helper: "Work, Energy, & Power" -> "Work, energy, & power".
+      // Only plain capitalized words are lowered, so "pH" and acronyms survive.
+      function sentenceCase(text) {
+        return String(text || '').split(' ').map((word, i) =>
+          i > 0 && /^[A-Z][a-z]+[,]?$/.test(word) ? word.toLowerCase() : word
+        ).join(' ');
+      }
+
+      function escapeAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      }
+
       function renderTopics() {
         if (!els.topicGrid) return;
         els.topicGrid.innerHTML = TOPIC_GROUPS.map(group => `
           <div class="topic-card" data-topic="${group.id}">
-            <div class="topic-card-header">
-              <label class="topic-super">
-                <input type="checkbox" class="topic-super-checkbox" data-topic="${group.id}">
-                <span class="topic-super-text">${group.label}</span>
-              </label>
-              <div class="topic-hint">Select all in ${group.label}</div>
-            </div>
-            <div class="topic-sublist">
+            <label class="topic-super">
+              <input type="checkbox" class="topic-super-checkbox" data-topic="${group.id}">
+              <span class="topic-super-text">${group.label}</span>
+            </label>
+            <div class="topic-sublist" role="group" aria-label="${group.label} subtopics">
               ${group.detailed.map(topic => `
                 <label class="topic-option">
-                  <input type="checkbox" class="topic-detail-checkbox" data-topic="${group.id}" value="${topic}">
-                  <span class="topic-option-text">${topic}</span>
+                  <input type="checkbox" class="topic-detail-checkbox" data-topic="${group.id}" value="${escapeAttr(topic)}">
+                  <span class="topic-option-text">${escapeAttr(sentenceCase(topic))}</span>
                 </label>
               `).join('')}
             </div>
@@ -311,14 +305,17 @@
         });
       }
 
+      function matchLabel(n) {
+        return `${n.toLocaleString()} ${n === 1 ? 'match' : 'matches'}`;
+      }
+
       function updateCounts() {
-        const base = applyFilters(bank);
-        els.countRapid.textContent = `${base.length.toLocaleString()} matches`;
-        els.countToss.textContent = `${applyFilters(bank, { bonus: 'false' }).length.toLocaleString()} matches`;
-        els.countBonus.textContent = `${applyFilters(bank, { bonus: 'true' }).length.toLocaleString()} matches`;
-        els.countMC.textContent = `${applyFilters(bank, { qaType: 'MC' }).length.toLocaleString()} matches`;
-        els.countSA.textContent = `${applyFilters(bank, { qaType: 'SA' }).length.toLocaleString()} matches`;
-        els.countSet.textContent = `${applyFilters(bank).length.toLocaleString()} matches`;
+        els.countRapid.textContent = matchLabel(applyFilters(bank).length);
+        els.countToss.textContent = matchLabel(applyFilters(bank, { bonus: 'false' }).length);
+        els.countBonus.textContent = matchLabel(applyFilters(bank, { bonus: 'true' }).length);
+        els.countMC.textContent = matchLabel(applyFilters(bank, { qaType: 'MC' }).length);
+        els.countSA.textContent = matchLabel(applyFilters(bank, { qaType: 'SA' }).length);
+        els.countSet.textContent = matchLabel(applyFilters(bank).length);
       }
 
       function getRunConfig(mode) {
@@ -350,38 +347,46 @@
         return cfg;
       }
 
-      // Expose startRun for onclick tiles
+      // startRun stays on window for anything else that launches a run.
       window.startRun = function startRun(mode) {
         localStorage.setItem('atom_run', JSON.stringify(getRunConfig(mode)));
         window.location.href = 'practice.html';
       };
 
+      document.getElementById('modeList')?.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement | null)?.closest('button[data-mode]') as HTMLElement | null;
+        if (btn?.dataset.mode) window.startRun(btn.dataset.mode);
+      });
+
       async function loadBank() {
         const selectedBank = els.bankSelect?.value || 'data/set_B.json';
         const normalizedBank = selectedBank.replace(/^\.\/+/, '');
         try {
-          els.bankStatus.textContent = 'Loading...';
+          setBankStatus('Loading', '');
           const res = await fetch(`./${normalizedBank}`, { cache: 'no-store' });
           if (!res.ok) throw new Error(`${normalizedBank} not found`);
           const data = await res.json();
           bank = Array.isArray(data) ? data : (data.questions || []);
           window.bank = bank;
 
-          els.bankStatus.textContent = 'Ready';
-          els.bankStatus.style.background = 'rgba(57,217,138,0.14)';
-          els.bankStatus.style.borderColor = 'rgba(57,217,138,0.24)';
-          els.bankMeta.textContent = `${normalizedBank} | ${bank.length.toLocaleString()} questions detected`;
+          setBankStatus('Ready', 'good');
+          els.bankMeta.className = 'status-note';
+          els.bankMeta.textContent = `${bank.length.toLocaleString()} questions loaded from ${normalizedBank}`;
 
           updateCounts();
         } catch (e) {
-          els.bankStatus.textContent = 'Missing';
-          els.bankStatus.style.background = 'rgba(255,107,107,0.14)';
-          els.bankStatus.style.borderColor = 'rgba(255,107,107,0.22)';
-          els.bankMeta.textContent = 'Put the sets in docs/data (data/ on the site).';
+          setBankStatus('Not found', 'bad');
+          els.bankMeta.className = 'status-note bad';
+          els.bankMeta.textContent = `Could not load ${normalizedBank}. Check that it exists in docs/data, or pick the other bank.`;
           bank = [];
           window.bank = bank;
           updateCounts();
         }
+      }
+
+      function setBankStatus(text, tone) {
+        els.bankStatus.textContent = text;
+        els.bankStatus.className = tone ? `tag ${tone}` : 'tag';
       }
 
       // Live counts
@@ -412,7 +417,7 @@
         const target = e.target as HTMLElement | null;
         const card = target?.closest('.topic-card') as HTMLElement | null;
         if (!card) return;
-        if (target?.closest('label') || target?.closest('input')) return;
+        if (target?.closest('label') || target?.closest('input') || target?.closest('.topic-sublist')) return;
         const toggle = card.querySelector('.topic-super-checkbox') as HTMLInputElement | null;
         if (!toggle) return;
         toggle.checked = !toggle.checked;
@@ -431,7 +436,8 @@
       if (els.toggleAdvanced && els.topicGrid) {
         const setAdvanced = (isOn) => {
           els.topicGrid.classList.toggle('show-advanced', isOn);
-          els.toggleAdvanced.textContent = isOn ? 'Hide advanced' : 'Advanced filters';
+          els.toggleAdvanced.textContent = isOn ? 'Hide subtopics' : 'Show subtopics';
+          els.toggleAdvanced.setAttribute('aria-expanded', String(isOn));
         };
         setAdvanced(false);
         els.toggleAdvanced.addEventListener('click', () => {
@@ -446,8 +452,3 @@
 
       loadBank();
     });
-  
-
-
-
-

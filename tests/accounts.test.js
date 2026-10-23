@@ -13,7 +13,7 @@ function setup() {
  const set = (ref, value, options) => documents.set(ref, options?.merge ? { ...documents.get(ref), ...value } : value);
  const api = {
    validatePassword: async () => passwordStatus,
-   onAuthStateChanged: (_, cb) => { observer = cb; },
+   onIdTokenChanged: (_, cb) => { observer = cb; },
    createUserWithEmailAndPassword: async (_, email) => {
      creates++; auth.currentUser = { uid: 'new', email, isAnonymous: false, providerData: [] };
      observer(auth.currentUser); return { user: auth.currentUser };
@@ -35,7 +35,7 @@ function setup() {
  loadTS('src/ts/account_store.ts', { './firebase.js': { auth, db: {} }, [AUTH]: api, [FIRESTORE]: dbApi }, { window, localStorage, document: { dispatchEvent() {} }, CustomEvent: class {} });
  return { setPasswordStatus: status => { passwordStatus = status; }, account: window.atomAccount, documents, storage, auth, get creates() { return creates; }, get resetEmail() { return resetEmail; }, async change(user) { auth.currentUser = user; observer(user); await flush(); } };
 }
-const details = { firstName: 'First', lastName: 'Last', email: 'test@example.com', username: 'player1', password: 'password', playerName: 'My Name' };
+const details = { firstName: 'First', lastName: 'Last', email: 'test@example.com', username: 'player1', password: 'Password1!', playerName: 'My Name' };
 test('anonymous Firebase users remain guests and do not create account documents', async () => {
  const env = setup(); await env.change({ uid: 'anon', isAnonymous: true });
  assert.equal(env.account.getUser(), null); assert.equal(env.documents.size, 0);
@@ -61,7 +61,7 @@ test('returning login preserves creation time and clears previous account cache'
  assert.equal(env.documents.has('users/returning/buzzerProfile/current'), false);
 });
 test('username login does not expose email lookup; reset uses supplied email', async () => {
- const env = setup(); await assert.rejects(env.account.signInWithIdentifier('player1', 'password'), /email address/);
+ const env = setup(); await assert.rejects(env.account.signInWithIdentifier('player1', 'Password1!'), /email address/);
  await env.account.resetPassword(' test@example.com '); assert.equal(env.resetEmail, 'test@example.com');
 });
 test('invalid username is not silently normalized into another user name', async () => {

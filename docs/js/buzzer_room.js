@@ -1,536 +1,714 @@
 // @ts-nocheck
-import { sendBuzz, sendHostAction } from "./room_store.js";
-import { canBuzz, buzzKey } from "./room_state.js";
+// Host moderator console for one buzzer room. Host actions are applied optimistically (the
+// pending patch is rendered at once) and sent in order through a queue; a rejected action is
+// dropped from the optimistic copy and its real error is shown.
+import { sendHostAction } from "./room_store.js";
+import { hostPatch, actionReason, availableActions, phaseDeadline, clockRemaining, gameClockOf, timeMillis, stateLine, formatSeconds, formatClock, teamClass, teamName, teamIds, CATEGORIES, LOG_LIMIT, timedPhase, clockRunning } from "./room_state.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
-const roomTitle = document.getElementById("roomTitle");
-const roomCodeTitle = document.getElementById("roomCodeTitle");
-const roomStatus = document.getElementById("roomStatus");
-const scoreboardHeader = document.getElementById("scoreboardHeader");
-const scoreboardPanel = document.getElementById("scoreboardPanel");
-const playerList = document.getElementById("playerList");
-const statsTableBody = document.getElementById("statsTableBody");
-const questionText = document.getElementById("questionText");
-const buzzBtn = document.getElementById("buzzBtn");
-const buzzStatus = document.getElementById("buzzStatus");
-const statusPill = document.getElementById("statusPill");
-const logPanel = document.getElementById("logPanel");
-const roomCodeValue = document.getElementById("roomCodeValue");
-const copyRoomBtn = document.getElementById("copyRoomBtn");
-const joinAsPlayerBtn = document.getElementById("joinAsPlayerBtn");
-const playerPhaseTimer = document.getElementById("playerPhaseTimer");
-const playerGameClock = document.getElementById("playerGameClock");
-const toggleLogBtn = document.getElementById("toggleLogBtn");
-const playerLogPanel = document.getElementById("playerLogPanel");
-const gameClockDisplay = document.getElementById("gameClockDisplay");
-const tossupTimerDisplay = document.getElementById("tossupTimerDisplay");
-const bonusTimerDisplay = document.getElementById("bonusTimerDisplay");
-const gameStartBtn = document.getElementById("gameStartBtn");
-const gamePauseBtn = document.getElementById("gamePauseBtn");
-const gameResetBtn = document.getElementById("gameResetBtn");
-const startTossupBtn = document.getElementById("startTossupBtn");
-const tossupCategory = document.getElementById("tossupCategory");
-const tossupInterruptBtn = document.getElementById("tossupInterruptBtn");
-const tossupCorrectBtn = document.getElementById("tossupCorrectBtn");
-const tossupWrongBtn = document.getElementById("tossupWrongBtn");
-const tossupDeadBtn = document.getElementById("tossupDeadBtn");
-const startBonusBtn = document.getElementById("startBonusBtn");
-const bonusCorrectBtn = document.getElementById("bonusCorrectBtn");
-const bonusWrongBtn = document.getElementById("bonusWrongBtn");
-const nextTossupBtn = document.getElementById("nextTossupBtn");
-const bonusTeamSelect = document.getElementById("bonusTeamSelect");
-const exportBtn = document.getElementById("exportBtn");
-const hostNote = document.getElementById("hostNote");
-let activeRoomId = null;
-let roomUnsub = null;
-let playerUnsub = null;
-let timerInterval = null;
-let gameClockInterval = null;
-let cachedRoom = null;
-let activeRoomCode = "";
-let latestPlayers = [];
-const state = {
-    uid: null,
-    team: "A",
-    name: "Player",
-    isHost: false,
-    isRoomHost: false
+const $ = (id) => document.getElementById(id);
+const els = {
+    teams: $("teams"), roomCode: $("roomCode"), roomName: $("roomName"), copyInvite: $("copyInviteBtn"),
+    hostNote: $("hostNote"), copyLabel: $("copyLabel"), stateLine: $("stateLine"), stateNote: $("stateNote"), phaseTime: $("phaseTime"),
+    phaseLabel: $("phaseLabel"), lockout: $("lockout"), light: $("lockoutLight"), lockoutText: $("lockoutText"),
+    buzzer: $("buzzer"), buzzerName: $("buzzerName"), buzzerTeam: $("buzzerTeam"), interruptTag: $("interruptTag"),
+    primary: $("primaryBtn"), primaryLabel: $("primaryLabel"), primaryKey: $("primaryKey"),
+    gradePair: $("gradePair"), correct: $("correctBtn"), correctLabel: $("correctLabel"),
+    incorrect: $("incorrectBtn"), incorrectLabel: $("incorrectLabel"), bonusZone: $("bonusZone"),
+    bonusTeam: $("bonusTeam"), dead: $("deadBtn"), next: $("nextBtn"), category: $("categorySelect"),
+    adjustList: $("adjustList"), gameClock: $("gameClock"), clockStart: $("clockStartBtn"),
+    clockPause: $("clockPauseBtn"), clockReset: $("clockResetBtn"), endGame: $("endGameBtn"),
+    endConfirm: $("endConfirm"), endCancel: $("endCancelBtn"), endConfirmBtn: $("endConfirmBtn"),
+    exportBtn: $("exportBtn"), roster: $("roster"), statsBody: $("statsBody"), logList: $("logList"),
+    logCount: $("logCount")
 };
-function getRoomId() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("roomId");
+const ADJUSTMENTS = [-10, -4, -1, 1, 4, 10];
+const roomId = new URLSearchParams(window.location.search).get("roomId");
+let uid = null;
+let snap = null; // latest room from the server
+let members = []; // players subcollection
+let pending = []; // optimistic host actions: {id, patch, done, doneAt}
+let queue = Promise.resolve();
+let rafId = 0;
+let firstSnapshot = true;
+let renderedLogSeq = 0;
+let lastBuzzKey = null;
+let lastRun = {};
+const anchors = new Map(); // phase or clock key -> local time it was first seen
+const expired = new Set(); // phase keys already expired by this host
+const painted = {};
+let unsubRoom = null;
+let unsubPlayers = null;
+function note(message) {
+    els.hostNote.textContent = message || "";
 }
-async function ensureIdentity() {
-    const user = await ensureAnonAuth();
-    state.uid = user.uid;
-    const cached = localStorage.getItem("atom_buzzer_profile");
-    if (cached) {
-        try {
-            const parsed = JSON.parse(cached);
-            state.name = parsed.name || state.name;
-            state.team = parsed.team || state.team;
-        }
-        catch { }
-    }
+function setText(el, text) {
+    if (el.textContent !== text)
+        el.textContent = text;
 }
-function setHostVisible(isHost) {
-    state.isHost = isHost;
-    const effectiveHost = isHost;
-    if (isHost) {
-        localStorage.setItem("atom_buzzer_role", "host");
-    }
-    document.body.classList.toggle("is-host", effectiveHost);
-    document.body.classList.toggle("is-player", !effectiveHost);
-    state.isHost = effectiveHost;
-}
-function formatTime(ms) {
-    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
-    const mins = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
-    const secs = String(totalSeconds % 60).padStart(2, "0");
-    return `${mins}:${secs}`;
-}
-function humanStatus(status) {
-    if (status === "tossup_dead")
-        return "Tossup closed. Waiting for the next question.";
-    if (status === "lobby")
-        return "Waiting for host.";
-    if (status === "tossup_open")
-        return "Tossup open. Anyone can buzz.";
-    if (status === "tossup_locked")
-        return "Locked — host grading.";
-    if (status === "bonus_ready")
-        return "Bonus ready — select team and start.";
-    if (status === "bonus_open")
-        return "Bonus open — selected team can buzz.";
-    if (status === "bonus_locked")
-        return "Bonus locked — host grading.";
-    if (status === "ended")
-        return "Game ended.";
-    return status || "Waiting.";
-}
-function updateStatusUI(data) {
-    var _a;
-    roomStatus.textContent = humanStatus(data.status);
-    const isOpen = (_a = data.status) === null || _a === void 0 ? void 0 : _a.includes("open");
-    statusPill.textContent = isOpen ? "OPEN" : "LOCKED";
-    statusPill.classList.toggle("open", isOpen);
-    statusPill.classList.toggle("locked", !isOpen);
-    questionText.textContent = humanStatus(data.status);
-    updateBuzzButtonState(data);
-}
-function updateBuzzButtonState(data) {
-    if (!buzzBtn)
+function paint(name, key, fn) {
+    if (painted[name] === key)
         return;
-    const canBuzzNow = !state.isHost && canBuzz(data, state);
-    buzzBtn.disabled = !canBuzzNow;
-    buzzBtn.classList.toggle("buzz-locked", !canBuzzNow);
+    painted[name] = key;
+    fn();
 }
-function updateBuzzStatus(data) {
-    const buzz = data.currentBuzz;
-    if (!buzz) {
-        buzzStatus.textContent = "Waiting...";
-        return;
+/** The room as the host sees it: server state plus optimistic actions not yet confirmed. */
+function shown() {
+    if (!snap)
+        return null;
+    let room = snap;
+    for (const op of pending)
+        room = { ...room, ...op.patch };
+    return room;
+}
+/** Local time a phase or clock run was first seen; server time only on the first load. */
+function anchorFor(key, serverValue) {
+    if (!key)
+        return null;
+    if (!anchors.has(key)) {
+        const fromServer = firstSnapshot ? timeMillis(serverValue) : null;
+        anchors.set(key, fromServer !== null && fromServer !== void 0 ? fromServer : Date.now());
     }
-    buzzStatus.textContent = `Buzzed: ${buzz.team || "?"}`;
+    return anchors.get(key);
 }
-function updateScores(scores, teamCount, teamNames) {
-    const targets = [scoreboardHeader].filter(Boolean);
-    targets.forEach((el) => {
-        el.innerHTML = "";
-    });
-    const keys = Object.keys(scores || {});
-    const teams = keys.length ? keys : Array.from({ length: teamCount }, (_, i) => String.fromCharCode(65 + i));
-    teams.forEach((team) => {
-        var _a;
-        const scoreCard = document.createElement("div");
-        scoreCard.className = "score";
-        const label = document.createElement("span");
-        label.textContent = (teamNames === null || teamNames === void 0 ? void 0 : teamNames[team]) || `Team ${team}`;
-        const value = document.createElement("strong");
-        value.textContent = (_a = scores === null || scores === void 0 ? void 0 : scores[team]) !== null && _a !== void 0 ? _a : 0;
-        scoreCard.appendChild(label);
-        scoreCard.appendChild(value);
-        targets.forEach((el) => el.appendChild(scoreCard.cloneNode(true)));
-    });
-}
-function updatePlayerScoreboard(stats, players = latestPlayers) {
-    if (!scoreboardPanel)
-        return;
-    scoreboardPanel.innerHTML = "";
-    const statsPlayers = (stats === null || stats === void 0 ? void 0 : stats.player) || {};
-    const merged = (players || []).map((p) => {
-        var _a;
-        const stat = statsPlayers[p.id] || {};
-        return {
-            name: p.name || stat.name || "Player",
-            team: p.team || stat.team || "?",
-            points: (_a = stat.points) !== null && _a !== void 0 ? _a : 0
-        };
-    });
-    merged.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    merged.forEach((player) => {
-        var _a;
-        const card = document.createElement("div");
-        card.className = "score";
-        const label = document.createElement("span");
-        label.textContent = `${player.name || "Player"} (${player.team || "?"})`;
-        const value = document.createElement("strong");
-        value.textContent = (_a = player.points) !== null && _a !== void 0 ? _a : 0;
-        card.appendChild(label);
-        card.appendChild(value);
-        scoreboardPanel.appendChild(card);
-    });
-}
-function updatePlayerStats(stats) {
-    statsTableBody.innerHTML = "";
-    const entries = Object.entries((stats === null || stats === void 0 ? void 0 : stats.player) || {});
-    entries.sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
-    entries.forEach(([uid, data]) => {
-        const row = document.createElement("tr");
-        for (const value of [data.name || uid.slice(0, 6), data.team || "?", data.correct || 0, data.incorrect || 0, data.interrupt || 0, data.buzzes || 0]) {
-            const cell = document.createElement("td");
-            cell.textContent = String(value);
-            row.appendChild(cell);
-        }
-        statsTableBody.appendChild(row);
-    });
-}
-function updateLog(log) {
-    logPanel.innerHTML = "";
-    const entries = (log || []).slice().reverse();
-    entries.forEach((item) => {
-        const div = document.createElement("div");
-        div.className = "log-item";
-        const time = new Date(item.at || Date.now()).toLocaleTimeString();
-        div.textContent = `[${time}] ${item.details || item.type}`;
-        logPanel.appendChild(div);
-    });
-    if (playerLogPanel) {
-        playerLogPanel.innerHTML = "";
-        entries.forEach((item) => {
-            const div = document.createElement("div");
-            div.className = "log-item";
-            const time = new Date(item.at || Date.now()).toLocaleTimeString();
-            div.textContent = `[${time}] ${item.details || item.type}`;
-            playerLogPanel.appendChild(div);
-        });
-    }
-}
-function updateTimers(data) {
+function phaseDeadlineOf(room) {
     var _a, _b;
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-    }
-    const timers = data.timers;
-    if (!timers || !timers.phaseEndAt) {
-        const tuDefault = formatTime((((_a = data.settings) === null || _a === void 0 ? void 0 : _a.tuTime) || 5) * 1000);
-        const bonusDefault = formatTime((((_b = data.settings) === null || _b === void 0 ? void 0 : _b.bonusTime) || 20) * 1000);
-        tossupTimerDisplay.textContent = tuDefault;
-        bonusTimerDisplay.textContent = bonusDefault;
-        if (playerPhaseTimer)
-            playerPhaseTimer.textContent = tuDefault;
+    return phaseDeadline(room, anchorFor((_a = room.timers) === null || _a === void 0 ? void 0 : _a.phaseKey, (_b = room.timers) === null || _b === void 0 ? void 0 : _b.phaseStartedAt));
+}
+function clockElapsed(room, now) {
+    var _a;
+    const clock = gameClockOf(room);
+    if (clock.status !== "running")
+        return 0;
+    return Math.max(0, now - ((_a = anchorFor(clock.runKey, clock.startedAt)) !== null && _a !== void 0 ? _a : now));
+}
+function clockLeft(room, now) {
+    return clockRemaining(room, clockElapsed(room, now));
+}
+function enqueue(task) {
+    queue = queue.then(task, task);
+    return queue;
+}
+/** Run a host action now (optimistic) and send it in order. */
+function act(action, options = {}) {
+    const room = shown();
+    if (!room || !uid)
+        return;
+    const runKey = action + JSON.stringify(options);
+    const now = Date.now();
+    if (now - (lastRun[runKey] || 0) < 250)
+        return;
+    lastRun[runKey] = now;
+    const reason = actionReason(room, action, options);
+    if (reason) {
+        note(reason);
         return;
     }
-    const end = timers.phaseEndAt;
-    const target = timers.phaseType === "bonus" ? bonusTimerDisplay : tossupTimerDisplay;
-    const tick = () => {
-        const remaining = end - Date.now();
-        updateBuzzButtonState(data);
-        const formatted = formatTime(remaining);
-        target.textContent = formatted;
-        if (playerPhaseTimer)
-            playerPhaseTimer.textContent = formatted;
-        if (remaining <= 0 && state.isHost && ["bonus_open", "tossup_open"].includes(data.status)) {
-            hostAction(() => sendHostAction(activeRoomId, "expire"));
-        }
-    };
-    tick();
-    timerInterval = setInterval(tick, 250);
-}
-function renderGameClock(data) {
-    if (gameClockInterval) {
-        clearInterval(gameClockInterval);
-        gameClockInterval = null;
-    }
-    const clock = data.gameClock || { status: "stopped", remainingMs: 180000, updatedAt: Date.now() };
-    const tick = () => {
-        const delta = clock.status === "running" ? Date.now() - clock.updatedAt : 0;
-        const remaining = Math.max(0, clock.remainingMs - delta);
-        const formatted = formatTime(remaining);
-        gameClockDisplay.textContent = formatted;
-        if (playerGameClock)
-            playerGameClock.textContent = formatted;
-    };
-    tick();
-    gameClockInterval = setInterval(tick, 250);
-}
-function buildBonusTeamOptions(teamCount, teamNames) {
-    bonusTeamSelect.innerHTML = "";
-    for (let i = 0; i < teamCount; i += 1) {
-        const team = String.fromCharCode(65 + i);
-        const opt = document.createElement("option");
-        opt.value = team;
-        opt.textContent = (teamNames === null || teamNames === void 0 ? void 0 : teamNames[team]) || `Team ${team}`;
-        bonusTeamSelect.appendChild(opt);
-    }
-}
-function renderPlayers(players) {
-    playerList.innerHTML = "";
-    const sorted = players.sort((a, b) => (a.team || "").localeCompare(b.team || ""));
-    sorted.forEach((p) => {
-        const card = document.createElement("div");
-        card.className = "player-card";
-        const left = document.createElement("span");
-        left.textContent = p.name || "Player";
-        const right = document.createElement("span");
-        right.textContent = `${p.team || "?"}${p.isHost ? " · Host" : ""}`;
-        card.appendChild(left);
-        card.appendChild(right);
-        playerList.appendChild(card);
-    });
-}
-async function enterRoom(roomId) {
-    activeRoomId = roomId;
-    if (roomUnsub)
-        roomUnsub();
-    if (playerUnsub)
-        playerUnsub();
-    roomStatus.textContent = "Loading room...";
-    roomUnsub = onSnapshot(doc(db, "rooms", roomId), (snap) => {
-        var _a, _b, _c, _d, _e;
-        if (!snap.exists()) {
-            cachedRoom = null;
-            buzzBtn.disabled = true;
-            if (timerInterval)
-                clearInterval(timerInterval);
-            if (gameClockInterval)
-                clearInterval(gameClockInterval);
-            roomStatus.textContent = "Room not found.";
-            if (roomCodeValue)
-                roomCodeValue.textContent = "-----";
-            return;
-        }
-        const data = snap.data();
-        cachedRoom = data;
-        setHostVisible(data.hostUid === state.uid);
-        if (data.hostUid !== state.uid) {
-            window.location.replace(`buzzer_room_player.html?roomId=${encodeURIComponent(roomId)}`);
-            return;
-        }
-        roomTitle.textContent = data.roomName || `Room ${data.roomCode}`;
-        roomCodeTitle.textContent = `Room ${data.roomCode}`;
-        activeRoomCode = data.roomCode || "";
-        if (roomCodeValue)
-            roomCodeValue.textContent = data.roomCode || "-----";
-        if (data.currentBuzz && ((_a = data.stats) === null || _a === void 0 ? void 0 : _a.lastBuzz) !== buzzKey(data)) {
-            sendHostAction(activeRoomId, "record_buzz").catch(err => { hostNote.textContent = "Unable to record buzz: " + err.message; });
-        }
-        updateStatusUI(data);
-        updateScores(data.scores || {}, ((_b = data.settings) === null || _b === void 0 ? void 0 : _b.teamCount) || 2, ((_c = data.settings) === null || _c === void 0 ? void 0 : _c.teamNames) || {});
-        updateBuzzStatus(data);
-        updateTimers(data);
-        renderGameClock(data);
-        state.isRoomHost = data.hostUid === state.uid;
-        updateLog(data.log || []);
-        updatePlayerStats(data.stats || {});
-        updatePlayerScoreboard(data.stats || {});
-        buildBonusTeamOptions(((_d = data.settings) === null || _d === void 0 ? void 0 : _d.teamCount) || 2, ((_e = data.settings) === null || _e === void 0 ? void 0 : _e.teamNames) || {});
-        if (data.bonusTeam)
-            bonusTeamSelect.value = data.bonusTeam;
-        setHostVisible(data.hostUid === state.uid);
-    }, (err) => {
-        console.error("Room snapshot error", err);
-        cachedRoom = null;
-        buzzBtn.disabled = true;
-        roomStatus.textContent = "Room unavailable (check permissions).";
-    });
-    playerUnsub = onSnapshot(collection(db, "rooms", roomId, "players"), (snap) => {
-        const list = [];
-        snap.forEach((docSnap) => {
-            list.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        latestPlayers = list;
-        renderPlayers(list);
-        updatePlayerScoreboard((cachedRoom === null || cachedRoom === void 0 ? void 0 : cachedRoom.stats) || {}, list);
-    }, (err) => { roomStatus.textContent = "Unable to load players: " + err.message; });
-}
-const startTossup = () => sendHostAction(activeRoomId, "tossup_start", { category: tossupCategory === null || tossupCategory === void 0 ? void 0 : tossupCategory.value });
-const startBonusTimer = () => sendHostAction(activeRoomId, "bonus_start", { team: bonusTeamSelect.value });
-const gradeTossup = (kind) => sendHostAction(activeRoomId, `tossup_grade_${kind}`);
-const markTossupDead = () => sendHostAction(activeRoomId, "tossup_dead");
-const gradeBonus = (correct) => sendHostAction(activeRoomId, correct ? "bonus_correct" : "bonus_wrong");
-const nextTossup = () => sendHostAction(activeRoomId, "next_tossup");
-const updateGameClockAction = (action) => hostAction(() => sendHostAction(activeRoomId, `game_${action}`));
-async function buzz() {
-    if (state.isHost || !activeRoomId)
-        return;
+    const opId = `${action}-${now}-${Math.random().toString(36).slice(2, 8)}`;
+    const opts = { ...options, opId };
+    let patch;
     try {
-        await sendBuzz(activeRoomId);
+        patch = hostPatch(room, uid, action, opts, now);
     }
     catch (err) {
-        buzzStatus.textContent = err.message || "Buzz failed.";
+        note(err.message);
+        return;
     }
+    const op = { id: opId, patch, done: false, doneAt: 0 };
+    pending.push(op);
+    note("");
+    render();
+    enqueue(async () => {
+        try {
+            const wrote = await sendHostAction(roomId, action, opts, now);
+            if (!wrote)
+                drop(op);
+            else {
+                op.done = true;
+                op.doneAt = Date.now();
+            }
+        }
+        catch (err) {
+            drop(op);
+            note((err === null || err === void 0 ? void 0 : err.message) || "The action did not save. Try again.");
+            render();
+        }
+    });
+}
+function drop(op) {
+    pending = pending.filter((item) => item !== op);
+}
+/** Send an expiry once per phase, and only when the server still has that phase. */
+function expireIfDue(room, now) {
+    var _a;
+    if (timedPhase(room) && now >= phaseDeadlineOf(room)) {
+        const key = room.timers.phaseKey;
+        if (((_a = snap === null || snap === void 0 ? void 0 : snap.timers) === null || _a === void 0 ? void 0 : _a.phaseKey) === key && !expired.has(key) && !snap.currentBuzz) {
+            expired.add(key);
+            enqueue(() => sendHostAction(roomId, "expire", { phaseKey: key }).catch(() => { }));
+        }
+    }
+    const clock = gameClockOf(room);
+    if (clock.status === "running" && clockLeft(room, now) <= 0) {
+        const key = clock.runKey;
+        if (snap && gameClockOf(snap).runKey === key && !expired.has(`clock:${key}`)) {
+            expired.add(`clock:${key}`);
+            enqueue(() => sendHostAction(roomId, "game_expire", { runKey: key }).catch(() => { }));
+        }
+    }
+}
+function needsLoop(room) {
+    return timedPhase(room) || clockRunning(room);
+}
+function ensureLoop() {
+    if (!rafId)
+        rafId = requestAnimationFrame(frame);
+}
+function frame() {
+    rafId = 0;
+    const room = shown();
+    if (!room)
+        return;
+    const now = Date.now();
+    renderTimers(room, now);
+    expireIfDue(room, now);
+    if (needsLoop(room))
+        ensureLoop();
+}
+function renderTimers(room, now) {
+    if (timedPhase(room)) {
+        setText(els.phaseTime, formatSeconds(phaseDeadlineOf(room) - now));
+    }
+    setText(els.gameClock, formatClock(clockLeft(room, now)));
+}
+// ---------- Panels ----------
+function teamsKey(room) {
+    var _a, _b;
+    return JSON.stringify([room.scores, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, (_b = room.currentBuzz) === null || _b === void 0 ? void 0 : _b.team, room.status]);
+}
+function renderTeams(room) {
+    paint("teams", teamsKey(room), () => {
+        var _a, _b, _c;
+        els.teams.replaceChildren();
+        const buzzingTeam = (_a = room.currentBuzz) === null || _a === void 0 ? void 0 : _a.team;
+        for (const team of teamIds(room)) {
+            const card = document.createElement("div");
+            card.className = `team-card ${teamClass(team)}${team === buzzingTeam ? " is-buzzing" : ""}`;
+            const name = document.createElement("span");
+            name.className = "team-name";
+            name.textContent = teamName(room, team);
+            const score = document.createElement("strong");
+            score.className = "numerals";
+            score.textContent = String((_c = (_b = room.scores) === null || _b === void 0 ? void 0 : _b[team]) !== null && _c !== void 0 ? _c : 0);
+            card.append(name, score);
+            els.teams.appendChild(card);
+        }
+    });
+}
+function renderHeader(room) {
+    paint("header", JSON.stringify([room.roomCode, room.roomName]), () => {
+        setText(els.roomCode, room.roomCode || "-----");
+        setText(els.roomName, room.roomName || "");
+        document.title = `${room.roomName || "Buzzer room"} | Atom Bowl`;
+    });
+}
+function stateNoteOf(room) {
+    const buzz = room.currentBuzz;
+    const who = buzz ? `${buzz.name} (${teamName(room, buzz.team)})` : "";
+    switch (room.status) {
+        case "lobby": return "Start the first toss-up when everyone has joined. Players can join with the code now.";
+        case "tossup_reading": return "Buzzers are open during the reading, so a buzz now is an interrupt.";
+        case "tossup_open": return "Players can buzz until time runs out. Expiry is automatic.";
+        case "tossup_locked": return (buzz === null || buzz === void 0 ? void 0 : buzz.interrupt) ? `${who} interrupted. Grade the answer.` : `${who} buzzed. Grade the answer.`;
+        case "tossup_dead": return "Nobody got it. Start the next toss-up when you are ready.";
+        case "bonus_ready": return `Bonus for ${teamName(room, room.bonusTeam)}. Start the bonus timer, or mark it when the team answers.`;
+        case "bonus_open": return `Bonus timer running for ${teamName(room, room.bonusTeam)}.`;
+        case "bonus_locked": return "Bonus answered. Mark it correct or incorrect.";
+        case "between": return "Ready for the next toss-up.";
+        case "ended": return "Scores are final. Nobody can buzz now.";
+        default: return "";
+    }
+}
+function renderState(room) {
+    paint("state", JSON.stringify([stateLine(room), stateNoteOf(room)]), () => {
+        setText(els.stateLine, stateLine(room));
+        setText(els.stateNote, stateNoteOf(room));
+        const label = {
+            tossup_reading: "Reading, no timer",
+            tossup_open: "Answer time",
+            bonus_open: "Bonus time",
+            tossup_locked: "Buzz to grade",
+            bonus_locked: "Bonus to grade",
+            ended: "Game over"
+        }[room.status] || "No timer";
+        setText(els.phaseLabel, label);
+        if (!timedPhase(room))
+            setText(els.phaseTime, "");
+    });
+}
+function renderLockout(room) {
+    const buzz = room.currentBuzz;
+    const key = JSON.stringify([room.status, buzz === null || buzz === void 0 ? void 0 : buzz.uid, buzz === null || buzz === void 0 ? void 0 : buzz.at, room.lockoutTeams, room.bonusTeam]);
+    paint("lockout", key, () => {
+        var _a;
+        let text = "Buzzers closed";
+        let state = "closed";
+        if (buzz) {
+            text = `${teamName(room, buzz.team)} buzzed${buzz.interrupt ? " on an interrupt" : ""}`;
+            state = "locked";
+        }
+        else if (room.status === "tossup_reading") {
+            text = "Buzzers open for interrupts";
+            state = "open";
+        }
+        else if (room.status === "tossup_open") {
+            text = ((_a = room.lockoutTeams) === null || _a === void 0 ? void 0 : _a.length) ? `Open for ${teamIds(room).filter((t) => !room.lockoutTeams.includes(t)).map((t) => teamName(room, t)).join(", ")}` : "Buzzers open";
+            state = "open";
+        }
+        else if (room.status === "bonus_open") {
+            text = `Bonus open for ${teamName(room, room.bonusTeam)} only`;
+            state = "open";
+        }
+        els.lockoutText.textContent = text;
+        els.light.className = `light ${state === "locked" ? `locked ${teamClass(buzz.team)}` : state}`;
+        const buzzKey = buzz ? `${buzz.uid}:${buzz.at}` : "";
+        if (buzzKey && buzzKey !== lastBuzzKey && lastBuzzKey !== null)
+            flashLight();
+        lastBuzzKey = buzzKey || null;
+    });
+}
+function flashLight() {
+    els.light.classList.remove("flash");
+    void els.light.offsetWidth;
+    els.light.classList.add("flash");
+}
+function renderBuzzer(room) {
+    const buzz = room.currentBuzz;
+    paint("buzzer", JSON.stringify(buzz ? [buzz.uid, buzz.at, buzz.interrupt, buzz.team] : null), () => {
+        els.buzzer.hidden = !buzz;
+        if (!buzz)
+            return;
+        els.buzzer.className = `buzzer ${teamClass(buzz.team)}`;
+        els.buzzerName.textContent = buzz.name || "Player";
+        els.buzzerTeam.textContent = teamName(room, buzz.team);
+        els.interruptTag.hidden = !buzz.interrupt;
+    });
+}
+/** Primary button: what Start / Done reading / Next / Start bonus timer does right now. */
+function primarySpec(room) {
+    switch (room.status) {
+        case "lobby": return { label: "Start tossup", action: "tossup_start", key: "Space" };
+        case "tossup_reading": return { label: "Done reading", action: "done_reading", key: "Space" };
+        case "tossup_open": return { label: "Waiting for a buzz", action: null, key: "Space" };
+        case "tossup_dead":
+        case "between": return { label: "Next tossup", action: "next_tossup", key: "N" };
+        case "bonus_ready": return { label: "Start bonus timer", action: "bonus_start", key: "Space" };
+        case "ended": return { label: "Game over", action: null, key: "Space" };
+        default: return null; // grading states show the Correct / Incorrect pair instead
+    }
+}
+/** What Space does: the primary action. Grading is never on Space, so a stray key press can't award points. */
+function spaceAction(room) {
+    if (gradeActions(room) && room.status !== "bonus_ready")
+        return null;
+    const spec = primarySpec(room);
+    return (spec === null || spec === void 0 ? void 0 : spec.action) || null;
+}
+function gradeActions(room) {
+    if (room.status === "tossup_locked")
+        return { correct: "tossup_grade_correct", incorrect: "tossup_grade_incorrect" };
+    if (["bonus_ready", "bonus_open", "bonus_locked"].includes(room.status))
+        return { correct: "bonus_correct", incorrect: "bonus_wrong" };
+    return null;
+}
+function renderControls(room, avail) {
+    var _a, _b, _c, _d;
+    const spec = primarySpec(room);
+    const grades = gradeActions(room);
+    const paintKey = JSON.stringify([room.status, spec === null || spec === void 0 ? void 0 : spec.label, (spec === null || spec === void 0 ? void 0 : spec.action) && ((_a = avail[spec.action]) === null || _a === void 0 ? void 0 : _a.reason), room.bonusTeam, grades, grades && [(_b = avail[grades.correct]) === null || _b === void 0 ? void 0 : _b.reason, (_c = avail[grades.incorrect]) === null || _c === void 0 ? void 0 : _c.reason]]);
+    paint("controls", paintKey, () => {
+        var _a;
+        els.primary.hidden = !spec;
+        if (spec) {
+            setText(els.primaryLabel, spec.label);
+            setText(els.primaryKey, spec.key);
+            const reason = spec.action ? (_a = avail[spec.action]) === null || _a === void 0 ? void 0 : _a.reason : "Nothing to do until the timer ends.";
+            els.primary.disabled = !!reason || !spec.action;
+            els.primary.title = reason || "";
+        }
+        els.gradePair.hidden = !grades;
+        if (grades) {
+            const bonus = !!grades.correct.startsWith("bonus");
+            setText(els.correctLabel, bonus ? "Bonus correct, +10" : "Correct, +4");
+            setText(els.incorrectLabel, bonus ? "Bonus incorrect" : "Incorrect");
+            els.correct.disabled = !avail[grades.correct].ok;
+            els.incorrect.disabled = !avail[grades.incorrect].ok;
+            els.correct.title = avail[grades.correct].reason;
+            els.incorrect.title = avail[grades.incorrect].reason;
+        }
+        els.dead.disabled = !avail.tossup_dead.ok;
+        els.dead.title = avail.tossup_dead.reason;
+        els.next.disabled = !avail.next_tossup.ok;
+        els.next.title = avail.next_tossup.reason;
+        // The primary button already starts the next toss-up in these states; N still works.
+        els.next.hidden = !!spec && (spec.action === "next_tossup" || spec.action === "tossup_start");
+    });
+    // Bonus zone is only meaningful once a toss-up is correct.
+    const bonusVisible = ["bonus_ready", "bonus_open", "bonus_locked"].includes(room.status);
+    els.bonusZone.hidden = !bonusVisible;
+    if (bonusVisible) {
+        paint("bonusTeam", JSON.stringify([teamIds(room), (_d = room.settings) === null || _d === void 0 ? void 0 : _d.teamNames, room.bonusTeam, room.status === "bonus_ready"]), () => {
+            els.bonusTeam.replaceChildren(...teamIds(room).map((team) => new Option(teamName(room, team), team)));
+            els.bonusTeam.value = room.bonusTeam;
+            els.bonusTeam.disabled = room.status !== "bonus_ready";
+            els.bonusTeam.title = room.status === "bonus_ready" ? "" : "The bonus team is locked once the timer starts.";
+        });
+    }
+}
+function renderCategory(room) {
+    const current = room.currentCategory || "General";
+    paint("category", JSON.stringify([current, room.status === "ended"]), () => {
+        const names = CATEGORIES.includes(current) ? CATEGORIES : [...CATEGORIES, current];
+        els.category.replaceChildren(...names.map((name) => new Option(name, name)));
+        els.category.value = current;
+        els.category.disabled = room.status === "ended";
+    });
+}
+function renderAdjust(room) {
+    var _a;
+    const teams = teamIds(room);
+    const key = JSON.stringify([teams, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, room.scores, ADJUSTMENTS.map((delta) => teams.map((team) => actionReason(room, "adjust_score", { team, delta })))]);
+    paint("adjust", key, () => {
+        var _a, _b;
+        els.adjustList.replaceChildren();
+        for (const team of teams) {
+            const row = document.createElement("div");
+            row.className = `adjust-row ${teamClass(team)}`;
+            const label = document.createElement("span");
+            label.className = "team-name";
+            label.textContent = `${teamName(room, team)}: ${(_b = (_a = room.scores) === null || _a === void 0 ? void 0 : _a[team]) !== null && _b !== void 0 ? _b : 0}`;
+            const buttons = document.createElement("div");
+            buttons.className = "adjust-buttons";
+            for (const delta of ADJUSTMENTS) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "btn";
+                button.textContent = delta > 0 ? `+${delta}` : String(delta);
+                button.setAttribute("aria-label", `Adjust ${teamName(room, team)} by ${delta}`);
+                const reason = actionReason(room, "adjust_score", { team, delta });
+                button.disabled = !!reason;
+                button.title = reason;
+                button.addEventListener("click", () => act("adjust_score", { team, delta }));
+                buttons.appendChild(button);
+            }
+            row.append(label, buttons);
+            els.adjustList.appendChild(row);
+        }
+    });
+}
+function renderClock(room, avail) {
+    const key = JSON.stringify([avail.game_start.reason, avail.game_pause.reason, avail.game_reset.reason, avail.end_game.reason, room.status]);
+    paint("clock", key, () => {
+        for (const [button, action] of [[els.clockStart, "game_start"], [els.clockPause, "game_pause"], [els.clockReset, "game_reset"], [els.endGame, "end_game"]]) {
+            button.disabled = !avail[action].ok;
+            button.title = avail[action].reason;
+        }
+    });
+}
+function renderRoster(room) {
+    var _a;
+    const key = JSON.stringify([members, room.hostUid, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, teamIds(room)]);
+    paint("roster", key, () => {
+        els.roster.replaceChildren();
+        const teams = teamIds(room);
+        for (const team of teams) {
+            const group = document.createElement("div");
+            group.className = `roster-group ${teamClass(team)}`;
+            const heading = document.createElement("h3");
+            heading.textContent = teamName(room, team);
+            const list = document.createElement("ul");
+            list.className = "roster-list";
+            const people = members.filter((member) => member.team === team).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            if (!people.length) {
+                const empty = document.createElement("li");
+                empty.className = "muted";
+                empty.textContent = "No players yet";
+                list.appendChild(empty);
+            }
+            for (const person of people) {
+                const item = document.createElement("li");
+                const name = document.createElement("span");
+                name.textContent = person.name || "Player";
+                item.appendChild(name);
+                if (person.id === room.hostUid) {
+                    const tag = document.createElement("span");
+                    tag.className = "muted";
+                    tag.textContent = "Host";
+                    item.appendChild(tag);
+                }
+                list.appendChild(item);
+            }
+            group.append(heading, list);
+            els.roster.appendChild(group);
+        }
+    });
+}
+function renderStats(room) {
+    var _a, _b;
+    paint("stats", JSON.stringify([(_a = room.stats) === null || _a === void 0 ? void 0 : _a.player, (_b = room.settings) === null || _b === void 0 ? void 0 : _b.teamNames]), () => {
+        var _a;
+        els.statsBody.replaceChildren();
+        const entries = Object.entries(((_a = room.stats) === null || _a === void 0 ? void 0 : _a.player) || {}).sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
+        for (const [id, data] of entries) {
+            const row = document.createElement("tr");
+            const cells = [data.name || id.slice(0, 6), teamName(room, data.team || "?"), data.correct || 0, data.incorrect || 0, data.interrupt || 0, data.buzzes || 0];
+            for (const value of cells) {
+                const cell = document.createElement("td");
+                cell.textContent = String(value);
+                row.appendChild(cell);
+            }
+            els.statsBody.appendChild(row);
+        }
+        if (!entries.length) {
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+            cell.colSpan = 6;
+            cell.className = "muted";
+            cell.textContent = "Stats appear after the first buzz.";
+            row.appendChild(cell);
+            els.statsBody.appendChild(row);
+        }
+    });
+}
+function logItem(entry) {
+    const item = document.createElement("li");
+    const time = document.createElement("time");
+    time.textContent = new Date(entry.at || Date.now()).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    item.append(time, document.createTextNode(entry.details || entry.type || ""));
+    return item;
+}
+/** Log is newest first. New entries are prepended; a rollback (failed action) rebuilds it. */
+function renderLog(room) {
+    const entries = room.log || [];
+    const lastSeq = entries.length ? entries[entries.length - 1].seq || 0 : 0;
+    setText(els.logCount, entries.length ? `(${entries.length})` : "");
+    if (lastSeq === renderedLogSeq)
+        return;
+    if (lastSeq < renderedLogSeq) {
+        els.logList.replaceChildren(...entries.slice().reverse().map(logItem));
+    }
+    else {
+        const fresh = entries.filter((entry) => (entry.seq || 0) > renderedLogSeq);
+        for (const entry of fresh)
+            els.logList.prepend(logItem(entry));
+    }
+    while (els.logList.children.length > LOG_LIMIT)
+        els.logList.lastElementChild.remove();
+    renderedLogSeq = lastSeq;
+}
+function render() {
+    const room = shown();
+    if (!room)
+        return;
+    const avail = availableActions(room);
+    renderHeader(room);
+    renderTeams(room);
+    renderState(room);
+    renderLockout(room);
+    renderBuzzer(room);
+    renderControls(room, avail);
+    renderCategory(room);
+    renderAdjust(room);
+    renderClock(room, avail);
+    renderRoster(room);
+    renderStats(room);
+    renderLog(room);
+    renderTimers(room, Date.now());
+    if (room.status === "ended")
+        els.endConfirm.hidden = true;
+    if (needsLoop(room))
+        ensureLoop();
+}
+// ---------- Actions ----------
+function spaceTarget(room) {
+    const action = spaceAction(room);
+    if (!action)
+        return null;
+    return { action, options: action === "bonus_start" ? { team: room.bonusTeam } : {} };
+}
+function runSpace() {
+    const room = shown();
+    if (!room)
+        return;
+    const target = spaceTarget(room);
+    if (!target) {
+        return note(gradeActions(room) && room.status !== "bonus_ready"
+            ? "Grade with C for correct or X for incorrect."
+            : "Nothing to do right now.");
+    }
+    act(target.action, target.options);
+}
+function runGrade(which) {
+    const room = shown();
+    if (!room)
+        return;
+    const grades = gradeActions(room);
+    if (!grades)
+        return note("There is no buzz or bonus to grade.");
+    act(grades[which]);
 }
 function csvCell(value) {
     let text = String(value !== null && value !== void 0 ? value : "");
     if (/^[=+@\-\t\r]/.test(text))
-        text = "'" + text;
-    return '"' + text.replace(/"/g, '""') + '"';
+        text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
 }
 function exportCsv() {
-    var _a, _b;
-    if (!cachedRoom)
+    var _a, _b, _c, _d;
+    if (!snap)
         return;
-    const lines = [];
-    const teamNames = ((_a = cachedRoom.settings) === null || _a === void 0 ? void 0 : _a.teamNames) || {};
-    lines.push("Team,Score,Correct,Incorrect,Interrupt,Buzzes");
-    Object.entries(cachedRoom.scores || {}).forEach(([team, score]) => {
-        var _a, _b;
-        const stats = ((_b = (_a = cachedRoom.stats) === null || _a === void 0 ? void 0 : _a.team) === null || _b === void 0 ? void 0 : _b[team]) || {};
-        lines.push([
-            teamNames[team] || `Team ${team}`,
-            score,
-            stats.correct || 0,
-            stats.incorrect || 0,
-            stats.interrupt || 0,
-            stats.buzzes || 0
-        ].map(csvCell).join(","));
-    });
-    lines.push("");
-    lines.push("Player,Team,Correct,Incorrect,Interrupt,Buzzes");
-    Object.values(((_b = cachedRoom.stats) === null || _b === void 0 ? void 0 : _b.player) || {}).forEach((p) => {
-        lines.push([p.name, p.team, p.correct || 0, p.incorrect || 0, p.interrupt || 0, p.buzzes || 0].map(csvCell).join(","));
-    });
-    lines.push("");
-    lines.push("Log");
-    (cachedRoom.log || []).forEach((item) => {
-        lines.push(csvCell(`${new Date(item.at || Date.now()).toISOString()} - ${item.details || item.type}`));
-    });
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "atom-bowl-room.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    const lines = ["Team,Score,Correct,Incorrect,Interrupt,Buzzes"];
+    for (const team of teamIds(snap)) {
+        const stats = ((_b = (_a = snap.stats) === null || _a === void 0 ? void 0 : _a.team) === null || _b === void 0 ? void 0 : _b[team]) || {};
+        lines.push([teamName(snap, team), ((_c = snap.scores) === null || _c === void 0 ? void 0 : _c[team]) || 0, stats.correct || 0, stats.incorrect || 0, stats.interrupt || 0, stats.buzzes || 0].map(csvCell).join(","));
+    }
+    lines.push("", "Player,Team,Correct,Incorrect,Interrupt,Buzzes");
+    for (const player of Object.values(((_d = snap.stats) === null || _d === void 0 ? void 0 : _d.player) || {})) {
+        lines.push([player.name, player.team, player.correct || 0, player.incorrect || 0, player.interrupt || 0, player.buzzes || 0].map(csvCell).join(","));
+    }
+    lines.push("", "Log");
+    for (const entry of snap.log || []) {
+        lines.push(csvCell(`${new Date(entry.at || Date.now()).toISOString()} - ${entry.details || entry.type}`));
+    }
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `atom-bowl-${snap.roomCode || "room"}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function handleSpacebar(e) {
-    var _a, _b;
-    const tag = (_a = document.activeElement) === null || _a === void 0 ? void 0 : _a.tagName;
-    if (e.repeat || ((_b = document.activeElement) === null || _b === void 0 ? void 0 : _b.isContentEditable) || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag))
+async function copyInvite() {
+    if (!snap)
         return;
-    if (e.code === "Space") {
-        e.preventDefault();
-        buzz();
+    const link = new URL(`buzzer_rooms.html?code=${encodeURIComponent(snap.roomCode)}`, window.location.href).href;
+    const text = `Join my Atom Bowl room${snap.roomName ? ` "${snap.roomName}"` : ""} with code ${snap.roomCode}: ${link}`;
+    let copied = false;
+    try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+    }
+    catch { }
+    if (!copied)
+        window.prompt("Copy this invite:", text);
+    setText(els.copyLabel, copied ? "Copied" : "Copy invite");
+    if (copied)
+        setTimeout(() => setText(els.copyLabel, "Copy invite"), 1500);
+}
+function isTyping(el) {
+    return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
+}
+function onKey(event) {
+    if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey)
+        return;
+    const active = document.activeElement;
+    if (isTyping(active))
+        return;
+    if (event.code === "Space") {
+        // A focused button handles Space itself.
+        if (active && active.tagName === "BUTTON")
+            return;
+        event.preventDefault();
+        runSpace();
+        return;
+    }
+    const key = event.key.toLowerCase();
+    if (key === "c") {
+        event.preventDefault();
+        runGrade("correct");
+    }
+    else if (key === "x") {
+        event.preventDefault();
+        runGrade("incorrect");
+    }
+    else if (key === "d") {
+        event.preventDefault();
+        act("tossup_dead");
+    }
+    else if (key === "n") {
+        event.preventDefault();
+        act("next_tossup");
     }
 }
-let hostBusy = false;
-function hostAction(fn) {
-    if (hostBusy)
-        return Promise.resolve();
-    hostBusy = true;
-    return Promise.resolve().then(fn)
-        .then(() => {
-        if (hostNote)
-            hostNote.textContent = "";
-    })
-        .catch((err) => {
-        console.error(err);
-        if (hostNote) {
-            const msg = (err === null || err === void 0 ? void 0 : err.message) ? ` (${err.message})` : "";
-            hostNote.textContent = `Host action failed. Make sure you're the room host on this device.${msg}`;
-        }
-    }).finally(() => { hostBusy = false; });
-}
-startTossupBtn.addEventListener("click", () => hostAction(startTossup));
-tossupInterruptBtn.addEventListener("click", () => hostAction(() => gradeTossup("interrupt")));
-tossupCorrectBtn.addEventListener("click", () => hostAction(() => gradeTossup("correct")));
-tossupWrongBtn.addEventListener("click", () => hostAction(() => gradeTossup("incorrect")));
-tossupDeadBtn.addEventListener("click", () => hostAction(markTossupDead));
-startBonusBtn.addEventListener("click", () => hostAction(startBonusTimer));
-bonusCorrectBtn.addEventListener("click", () => hostAction(() => gradeBonus(true)));
-bonusWrongBtn.addEventListener("click", () => hostAction(() => gradeBonus(false)));
-nextTossupBtn.addEventListener("click", () => hostAction(nextTossup));
-buzzBtn.addEventListener("click", buzz);
-bonusTeamSelect.addEventListener("change", () => hostAction(() => sendHostAction(activeRoomId, "bonus_team", { team: bonusTeamSelect.value })));
-gameStartBtn.addEventListener("click", () => updateGameClockAction("start").catch(console.error));
-gamePauseBtn.addEventListener("click", () => updateGameClockAction("pause").catch(console.error));
-gameResetBtn.addEventListener("click", () => updateGameClockAction("reset").catch(console.error));
-exportBtn.addEventListener("click", exportCsv);
-document.addEventListener("keydown", handleSpacebar);
-if (copyRoomBtn) {
-    copyRoomBtn.addEventListener("click", async () => {
-        var _a;
-        if (!activeRoomId)
+// ---------- Wiring ----------
+els.primary.addEventListener("click", () => runSpace());
+els.correct.addEventListener("click", () => runGrade("correct"));
+els.incorrect.addEventListener("click", () => runGrade("incorrect"));
+els.dead.addEventListener("click", () => act("tossup_dead"));
+els.next.addEventListener("click", () => act("next_tossup"));
+els.category.addEventListener("change", () => act("set_category", { category: els.category.value }));
+els.bonusTeam.addEventListener("change", () => act("bonus_team", { team: els.bonusTeam.value }));
+els.clockStart.addEventListener("click", () => act("game_start"));
+els.clockPause.addEventListener("click", () => {
+    const room = shown();
+    act("game_pause", { elapsedMs: room ? clockElapsed(room, Date.now()) : 0 });
+});
+els.clockReset.addEventListener("click", () => act("game_reset"));
+els.endGame.addEventListener("click", () => { els.endConfirm.hidden = false; els.endConfirmBtn.focus(); });
+els.endCancel.addEventListener("click", () => { els.endConfirm.hidden = true; els.endGame.focus(); });
+els.endConfirmBtn.addEventListener("click", () => {
+    els.endConfirm.hidden = true;
+    const room = shown();
+    act("end_game", { elapsedMs: room ? clockElapsed(room, Date.now()) : 0 });
+});
+els.exportBtn.addEventListener("click", exportCsv);
+els.copyInvite.addEventListener("click", copyInvite);
+document.addEventListener("keydown", onKey);
+function attach(room) {
+    if (unsubRoom)
+        unsubRoom();
+    unsubRoom = onSnapshot(doc(db, "rooms", room), (snapshot) => {
+        if (!snapshot.exists()) {
+            snap = null;
+            note("This room no longer exists.");
             return;
-        const roomCode = activeRoomCode || "Code";
-        const joinLink = new URL(`buzzer_rooms.html?code=${encodeURIComponent(activeRoomCode)}`, window.location.href).href;
-        const text = [
-            "You have been invited to an Atom Bowl Buzzing Room.",
-            `Join here: ${joinLink}`,
-            `and the code: "${roomCode}"`,
-            `and a direct link: ${joinLink}`
-        ].join(" ");
-        let copied = false;
-        try {
-            if ((_a = navigator.clipboard) === null || _a === void 0 ? void 0 : _a.writeText) {
-                await navigator.clipboard.writeText(text);
-                copied = true;
-            }
         }
-        catch { }
-        if (!copied) {
-            const textarea = document.createElement("textarea");
-            textarea.value = text;
-            textarea.style.position = "fixed";
-            textarea.style.left = "-9999px";
-            document.body.appendChild(textarea);
-            textarea.focus();
-            textarea.select();
-            try {
-                copied = document.execCommand("copy");
-            }
-            catch { }
-            textarea.remove();
-        }
-        if (copied) {
-            copyRoomBtn.textContent = "Copied!";
-            setTimeout(() => {
-                copyRoomBtn.textContent = "Copy Invite";
-            }, 1500);
-        }
-        else {
-            window.prompt("Copy this invite message:", text);
-        }
-    });
-}
-if (joinAsPlayerBtn) {
-    joinAsPlayerBtn.addEventListener("click", () => {
-        if (!activeRoomId)
+        const data = snapshot.data();
+        if (data.hostUid !== uid) {
+            window.location.replace(`buzzer_room_player.html?roomId=${encodeURIComponent(room)}`);
             return;
-        localStorage.setItem("atom_buzzer_role", "player");
-        const joinLink = `buzzer_room_player.html?roomId=${activeRoomId}`;
-        window.open(joinLink, "_blank");
-    });
-}
-if (toggleLogBtn && playerLogPanel) {
-    toggleLogBtn.addEventListener("click", () => {
-        const isHidden = playerLogPanel.classList.contains("hidden");
-        playerLogPanel.classList.toggle("hidden", !isHidden);
-        toggleLogBtn.textContent = isHidden ? "Hide Buzz Log" : "Show Buzz Log";
-    });
+        }
+        snap = data;
+        pending = pending.filter((op) => { var _a; return !(op.done && (((_a = data.lastAction) === null || _a === void 0 ? void 0 : _a.id) === op.id || Date.now() - op.doneAt > 4000)); });
+        render();
+        firstSnapshot = false;
+    }, (err) => note(`Cannot read this room: ${err.message}`));
+    if (unsubPlayers)
+        unsubPlayers();
+    unsubPlayers = onSnapshot(collection(db, "rooms", room, "players"), (snapshot) => {
+        members = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        if (snap)
+            render();
+    }, (err) => note(`Cannot read players: ${err.message}`));
 }
 (async () => {
-    await ensureIdentity();
-    const roomId = getRoomId();
     if (!roomId) {
-        roomStatus.textContent = "Missing room ID.";
+        note("This page needs a room. Open a room from the buzzer rooms page.");
         return;
     }
-    await enterRoom(roomId);
-})().catch((err) => { roomStatus.textContent = err.message || "Unable to connect to room."; });
-window.addEventListener("pagehide", () => { roomUnsub === null || roomUnsub === void 0 ? void 0 : roomUnsub(); playerUnsub === null || playerUnsub === void 0 ? void 0 : playerUnsub(); clearInterval(timerInterval); clearInterval(gameClockInterval); });
-window.addEventListener("pageshow", event => { if (event.persisted)
-    window.location.reload(); });
+    const user = await ensureAnonAuth();
+    uid = user.uid;
+    attach(roomId);
+})().catch((err) => note(err.message || "Unable to connect to the room."));
+window.addEventListener("pagehide", () => {
+    unsubRoom === null || unsubRoom === void 0 ? void 0 : unsubRoom();
+    unsubPlayers === null || unsubPlayers === void 0 ? void 0 : unsubPlayers();
+    if (rafId)
+        cancelAnimationFrame(rafId);
+});
+window.addEventListener("pageshow", (event) => {
+    if (event.persisted)
+        window.location.reload();
+});
 //# sourceMappingURL=buzzer_room.js.map

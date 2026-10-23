@@ -2,238 +2,245 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Atom Bowl - Account</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Account | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/account.css">
 </head>
-<body class="page-transition page-enter">
-  <div class="waves" aria-hidden="true">
-    <svg viewBox="0 0 1440 320" preserveAspectRatio="none">
-      <path class="wave1" fill="rgba(79,124,255,0.20)" d="M0,224L48,229.3C96,235,192,245,288,229.3C384,213,480,171,576,154.7C672,139,768,149,864,176C960,203,1056,245,1152,250.7C1248,256,1344,224,1392,208L1440,192L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
-      <path class="wave2" fill="rgba(57,217,138,0.10)" d="M0,256L60,229.3C120,203,240,149,360,138.7C480,128,600,160,720,170.7C840,181,960,171,1080,186.7C1200,203,1320,245,1380,266.7L1440,288L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
-    </svg>
-  </div>
-
-  <div class="nav" id="nav">
-    <h2 class="nav-title"><a class="nav-title-link" href="index.html">&#x269B; Atom Bowl</a></h2>
-    <a href="generate.html"><span class="icon">&#x1F916;</span> Generate</a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span> Practice</a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span> Question Bank</a>
-    <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-    <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-    <div class="nav-quick-controls">
-      <div class="nav-more" data-nav-more>
-        <button class="nav-more-btn" type="button" aria-haspopup="true" aria-expanded="false">...</button>
-        <div class="nav-more-menu">
-          <a href="game_clock.html">Game Clock</a>
-          <a href="buzzer_rooms.html">Buzzer Rooms</a>
-        </div>
-      </div>
-      <a href="account.html" class="nav-account active" aria-label="Account" title="Account"><span class="icon" aria-hidden="true">&#128100;</span><span class="label">Account</span></a>
-    </div>
-  </div>
-
-  <div class="overlay" id="overlay"></div>
-  <div class="hamburger" id="hamburger">&#9776;</div>
-
-  <div class="main">
-    <div class="header">
+<body>
+  <main class="main account-page">
+    <header class="header">
       <div>
         <h1 class="title">Account</h1>
-        <div class="subtitle">Profile, identity, and stats sync across devices.</div>
+        <p class="subtitle">Your profile, practice stats and settings, saved to your account so they follow you to any device.</p>
       </div>
+    </header>
+
+    <div id="syncNotice" class="notice sync-notice hidden" role="alert">
+      <i data-icon="alert"></i>
+      <p id="syncNoticeText"></p>
+      <button class="btn small" id="retrySyncBtn" type="button">Try again</button>
     </div>
 
-    <section class="card profile-card">
+    <section class="panel profile-panel" aria-labelledby="profilePlayerName">
       <div class="profile">
-        <img id="profilePhoto" class="avatar" src="favicon.png" alt="Profile photo" />
+        <div class="avatar" id="profileAvatar" aria-hidden="true">
+          <img id="profilePhoto" class="hidden" src="" alt="" />
+          <span id="profileInitial"><i data-icon="user"></i></span>
+        </div>
         <div class="profile-meta">
-          <div class="profile-name" id="profilePlayerName">Guest</div>
-          <div class="profile-username">Username: <span id="profileUsername">Sign In</span></div>
-          <div class="profile-email" id="profileEmail">No account connected</div>
+          <div class="profile-name-row">
+            <h2 class="profile-name" id="profilePlayerName">Guest</h2>
+            <span class="tag" id="statusText">Checking sign-in</span>
+          </div>
+          <p class="profile-username hidden" id="profileUsernameRow">@<span id="profileUsername"></span></p>
+          <p class="profile-email" id="profileEmail">Not signed in</p>
         </div>
       </div>
-      <div class="status">
-        <div class="status-text" id="statusText">Not Signed In</div>
-        <div class="status-sub" id="statusSub">Sign in to sync your profile and stats.</div>
-        <div class="guest-row">Cache username: <code id="guestTag">------------</code></div>
+      <p class="status-sub" id="statusSub">Looking for a saved sign-in on this device.</p>
+
+      <div id="signedOutActions" class="signed-out">
+        <form id="guestNameForm" class="guest-name" novalidate>
+          <label class="label" for="guestNameInput">Your name</label>
+          <div class="guest-name-row">
+            <input class="input" type="text" id="guestNameInput" maxlength="40" autocomplete="nickname" placeholder="Name shown in buzzer rooms" />
+            <button class="btn" id="saveGuestNameBtn" type="submit">Save</button>
+          </div>
+          <p class="field-hint" id="guestNameHint" role="status" aria-live="polite">Saved in this browser and filled in when you join a buzzer room.</p>
+        </form>
+        <h3>An account saves your progress</h3>
+        <ul class="save-list">
+          <li><i data-icon="target"></i><span><strong>Practice stats</strong> from every solo run</span></li>
+          <li><i data-icon="settings"></i><span><strong>Settings</strong> like division, read-aloud voice, timers and theme</span></li>
+          <li><i data-icon="buzzer"></i><span><strong>Buzzer name and team</strong> for live rooms</span></li>
+        </ul>
+        <p class="muted">Sign in on another phone or computer and everything is there.</p>
+        <div class="button-row">
+          <button class="btn primary" id="openSignUpBtn" type="button" data-auth-action>Create account</button>
+          <button class="btn" id="openSignInBtn" type="button" data-auth-action>Sign in</button>
+        </div>
       </div>
 
-      <div id="signedOutActions" class="button-row">
-        <button class="btn" id="openSignInBtn" type="button" data-auth-action>Sign In</button>
-        <button class="btn ghost" id="openSignUpBtn" type="button" data-auth-action>Sign Up</button>
-      </div>
-
-      <div id="signedInPanel" class="hidden">
-        <h2>Account Homepage</h2>
+      <form id="signedInPanel" class="profile-form hidden" novalidate>
+        <h3 class="section-title">Profile</h3>
         <div class="form-grid">
-          <div>
-            <label class="label">Username (choose once)</label>
-            <input class="input input-readonly" type="text" id="usernameLockedInput" placeholder="Set on sign-up" readonly />
+          <div class="field">
+            <label class="label" for="playerNameInput">Player name</label>
+            <input class="input" type="text" id="playerNameInput" autocomplete="nickname" placeholder="Name shown in buzzer rooms" />
           </div>
-          <div>
-            <label class="label">Email (locked)</label>
-            <input class="input input-readonly" type="text" id="emailLockedInput" placeholder="Linked email" readonly />
+          <div class="field">
+            <label class="label" for="usernameLockedInput">Username</label>
+            <input class="input" type="text" id="usernameLockedInput" autocomplete="username" placeholder="Choose a username" readonly />
+            <p class="field-hint" id="usernameLockedHint">Usernames can't be changed once set.</p>
           </div>
-          <div>
-            <label class="label">Player Name</label>
-            <input class="input" type="text" id="playerNameInput" placeholder="Name shown in game" />
+          <div class="field">
+            <label class="label" for="firstNameInput">First name</label>
+            <input class="input" type="text" id="firstNameInput" autocomplete="given-name" />
           </div>
-          <div>
-            <label class="label">First Name</label>
-            <input class="input" type="text" id="firstNameInput" placeholder="First name" />
+          <div class="field">
+            <label class="label" for="lastNameInput">Last name</label>
+            <input class="input" type="text" id="lastNameInput" autocomplete="family-name" />
           </div>
-          <div>
-            <label class="label">Last Name</label>
-            <input class="input" type="text" id="lastNameInput" placeholder="Last name" />
+          <div class="field">
+            <label class="label" for="emailLockedInput">Email</label>
+            <input class="input input-readonly" type="text" id="emailLockedInput" readonly />
           </div>
-          <div>
-            <label class="label">Phone (optional)</label>
-            <input class="input" type="text" id="phoneInput" placeholder="Phone number" />
+          <div class="field">
+            <label class="label" for="phoneInput">Phone (optional)</label>
+            <input class="input" type="tel" id="phoneInput" autocomplete="tel" />
           </div>
-          <div class="full-span">
-            <label class="label">Upload Profile Picture</label>
+          <div class="field full-span">
+            <label class="label" for="photoUploadInput">Profile picture (up to 250 KB)</label>
             <input class="input" type="file" id="photoUploadInput" accept="image/*" />
           </div>
         </div>
-        <div class="button-row">
-          <button class="btn" id="saveProfileBtn" type="button" data-auth-action>Save Profile</button>
-          <button class="btn danger" id="signOutBtn" type="button" data-auth-action>Sign Out</button>
+        <p id="accountError" class="error error-box" role="alert"></p>
+        <div class="button-row form-actions">
+          <button class="btn primary" id="saveProfileBtn" type="submit" data-auth-action>Save profile</button>
+          <span class="status-note good" id="accountStatus" role="status" aria-live="polite"></span>
+          <button class="btn danger" id="signOutBtn" type="button" data-auth-action><i data-icon="logout"></i>Sign out</button>
         </div>
-      </div>
-      <p id="accountError" class="error"></p>
+      </form>
+
+      <p class="guest-row">Guest ID <code id="guestTag">------------</code></p>
     </section>
 
-    <section class="card stats-card">
-      <h2>Practice Stats</h2>
-      <div class="stats-grid">
-        <div class="stat-box">
-          <div class="stat-label">Games Played</div>
-          <div class="stat-value" id="statRuns">0</div>
+    <section class="stats" aria-labelledby="statsTitle">
+      <h2 class="section-title" id="statsTitle">Practice stats</h2>
+      <dl class="stats-grid">
+        <div class="stat">
+          <dt>Games played</dt>
+          <dd class="numerals" id="statRuns">0</dd>
         </div>
-        <div class="stat-box">
-          <div class="stat-label">Average Score</div>
-          <div class="stat-value" id="statAvgScore">0.0</div>
+        <div class="stat">
+          <dt>Correct per game</dt>
+          <dd class="numerals" id="statAvgScore">0.0</dd>
         </div>
-        <div class="stat-box">
-          <div class="stat-label">Time Played</div>
-          <div class="stat-value" id="statTimePlayed">0m</div>
+        <div class="stat">
+          <dt>Time played</dt>
+          <dd class="numerals" id="statTimePlayed">0m</dd>
         </div>
-        <div class="stat-box">
-          <div class="stat-label">Accuracy</div>
-          <div class="stat-value" id="statAccuracy">0%</div>
+        <div class="stat">
+          <dt>Accuracy</dt>
+          <dd class="numerals" id="statAccuracy">0%</dd>
         </div>
-      </div>
+      </dl>
+      <p class="status-note" id="statsNote">Sign in to keep stats from your practice runs.</p>
     </section>
-  </div>
+  </main>
 
-  <nav class="bottom-nav" aria-label="Primary">
-    <a href="index.html"><span class="icon">&#x269B;</span><span>Home</span></a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span><span>Generate</span></a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span><span>Practice</span></a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span><span>Bank</span></a>
-    <a href="account.html" class="active"><span class="icon">&#x1F464;</span><span>Account</span></a>
-    <div class="bottom-nav-more">
-      <button type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleBottomNavMore(event)">
-        <span class="icon">&#x22EF;</span><span>More</span>
-      </button>
-      <div class="bottom-nav-more-menu">
-        <a href="game_clock.html"><span class="icon">&#x23F1;&#xFE0F;</span> Game Clock</a>
-        <a href="buzzer_rooms.html"><span class="icon">&#x1F6A8;</span> Buzzer Rooms</a>
-        <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-        <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-      </div>
-    </div>
-  </nav>
-
-  <div class="modal hidden" id="authModal" role="dialog" aria-modal="true" aria-label="Authentication">
-    <div class="modal-card">
+  <div class="modal hidden" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+    <div class="modal-card auth-card">
       <div class="modal-header">
-        <h2>Create Account</h2>
-        <button class="icon-btn" id="closeAuthModal" type="button">&times;</button>
+        <h2 id="authModalTitle">Create account</h2>
+        <button class="icon-btn" id="closeAuthModal" type="button" aria-label="Close"><i data-icon="close"></i></button>
       </div>
-      <div class="tab-row">
-        <button class="tab" id="showSignInTab" type="button">Sign In</button>
-        <button class="tab active" id="showSignUpTab" type="button">Sign Up</button>
+      <div class="tab-row" role="tablist" aria-label="Account options">
+        <button class="tab" id="showSignInTab" type="button" role="tab" aria-selected="false" aria-controls="signInFormPanel">Sign in</button>
+        <button class="tab active" id="showSignUpTab" type="button" role="tab" aria-selected="true" aria-controls="signUpFormPanel">Create account</button>
       </div>
 
       <div class="provider-row" aria-label="Sign-in providers">
-        <button class="btn provider google" id="googleBtn" type="button" data-auth-action>
+        <button class="btn provider" id="googleBtn" type="button" data-auth-action>
           <img class="brand-icon" src="data/auth/google.png" width="20" height="20" alt="" aria-hidden="true" />
-          <span>Sign in with Google</span>
+          <span class="btn-label">Continue with Google</span>
         </button>
-        <button class="btn provider apple" id="appleBtn" type="button" aria-label="Sign in with Apple" data-auth-action>
-          <img class="apple-signin-art" src="data/auth/apple-signin.png" width="200" height="44" alt="" aria-hidden="true" />
-        </button>
-        <button class="btn provider microsoft" id="microsoftBtn" type="button" data-auth-action>
-          <img class="brand-icon" src="data/auth/microsoft.svg" width="20" height="20" alt="" aria-hidden="true" />
-          <span>Sign in with Microsoft</span>
-        </button>
-      </div>
-      <div id="signInFormPanel">
-        <div class="divider"><span>or use Email</span></div>
-        <label class="label">Email</label>
-        <input class="input" id="signinIdentifierInput" type="email" autocomplete="username" placeholder="you@example.com" />
-        <label class="label">Password</label>
-        <input class="input" id="signinPasswordInput" type="password" placeholder="Password" />
-        <button class="btn" id="signinBtn" type="button" data-auth-action>Sign In</button>
-        <button class="btn ghost" id="resetPasswordBtn" type="button" data-auth-action>Reset Password</button>
-        <p class="tiny-link">Don't have an account? <a href="#" id="gotoSignupLink">Sign up</a></p>
+        <div class="provider-soon">
+          <button class="btn provider" id="microsoftBtn" type="button" disabled>Microsoft (coming soon)</button>
+          <button class="btn provider" id="appleBtn" type="button" disabled>Apple (coming soon)</button>
+        </div>
       </div>
 
-      <div id="signUpFormPanel" class="hidden">
+      <div class="divider">or use email</div>
+
+      <form id="signInFormPanel" class="auth-form hidden" novalidate>
+        <div class="field">
+          <label class="label" for="signinIdentifierInput">Email</label>
+          <input class="input" id="signinIdentifierInput" type="email" autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="field">
+          <label class="label" for="signinPasswordInput">Password</label>
+          <input class="input" id="signinPasswordInput" type="password" autocomplete="current-password" />
+        </div>
+        <div class="auth-error-slot" data-error-slot="signin"></div>
+        <div class="button-row auth-actions">
+          <button class="btn primary" id="signinBtn" type="submit" data-auth-action>Sign in</button>
+          <button class="btn quiet" id="resetPasswordBtn" type="button" data-auth-action>Forgot password?</button>
+        </div>
+        <p class="switch-line">New here? <a href="#" id="gotoSignupLink">Create an account</a></p>
+      </form>
+
+      <form id="signUpFormPanel" class="auth-form" novalidate>
         <div class="form-grid">
-          <div>
-            <label class="label">First Name*</label>
-            <input class="input" id="signupFirstName" type="text" />
+          <div class="field">
+            <label class="label" for="signupFirstName">First name</label>
+            <input class="input" id="signupFirstName" type="text" autocomplete="given-name" required aria-describedby="signupFirstNameError" />
+            <p class="field-error" id="signupFirstNameError"></p>
           </div>
-          <div>
-            <label class="label">Last Name*</label>
-            <input class="input" id="signupLastName" type="text" />
+          <div class="field">
+            <label class="label" for="signupLastName">Last name</label>
+            <input class="input" id="signupLastName" type="text" autocomplete="family-name" required aria-describedby="signupLastNameError" />
+            <p class="field-error" id="signupLastNameError"></p>
           </div>
-          <div>
-            <label class="label">Email*</label>
-            <input class="input" id="signupEmail" type="email" />
+          <div class="field">
+            <label class="label" for="signupEmail">Email</label>
+            <input class="input" id="signupEmail" type="email" autocomplete="email" required aria-describedby="signupEmailError" />
+            <p class="field-error" id="signupEmailError"></p>
           </div>
-          <div>
-            <label class="label">Phone</label>
-            <input class="input" id="signupPhone" type="text" />
+          <div class="field">
+            <label class="label" for="signupPhone">Phone (optional)</label>
+            <input class="input" id="signupPhone" type="tel" autocomplete="tel" />
           </div>
-          <div>
-            <label class="label">Username*</label>
-            <input class="input" id="signupUsername" type="text" placeholder="3-20 lowercase letters/numbers" />
-            <div id="usernameStatus" class="status-note"></div>
+          <div class="field">
+            <label class="label" for="signupUsername">Username</label>
+            <input class="input" id="signupUsername" type="text" autocomplete="username" required autocapitalize="none" spellcheck="false" placeholder="3 to 20 lowercase letters or numbers" aria-describedby="usernameStatus" />
+            <p id="usernameStatus" class="status-note"></p>
           </div>
-          <div class="full-span">
-            <label class="label">Player Name</label>
-            <input class="input" id="signupPlayerName" type="text" placeholder="Defaults to First + Last name" />
+          <div class="field">
+            <label class="label" for="signupPlayerName">Player name (optional)</label>
+            <input class="input" id="signupPlayerName" type="text" autocomplete="nickname" placeholder="Defaults to your first and last name" />
           </div>
-          <div>
-            <label class="label">Password*</label>
-            <input class="input" id="signupPassword" type="password" autocomplete="new-password" aria-describedby="passwordHint" />
-            <p id="passwordHint" class="status-note">Use 8+ characters with uppercase and lowercase letters, a number, and a symbol.</p>
+          <div class="field">
+            <label class="label" for="signupPassword">Password</label>
+            <input class="input" id="signupPassword" type="password" autocomplete="new-password" required aria-describedby="passwordHint signupPasswordError" />
+            <ul id="passwordHint" class="pw-rules" aria-label="Password rules">
+              <li data-rule="length">8 or more characters</li>
+              <li data-rule="upper">An uppercase letter</li>
+              <li data-rule="lower">A lowercase letter</li>
+              <li data-rule="number">A number</li>
+              <li data-rule="symbol">A symbol</li>
+            </ul>
+            <p class="field-error" id="signupPasswordError"></p>
           </div>
-          <div>
-            <label class="label">Confirm Password*</label>
-            <input class="input" id="signupPassword2" type="password" />
+          <div class="field">
+            <label class="label" for="signupPassword2">Confirm password</label>
+            <input class="input" id="signupPassword2" type="password" autocomplete="new-password" required aria-describedby="signupPassword2Error" />
+            <p class="field-error" id="signupPassword2Error"></p>
           </div>
         </div>
-        <button class="btn" id="signupBtn" type="button" data-auth-action>Create Account</button>
-        <p class="tiny-link">Already have an account? <a href="#" id="gotoSigninLink">Sign in</a></p>
-      </div>
-
-      <p id="authError" class="error" role="status" aria-live="polite"></p>
+        <div class="auth-error-slot" data-error-slot="signup">
+          <p id="authError" class="error error-box" role="alert"></p>
+          <p id="authStatus" class="status-note good" role="status" aria-live="polite"></p>
+        </div>
+        <div class="button-row auth-actions">
+          <button class="btn primary" id="signupBtn" type="submit" data-auth-action>Create account</button>
+        </div>
+        <p class="switch-line">Already have an account? <a href="#" id="gotoSigninLink">Sign in</a></p>
+      </form>
     </div>
   </div>
 
+  <div id="accountToast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script type="module" src="js/account.js"></script>
 </body>

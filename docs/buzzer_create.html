@@ -2,78 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Create Room | Atom Bowl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Create a buzzer room | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/buzzer_rooms.css?v=20260204c">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
+  <link rel="stylesheet" href="css/buzzer_rooms.css">
 </head>
-<body class="nav-collapsed">
-  <header class="topbar">
-    <a href="buzzer_rooms.html" class="back-link" aria-label="Back to Buzzer Rooms">←</a>
-    <div class="topbar-title">Create Room</div>
-  </header>
-
-  <main class="main">
-    <section class="hero">
-      <h1>Create Room</h1>
-      <p>Set up moderation tools and room rules.</p>
-    </section>
-
-    <section class="panel">
-      <label class="label">Host Name</label>
-      <input id="hostName" type="text" maxlength="24" placeholder="Your name" />
-
-      <label class="label">Room Name</label>
-      <input id="roomName" type="text" maxlength="30" placeholder="Team Scrimmage" />
-
-      <label class="label">Number of Teams</label>
-      <select id="teamCount">
-        <option value="2">2 Teams</option>
-        <option value="3">3 Teams</option>
-        <option value="4">4 Teams</option>
-      </select>
-
-      <div id="teamNames" class="team-names">
-        <label class="label">Team Names</label>
-        <div id="teamNameFields" class="team-name-fields"></div>
+<body class="role-create">
+  <main class="main create-page">
+    <header class="header">
+      <div>
+        <h1 class="title">Create a room</h1>
+        <p class="subtitle">You run the match from this device. Players join with the room code.</p>
       </div>
+    </header>
 
-      <label class="label">Host Team</label>
-      <select id="hostTeam"></select>
+    <form id="createForm" class="create-form" novalidate>
+      <section class="panel" aria-labelledby="roomHeading">
+        <h2 id="roomHeading">Room</h2>
+        <div class="form-grid">
+          <div>
+            <label class="label" for="roomName">Room name</label>
+            <input id="roomName" type="text" maxlength="60" placeholder="Saturday practice" />
+          </div>
+          <div>
+            <label class="label" for="hostName">Your name</label>
+            <input id="hostName" type="text" maxlength="40" placeholder="Your name" autocomplete="nickname" />
+          </div>
+        </div>
+        <label class="label" for="hostTeam">You play for</label>
+        <select id="hostTeam" class="select"></select>
+      </section>
 
-      <div class="checkbox-row">
-        <label class="toggle">
-          <input id="nsbRules" type="checkbox" checked>
-          <span class="slider"></span>
-          <span class="label-text">Follow NSB official rules</span>
-        </label>
+      <section class="panel" aria-labelledby="teamsHeading">
+        <h2 id="teamsHeading">Teams</h2>
+        <label class="label" for="teamCount">Number of teams</label>
+        <select id="teamCount" class="select">
+          <option value="2">2 teams</option>
+          <option value="3">3 teams</option>
+          <option value="4">4 teams</option>
+        </select>
+        <div class="team-fields" id="teamNameFields"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="timingHeading">
+        <h2 id="timingHeading">Timing</h2>
+        <div class="rule-row">
+          <div>
+            <h3 id="nsbLabel">Follow NSB timing</h3>
+            <p class="muted" id="nsbHelp">5 s toss-ups, 20 s bonuses.</p>
+          </div>
+          <button id="nsbToggle" class="toggle on" type="button" role="switch" aria-checked="true" aria-labelledby="nsbLabel">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <div class="custom-timing" id="customTiming" hidden>
+          <div>
+            <label class="label" for="tuTime">Toss-up answer time (seconds)</label>
+            <input id="tuTime" type="number" min="1" max="300" step="1" value="5" inputmode="numeric" />
+          </div>
+          <div>
+            <label class="label" for="bonusTime">Bonus answer time (seconds)</label>
+            <input id="bonusTime" type="number" min="1" max="300" step="1" value="20" inputmode="numeric" />
+          </div>
+        </div>
+        <label class="label" for="halfMinutes">Half length (minutes)</label>
+        <input id="halfMinutes" type="number" min="1" max="60" step="1" value="8" inputmode="numeric" />
+        <p class="status-note">The game clock counts down this half. The default is 8 minutes.</p>
+      </section>
+
+      <div class="form-footer">
+        <button id="createRoomBtn" class="btn primary large" type="submit">Create room</button>
+        <p id="createError" class="error" role="alert"></p>
       </div>
-
-      
-
-      <div id="advancedSettings" class="advanced hidden">
-        <h3>Advanced Timing</h3>
-        <label class="label">Tossup Answer Time (seconds)</label>
-        <input id="tuTime" type="number" min="1" max="20" value="5" />
-        <label class="label">Bonus Answer Time (seconds)</label>
-        <input id="bonusTime" type="number" min="5" max="30" value="20" />
-      </div>
-
-      <button id="createRoomBtn" class="btn primary">Create Room</button>
-      <p id="createError" class="error"></p>
-    </section>
+    </form>
   </main>
 
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script type="module" src="js/buzzer_create.js"></script>
 </body>
 </html>
-
-

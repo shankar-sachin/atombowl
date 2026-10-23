@@ -3,116 +3,111 @@
 <head>
   <meta charset="UTF-8" />
   <title>Atom Bowl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Practice for the National Science Bowl: timed toss-ups and bonuses, a searchable question bank, lessons and live buzzer rooms." />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
-  <!-- Modern, clean font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/index.css">
 </head>
 <body>
+  <main class="main home">
+    <section class="hero" aria-labelledby="homeTitle">
+      <h1 id="homeTitle" class="visually-hidden">Atom Bowl</h1>
+      <img class="hero-banner" src="images/brand/banner.svg" alt="Atom Bowl. Practice, learn and buzz like it's Nationals." width="1280" height="320">
+      <div class="hero-compact" aria-hidden="true">
+        <img src="images/brand/logo.svg" alt="" width="56" height="56">
+        <div>
+          <div class="display">Atom Bowl</div>
+          <p class="muted">Practice, learn and buzz like it's Nationals.</p>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <p class="hero-lede">Timed toss-ups and bonuses for the National Science Bowl, read aloud and checked as you answer. Free, in your browser.</p>
+        <div class="button-row">
+          <button id="startNowBtn" class="btn primary large" type="button"><i data-icon="practice"></i>Start practicing</button>
+          <button id="downloadPracticeSetBtn" class="btn large" type="button"><i data-icon="download"></i>Download a practice set</button>
+        </div>
+        <p id="homeActionStatus" class="home-action-status" aria-live="polite"></p>
+      </div>
+    </section>
 
-  <!-- NAV -->
-    <div class="nav" id="nav">
-    <h2 class="nav-title">&#x269B; Atom Bowl</h2>
-    <a href="index.html" class="active"><span class="icon">&#x1F3E0;</span> Home</a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span> Generate</a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span> Practice</a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span> Question Bank</a>
-    <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-    <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-    <div class="nav-more" data-nav-more>
-      <button class="nav-more-btn" type="button" aria-haspopup="true" aria-expanded="false">... More Tools</button>
-      <div class="nav-more-menu">
-        <a href="more_options.html">Game Clock</a>
-        <a href="buzzer_rooms.html">Buzzer Rooms</a>
-      </div>
-    </div>
-  </div>
+    <section class="features" aria-label="Main tools">
+      <article class="feature">
+        <div class="feature-head">
+          <h2><i data-icon="practice"></i>Solo practice</h2>
+          <p class="muted">Pick a division and topics, then work through toss-up and bonus pairs with a buzz timer, read-aloud and auto-checking.</p>
+        </div>
+        <figure class="specimen" aria-label="Example toss-up">
+          <figcaption>Physics, short answer</figcaption>
+          <p class="q-serif">What SI unit is equal to one joule per second?</p>
+          <p class="specimen-answer">Answer: watt</p>
+        </figure>
+        <div class="button-row">
+          <a class="btn primary" href="practice_home.html">Choose topics</a>
+          <a class="btn quiet" href="question_bank.html">Browse the question bank</a>
+        </div>
+      </article>
 
-  <div class="overlay" id="overlay"></div>
+      <article class="feature">
+        <div class="feature-head">
+          <h2><i data-icon="buzzer"></i>Buzzer rooms</h2>
+          <p class="muted">Run a real match. Share a five-letter code, everyone buzzes from their own device, and the moderator scores from one console.</p>
+        </div>
+        <div class="specimen board" aria-label="Example scoreboard">
+          <div class="board-team team-a">
+            <span>Team A</span>
+            <strong class="numerals">24</strong>
+          </div>
+          <div class="board-team team-b locked">
+            <span>Team B</span>
+            <strong class="numerals">18</strong>
+            <em>Buzzed: Matthew</em>
+          </div>
+        </div>
+        <div class="button-row">
+          <a class="btn primary" href="buzzer_create.html">Create a room</a>
+          <a class="btn quiet" href="buzzer_rooms.html">Join with a code</a>
+        </div>
+      </article>
+    </section>
 
-  <div class="hamburger" id="hamburger">☰</div>
+    <section class="tools" aria-labelledby="toolsTitle">
+      <h2 id="toolsTitle" class="section-title">More tools</h2>
+      <div class="tool-list">
+        <a class="tool" href="question_bank.html">
+          <i data-icon="bank"></i>
+          <span><strong>Question bank</strong><span>Search every question by topic, level and type.</span></span>
+        </a>
+        <a class="tool" href="learn.html">
+          <i data-icon="learn"></i>
+          <span><strong>Learn</strong><span>Short lessons with the key terms that come up in matches.</span></span>
+        </a>
+        <a class="tool" href="game_clock.html">
+          <i data-icon="clock"></i>
+          <span><strong>Game clock</strong><span>Half clock, 5 and 20 second timers, and a score keeper.</span></span>
+        </a>
+        <a class="tool" href="account.html">
+          <i data-icon="user"></i>
+          <span><strong>Account</strong><span>Save your stats and settings across devices.</span></span>
+        </a>
+        <a class="tool" href="settings.html">
+          <i data-icon="settings"></i>
+          <span><strong>Settings</strong><span>Division, read-aloud voice, timers and theme.</span></span>
+        </a>
+      </div>
+    </section>
+  </main>
 
-  <!-- MAIN -->
-  <div class="main">
-    <div class="title">Atom Bowl</div>
-    <div class="subtitle">Your ultimate Science Bowl (NSB) hub. Accounts are under production and you will face issues during sign up.</div>
-    <div class="home-quick-actions">
-      <button id="downloadPracticeSetBtn" class="quick-btn quick-btn-secondary" type="button">Download Practice Set</button>
-      <button id="startNowBtn" class="quick-btn quick-btn-primary" type="button">Start Now</button>
-    </div>
-    <div id="homeActionStatus" class="home-action-status" aria-live="polite"></div>
-
-    <div class="grid">
-      <div class="card" onclick="go('practice_home.html')">
-        <h3>⚡ Practice</h3>
-        <p>Train with real Science Bowl questions from the official-style bank.</p>
-      </div>
-    
-      <div class="card" onclick="go('generate.html')">
-        <h3>🤖 Generate</h3>
-        <p>Create custom AI-powered practice sets (Coming February 2026).</p>
-      </div>
-
-      <div class="card" onclick="go('learn.html')">
-        <h3>📖 Learn</h3>
-        <p>Learn new topics with key terms and important concepts (flashcards coming soon).</p>
-      </div>
-    
-      <div class="card" onclick="go('question_bank.html')">
-        <h3>📚 Question Bank</h3>
-        <p>Browse the full question archive and study with AI Tutor (Tutor coming February 2026).</p>
-      </div>
-    
-      <div class="card" onclick="go('settings.html')">
-        <h3>⚙️ Settings</h3>
-        <p>Division, subjects, timers, difficulty, and preferences.</p>
-      </div>
-      <div class="card" onclick="go('more_options.html')">
-        <h3>&#x23F1;&#xFE0F; Game Clock</h3>
-        <p>Score calculator, quick timers, and other live-game tools.</p>
-      </div>
-      <div class="card" onclick="go('buzzer_rooms.html')">
-        <h3>🚨 Buzzer Rooms</h3>
-        <p>Buzzer rooms to emulate real Science Bowl conditions (🧑‍💻 beta).</p>
-      </div>
-      <div class="card" onclick="go('account.html')">
-        <h3>👤 Account</h3>
-        <p>Manage your account and preferences (beta).</p>
-      </div>
-    </div>
-
-
-      
-    </div>
-  </div>
-
-    <nav class="bottom-nav" aria-label="Primary">
-    <a href="index.html" class="active"><span class="icon">&#x269B;</span><span>Home</span></a>
-    <a href="generate.html"><span class="icon">&#x1F916;</span><span>Generate</span></a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span><span>Practice</span></a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span><span>Bank</span></a>
-    <a href="account.html"><span class="icon">&#x1F464;</span><span>Account</span></a>
-    <div class="bottom-nav-more">
-      <button type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleBottomNavMore(event)">
-        <span class="icon">&#x22EF;</span><span>More</span>
-      </button>
-      <div class="bottom-nav-more-menu">
-        <a href="game_clock.html"><span class="icon">⏱️</span> Game Clock</a>
-        <a href="buzzer_rooms.html"><span class="icon">&#x1F6A8;</span> Buzzer Rooms</a>
-        <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-        <a href="settings.html"><span class="icon">⚙️</span> Settings</a>
-      </div>
-    </div>
-  </nav>
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/index.js"></script>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>

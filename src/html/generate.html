@@ -2,68 +2,112 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Atom Bowl — Generate</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Generate | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
   <link rel="stylesheet" href="css/generate.css">
 </head>
-<body class="page-transition page-enter">
-    <div class="nav" id="nav">
-    <h2 class="nav-title">&#x269B; Atom Bowl</h2>
-    <a href="index.html"><span class="icon">&#x1F3E0;</span> Home</a>
-    <a href="generate.html" class="active"><span class="icon">&#x1F916;</span> Generate</a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span> Practice</a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span> Question Bank</a>
-    <a href="learn.html"><span class="icon">&#x1F9E0;</span> Learn</a>
-    <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-    <div class="nav-more" data-nav-more>
-      <button class="nav-more-btn" type="button" aria-haspopup="true" aria-expanded="false">...</button>
-      <div class="nav-more-menu">
-        <a href="game_clock.html">Game Clock</a>
-        <a href="buzzer_rooms.html">Buzzer Rooms</a>
+<body>
+  <main class="main generate-page">
+    <header class="header">
+      <div>
+        <h1 class="title">Generate</h1>
+        <p class="subtitle">Write fresh toss-ups and bonuses on the topic you pick, in the same format as the bank, then play them in practice.</p>
       </div>
-    </div>
-  </div>
+      <span class="tag" id="generateCredits" aria-live="polite"></span>
+    </header>
 
-  <div class="overlay" id="overlay"></div>
-  <div class="hamburger" id="hamburger">☰</div>
+    <div class="generate-layout">
+      <form class="panel generate-form" id="generateForm" novalidate>
+        <h2 class="section-title">What to write</h2>
+        <label class="label" for="genTopic">Topic</label>
+        <select id="genTopic">
+          <option value="BIOLOGY">Biology</option>
+          <option value="CHEMISTRY">Chemistry</option>
+          <option value="PHYSICS">Physics</option>
+          <option value="MATH">Math</option>
+          <option value="EARTH AND SPACE">Earth and space</option>
+          <option value="ENERGY">Energy</option>
+          <option value="GENERAL SCIENCE">General science</option>
+        </select>
 
-  <main class="main">
-    <div class="card">
-      <h1>This page is currently under development.</h1>
-      <p>Please check back soon. Sorry for the inconvenience.</p>
-      <a href="index.html">🏠 Return Home</a>
+        <label class="label" for="genFocus">Focus (optional)</label>
+        <input id="genFocus" type="text" maxlength="120" placeholder="For example: enzyme kinetics, projectile motion" />
+
+        <div class="generate-row">
+          <div>
+            <label class="label" for="genLevel">Division</label>
+            <select id="genLevel">
+              <option value="MS">Middle school</option>
+              <option value="HS">High school</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="genFormat">Answer format</label>
+            <select id="genFormat">
+              <option value="MIXED">Mixed</option>
+              <option value="SA">Short answer</option>
+              <option value="MC">Multiple choice</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="generate-row">
+          <div>
+            <label class="label" for="genKind">Questions</label>
+            <select id="genKind">
+              <option value="pair">Pairs</option>
+              <option value="tossup">Toss-ups</option>
+              <option value="bonus">Bonuses</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="genCount" id="genCountLabel">How many pairs</label>
+            <select id="genCount">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="status-note" id="genCost"></p>
+        <p class="error" id="genError" role="alert"></p>
+        <button class="btn primary large" id="genSubmit" type="submit" data-auth-action><i data-icon="sparkles"></i>Generate</button>
+
+        <div class="notice generate-gate hidden" id="genGate">
+          <p><strong>Generate is for signed-in players.</strong> Create a free account or sign in. Every account gets free credits each day.</p>
+          <a class="btn primary" href="account.html">Sign in</a>
+        </div>
+      </form>
+
+      <section class="generate-results" aria-labelledby="genResultsTitle">
+        <div class="generate-results-head">
+          <h2 class="section-title" id="genResultsTitle">Questions</h2>
+          <div class="button-row">
+            <button class="btn small" id="genCopy" type="button" disabled><i data-icon="copy"></i>Copy</button>
+            <button class="btn primary small" id="genPractice" type="button" disabled><i data-icon="practice"></i>Practice these</button>
+          </div>
+        </div>
+        <ol class="generate-list" id="genList"></ol>
+        <p class="muted generate-empty" id="genEmpty">Pick a topic and press Generate. New questions show up here.</p>
+        <p class="status-note">Generated questions can contain mistakes. Report anything wrong to your coach before using it in a match.</p>
+      </section>
     </div>
   </main>
 
-    <nav class="bottom-nav" aria-label="Primary">
-    <a href="index.html"><span class="icon">&#x269B;</span><span>Home</span></a>
-    <a href="generate.html" class="active"><span class="icon">&#x1F916;</span><span>Generate</span></a>
-    <a href="practice_home.html"><span class="icon">&#x26A1;</span><span>Practice</span></a>
-    <a href="question_bank.html"><span class="icon">&#x1F4DA;</span><span>Bank</span></a>
-    <a href="account.html"><span class="icon">&#x1F464;</span><span>Account</span></a>
-    <div class="bottom-nav-more">
-      <button type="button" aria-haspopup="true" aria-expanded="false" onclick="toggleBottomNavMore(event)">
-        <span class="icon">&#x22EF;</span><span>More</span>
-      </button>
-      <div class="bottom-nav-more-menu">
-        <a href="game_clock.html"><span class="icon">&#x23F1;&#xFE0F;</span> Game Clock</a>
-        <a href="buzzer_rooms.html"><span class="icon">&#x1F6A8;</span> Buzzer Rooms</a>
-        <a href="learn.html"><span class="icon">&#x1F4D6;</span> Learn</a>
-        <a href="settings.html"><span class="icon">&#x2699;&#xFE0F;</span> Settings</a>
-      </div>
-    </div>
-  </nav>
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/generate.js"></script>
+  <script type="module" src="js/generate.js"></script>
 </body>
 </html>
-
-

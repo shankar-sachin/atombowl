@@ -1,101 +1,443 @@
+// Pure buzzer-room state machine (NSB flow). No Firebase imports: everything here is
+// deterministic given (room, action, options, now) so it can run optimistically in the
+// browser, inside a Firestore transaction, and in node tests.
+//
+// Statuses:
+//   lobby -> tossup_reading (buzzers open, no timer; a buzz here is an interrupt)
+//   tossup_reading --done_reading--> tossup_open (answer timer running)
+//   tossup_reading|tossup_open --buzz--> tossup_locked
+//   tossup_locked --correct--> bonus_ready --bonus_start--> bonus_open (--buzz/expire--> bonus_locked)
+//   bonus_* --bonus_correct|bonus_wrong--> between --tossup_start--> tossup_reading ...
+//   tossup_locked --incorrect--> tossup_open (fresh timer) | tossup_reading (after an interrupt) | tossup_dead
+//   any --end_game--> ended
+
 export type Room = { [key: string]: any };
 export type Player = { uid: string; name: string; team: string };
+export type ActionState = { ok: boolean; reason: string };
 
-export function canBuzz(room: Room, player: Player, now = Date.now()): boolean {
-  return !!player?.uid && Object.prototype.hasOwnProperty.call(room.scores || {}, player.team)
-    && ['tossup_open', 'bonus_open'].includes(room.status) && !room.currentBuzz
-    && (!room.timers?.phaseEndAt || now < room.timers.phaseEndAt)
-    && (room.status !== 'bonus_open' || room.bonusTeam === player.team)
-    && (room.status !== 'tossup_open' || !(room.lockoutTeams || [room.lockoutTeam]).includes(player.team));
+/** Placeholder the store swaps for serverTimestamp() before writing. */
+export const SERVER_TIME = "__server_time__";
+export const LOG_LIMIT = 60;
+export const BUZZ_STATUSES = ["tossup_reading", "tossup_open", "bonus_open"];
+export const HOST_ACTIONS = [
+  "tossup_start", "done_reading", "tossup_grade_correct", "tossup_grade_incorrect", "tossup_dead",
+  "next_tossup", "bonus_start", "bonus_team", "bonus_correct", "bonus_wrong", "set_category",
+  "adjust_score", "end_game", "game_start", "game_pause", "game_reset"
+];
+
+const has = (obj: any, key: string) => !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+const clone = (value: any) => JSON.parse(JSON.stringify(value ?? null));
+
+export function timeMillis(value: any): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value && typeof value.toMillis === "function") return value.toMillis();
+  return null;
 }
 
-export function buzzPatch(room: Room, player: Player, now = Date.now()): Room {
-  if (!canBuzz(room, player, now)) throw new Error('Buzzers are locked for your team.');
+export function teamIds(room: Room): string[] {
+  return Object.keys(room?.scores || {}).sort();
+}
+
+export function teamName(room: Room, team: string): string {
+  const name = room?.settings?.teamNames?.[team];
+  return typeof name === "string" && name.trim() ? name.trim() : `Team ${team}`;
+}
+
+export function tossupSeconds(room: Room): number {
+  return room?.settings?.nsbRules ? 5 : (Number(room?.settings?.tuTime) || 5);
+}
+
+export function bonusSeconds(room: Room): number {
+  return room?.settings?.nsbRules ? 20 : (Number(room?.settings?.bonusTime) || 20);
+}
+
+export function halfMs(room: Room): number {
+  return (Number(room?.settings?.halfMinutes) || 8) * 60000;
+}
+
+/** When the current phase timer runs out, counted from `seenAt` (local receipt time) when given. */
+export function phaseDeadline(room: Room, seenAt?: number | null): number | null {
+  const timers = room?.timers;
+  if (!timers || !(timers.phaseDuration > 0)) return null;
+  const start = typeof seenAt === "number" ? seenAt : timeMillis(timers.phaseStartedAt);
+  return start == null ? null : start + timers.phaseDuration * 1000;
+}
+
+export function gameClockOf(room: Room): Room {
+  const clock = room?.gameClock;
+  if (clock && typeof clock.remainingMs === "number") return clock;
+  return { status: "stopped", remainingMs: halfMs(room), startedAt: null, runKey: null };
+}
+
+/** Remaining game-clock time given how long the current run has been observed. */
+export function clockRemaining(room: Room, elapsedMs = 0): number {
+  const clock = gameClockOf(room);
+  if (clock.status !== "running") return Math.max(0, clock.remainingMs);
+  return Math.max(0, clock.remainingMs - Math.max(0, elapsedMs));
+}
+
+/** Why `player` cannot buzz right now, or "" when they can. */
+export function buzzReason(room: Room, player: Player, now = Date.now(), seenAt?: number | null): string {
+  if (!room) return "The room is still loading.";
+  if (!player?.uid) return "Join this room before buzzing.";
+  if (!has(room.scores, player.team)) return "Your team is not part of this room.";
+  const buzz = room.currentBuzz;
+  if (buzz) return buzz.uid === player.uid ? "You already buzzed." : `${teamName(room, buzz.team)} (${buzz.name}) buzzed first.`;
+  if (!BUZZ_STATUSES.includes(room.status)) return "Buzzers are closed.";
+  if (room.status === "bonus_open" && room.bonusTeam !== player.team) return `This bonus belongs to ${teamName(room, room.bonusTeam)}.`;
+  if (room.status !== "bonus_open" && (room.lockoutTeams || []).includes(player.team)) return "Your team is locked out of this toss-up.";
+  const deadline = phaseDeadline(room, seenAt);
+  if (deadline != null && now >= deadline) return "Time is up.";
+  return "";
+}
+
+export function canBuzz(room: Room, player: Player, now = Date.now(), seenAt?: number | null): boolean {
+  return !buzzReason(room, player, now, seenAt);
+}
+
+/** A buzz is a plain update; Firestore rules make sure only the first one lands. */
+export function buzzPatch(room: Room, player: Player, now = Date.now(), seenAt?: number | null): Room {
+  const reason = buzzReason(room, player, now, seenAt);
+  if (reason) throw new Error(reason);
   return {
-    currentBuzz: { uid: player.uid, name: player.name, team: player.team, at: now },
-    status: room.status === 'bonus_open' ? 'bonus_locked' : 'tossup_locked',
+    currentBuzz: { uid: player.uid, name: player.name, team: player.team, at: now, interrupt: room.status === "tossup_reading" },
+    status: room.status === "bonus_open" ? "bonus_locked" : "tossup_locked",
     timers: null
   };
 }
 
-export function buzzKey(room: Room): string {
-  return room.currentBuzz ? `${room.currentIndex || 0}:${room.currentBuzz.uid}:${room.currentBuzz.at}` : "";
+/** Replace SERVER_TIME markers (for the store: serverTimestamp(); for tests: a number). */
+export function materialize(patch: Room, value: any): Room {
+  const out = { ...patch };
+  if (out.timers && out.timers.phaseStartedAt === SERVER_TIME) out.timers = { ...out.timers, phaseStartedAt: value };
+  if (out.gameClock && out.gameClock.startedAt === SERVER_TIME) out.gameClock = { ...out.gameClock, startedAt: value };
+  return out;
 }
 
-function gradedStats(room: Room, kind: string, points: number): Room {
-  const stats = JSON.parse(JSON.stringify(room.stats || { team: {}, player: {} }));
+function pendingBuzz(room: Room): string {
+  const buzz = room.currentBuzz;
+  return buzz ? `Grade ${buzz.name}'s buzz first.` : "";
+}
+
+/** Why the host cannot run `action` now, or "" when it is allowed. */
+export function actionReason(room: Room, action: string, options: Room = {}): string {
+  const status = room?.status || "lobby";
+  const teams = teamIds(room);
+  if (status === "ended" && action !== "adjust_score") return "The game has ended.";
+  switch (action) {
+    case "tossup_start":
+    case "next_tossup":
+      if (status === "tossup_locked") return pendingBuzz(room) || "Grade the buzz first.";
+      if (["lobby", "between", "tossup_dead"].includes(status)) return "";
+      if (status.startsWith("bonus")) return "Mark the bonus correct or incorrect first.";
+      return "A toss-up is already in progress. Mark it dead to skip it.";
+    case "done_reading":
+      if (status === "tossup_reading") return "";
+      if (status === "tossup_open") return "The answer timer is already running.";
+      if (status === "tossup_locked") return pendingBuzz(room);
+      return "Start a toss-up first.";
+    case "tossup_grade_correct":
+    case "tossup_grade_incorrect":
+      return status === "tossup_locked" && room.currentBuzz ? "" : "There is no toss-up buzz to grade.";
+    case "tossup_dead":
+      if (status === "tossup_locked") return pendingBuzz(room) || "Grade the buzz first.";
+      return ["tossup_reading", "tossup_open"].includes(status) ? "" : "There is no live toss-up.";
+    case "bonus_start": {
+      if (status !== "bonus_ready") return status.startsWith("bonus") ? "The bonus timer has already started." : "Award a correct toss-up first.";
+      const team = options.team || room.bonusTeam;
+      return teams.includes(team) ? "" : "Choose a valid bonus team.";
+    }
+    case "bonus_team":
+      if (status !== "bonus_ready") return "The bonus team can only change before the bonus timer starts.";
+      return teams.includes(options.team) ? "" : "Choose a valid bonus team.";
+    case "bonus_correct":
+    case "bonus_wrong":
+      return ["bonus_ready", "bonus_open", "bonus_locked"].includes(status) ? "" : "There is no bonus to grade.";
+    case "set_category":
+      return typeof options.category === "string" && options.category.trim() ? "" : "Choose a category.";
+    case "adjust_score": {
+      const delta = Number(options.delta);
+      if (!teams.includes(options.team)) return "Choose a team to adjust.";
+      return Number.isInteger(delta) && delta !== 0 && Math.abs(delta) <= 100 ? "" : "Adjust by a whole number between -100 and 100.";
+    }
+    case "end_game":
+      return "";
+    case "game_start": {
+      const clock = gameClockOf(room);
+      if (clock.status === "running") return "The game clock is already running.";
+      return clock.remainingMs > 0 ? "" : "Reset the game clock first.";
+    }
+    case "game_pause":
+      return gameClockOf(room).status === "running" ? "" : "The game clock is not running.";
+    case "game_reset":
+      return "";
+    default:
+      return "Unknown room action.";
+  }
+}
+
+/** Enabled/disabled state (with the reason) for every host control. */
+export function availableActions(room: Room): { [action: string]: ActionState } {
+  const sample: { [action: string]: Room } = {
+    adjust_score: { team: teamIds(room)[0], delta: 1 },
+    bonus_team: { team: room?.bonusTeam || teamIds(room)[0] },
+    set_category: { category: "General" }
+  };
+  const out: { [action: string]: ActionState } = {};
+  for (const action of HOST_ACTIONS) {
+    const reason = room ? actionReason(room, action, sample[action] || {}) : "The room is still loading.";
+    out[action] = { ok: !reason, reason };
+  }
+  return out;
+}
+
+function blankStat() {
+  return { correct: 0, incorrect: 0, interrupt: 0, buzzes: 0, points: 0 };
+}
+
+function tallyBuzz(room: Room, kind: string, points: number): Room {
+  const stats = clone(room.stats) || {};
   stats.team ||= {};
   stats.player ||= {};
+  delete stats.lastBuzz;
   const buzz = room.currentBuzz;
-  if (!buzz) return stats;
   for (const [bucket, key] of [[stats.team, buzz.team], [stats.player, buzz.uid]]) {
-    const value = bucket[key] ||= { correct: 0, incorrect: 0, interrupt: 0, buzzes: 0, points: 0 };
-    if (kind) value[kind] = (value[kind] || 0) + 1;
-    if (stats.lastBuzz !== buzzKey(room)) value.buzzes = (value.buzzes || 0) + 1;
+    const value = bucket[key] ||= blankStat();
+    value.buzzes = (value.buzzes || 0) + 1;
+    value[kind] = (value[kind] || 0) + 1;
     value.points = (value.points || 0) + points;
   }
-  stats.lastBuzz = buzzKey(room);
   Object.assign(stats.player[buzz.uid], { name: buzz.name, team: buzz.team });
   return stats;
 }
 
+function addTeamPoints(stats: Room, team: string, points: number, field = ""): Room {
+  stats.team ||= {};
+  const value = stats.team[team] ||= blankStat();
+  value.points = (value.points || 0) + points;
+  if (field) value[field] = (value[field] || 0) + 1;
+  return stats;
+}
+
+function cleanCategory(value: any): string {
+  return typeof value === "string" ? value.trim().slice(0, 40) : "";
+}
+
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+/**
+ * The update the host's action makes to `room`. Returns {} for a no-op (stale expiry).
+ * options.opId names the change (it becomes lastAction.id and the phase/run key) so the
+ * optimistic copy and the transaction produce identical documents.
+ */
 export function hostPatch(room: Room, uid: string, action: string, options: Room = {}, now = Date.now()): Room {
-  if (room.hostUid !== uid) throw new Error('Only the room host can do that.');
-  if (room.status === 'ended') throw new Error('This room has ended.');
-  const scores = { ...(room.scores || {}) };
-  const tossupSeconds = room.settings?.nsbRules ? 5 : (room.settings?.tuTime || 5);
-  const bonusSeconds = room.settings?.nsbRules ? 20 : (room.settings?.bonusTime || 20);
-  const timer = (type: string, seconds: number) => ({ phaseEndAt: now + seconds * 1000, phaseDuration: seconds, phaseType: type });
+  if (!room || room.hostUid !== uid) throw new Error("Only the room host can do that.");
+  const status = room.status || "lobby";
+  const id = String(options.opId || `${action}-${now}`);
+  const timer = (type: string, seconds: number) => ({ phaseStartedAt: SERVER_TIME, phaseDuration: seconds, phaseType: type, phaseKey: id });
+  const index = room.currentIndex || 0;
   let patch: Room;
-  if (action === 'record_buzz') {
-    if (!room.currentBuzz || room.stats?.lastBuzz === buzzKey(room)) return {};
-    patch = { stats: gradedStats(room, '', 0) };
-  } else if (action === 'tossup_start' || action === 'next_tossup') {
-    patch = { status: 'tossup_open', currentBuzz: null, lockoutTeam: null, lockoutTeams: [],
-      currentIndex: (room.currentIndex || 0) + 1, currentCategory: options.category || room.currentCategory || 'General',
-      timers: timer('tossup', tossupSeconds) };
-  } else if (action === 'bonus_start') {
-    if (room.status !== 'bonus_ready') throw new Error('Grade a correct tossup before opening the bonus.');
-    const team = options.team || room.bonusTeam;
-    if (!Object.prototype.hasOwnProperty.call(scores, team)) throw new Error('Choose a valid bonus team.');
-    patch = { status: 'bonus_open', currentBuzz: null, bonusTeam: team, lockoutTeam: null, lockoutTeams: [], timers: timer('bonus', bonusSeconds) };
-  } else if (action.startsWith('tossup_grade_')) {
-    if (room.status !== 'tossup_locked' || !room.currentBuzz) throw new Error('There is no tossup buzz to grade.');
-    const kind = action.slice('tossup_grade_'.length);
-    if (!['correct', 'incorrect', 'interrupt'].includes(kind)) throw new Error('Unknown grade.');
-    const team = room.currentBuzz.team;
-    const points = kind === 'correct' ? 4 : kind === 'interrupt' ? -4 : 0;
-    scores[team] = (scores[team] || 0) + points;
-    const locked = [...new Set([...(room.lockoutTeams || (room.lockoutTeam ? [room.lockoutTeam] : [])), team])];
-    const finished = locked.length >= Object.keys(scores).length;
-    patch = { scores, stats: gradedStats(room, kind, points), currentBuzz: null,
-      status: kind === 'correct' ? 'bonus_ready' : finished ? 'tossup_dead' : 'tossup_open',
-      bonusTeam: kind === 'correct' ? team : room.bonusTeam,
-      lockoutTeam: kind === 'correct' ? null : team, lockoutTeams: kind === 'correct' ? [] : locked,
-      timers: kind === 'correct' || finished ? null : timer('tossup', tossupSeconds) };
-  } else if (action === 'bonus_correct' || action === 'bonus_wrong') {
-    if (!['bonus_open', 'bonus_locked'].includes(room.status)) throw new Error('There is no bonus to grade.');
-    const points = action === 'bonus_correct' ? 10 : 0;
-    scores[room.bonusTeam] = (scores[room.bonusTeam] || 0) + points;
-    patch = { scores, stats: gradedStats(room, points ? 'correct' : 'incorrect', points),
-      status: 'lobby', currentBuzz: null, timers: null, lockoutTeam: null, lockoutTeams: [] };
-  } else if (action === 'tossup_dead') {
-    if (!room.status.startsWith('tossup_')) throw new Error('No active tossup.');
-    patch = { status: 'tossup_dead', currentBuzz: null, timers: null };
-  } else if (action === 'expire') {
-    if (!room.status.endsWith('_open') || !room.timers?.phaseEndAt || now < room.timers.phaseEndAt) return {};
-    patch = { status: room.status === 'bonus_open' ? 'bonus_locked' : 'tossup_dead', timers: null };
-  } else if (action === 'bonus_team') {
-    if (room.status !== 'bonus_ready' || !Object.prototype.hasOwnProperty.call(scores, options.team)) throw new Error('Bonus team can only change before the bonus opens.');
-    patch = { bonusTeam: options.team };
-  } else if (action.startsWith('game_')) {
-    const clock = room.gameClock || { status: 'stopped', remainingMs: 180000, updatedAt: now };
-    const remaining = Math.max(0, clock.remainingMs - (clock.status === 'running' ? now - clock.updatedAt : 0));
-    if (action === 'game_start' && clock.status === 'running') return {};
-    if (!['game_start', 'game_pause', 'game_reset'].includes(action)) throw new Error('Unknown clock action.');
-    patch = { gameClock: { status: action === 'game_start' ? 'running' : action === 'game_pause' ? 'paused' : 'stopped', remainingMs: action === 'game_reset' ? 180000 : remaining, updatedAt: now } };
-  } else { throw new Error('Unknown room action.'); }
-  const entry = { type: action, at: now, by: uid, details: action.replace(/_/g, ' ') };
-  if (room.currentBuzz && (action.includes('grade') || action === 'record_buzz')) entry.details += `: ${room.currentBuzz.name} (${room.currentBuzz.team})`;
-  return { ...patch, lastAction: entry, log: [...(room.log || []), entry].slice(-200) };
+  let details: string;
+
+  // Expiry is fired by a host countdown; when the phase already moved on it is a silent no-op.
+  if (action === "expire") {
+    if (!room.timers || room.timers.phaseKey !== options.phaseKey || room.currentBuzz
+      || !["tossup_open", "bonus_open"].includes(status)) return {};
+    patch = status === "bonus_open" ? { status: "bonus_locked", timers: null } : { status: "tossup_dead", timers: null };
+    details = status === "bonus_open" ? "Time on the bonus" : `Time. Toss-up ${index} is dead`;
+    return finish(room, patch, action, id, now, details);
+  }
+  if (action === "game_expire") {
+    const clock = gameClockOf(room);
+    if (clock.status !== "running" || clock.runKey !== options.runKey) return {};
+    return finish(room, { gameClock: { status: "done", remainingMs: 0, startedAt: null, runKey: null } }, action, id, now, "End of the half");
+  }
+
+  const reason = actionReason(room, action, options);
+  if (reason) throw new Error(reason);
+
+  const scores = { ...(room.scores || {}) };
+  const buzz = room.currentBuzz;
+  const who = buzz ? `${buzz.name} (${teamName(room, buzz.team)})` : "";
+
+  switch (action) {
+    case "tossup_start":
+    case "next_tossup": {
+      const next = index + 1;
+      const category = cleanCategory(options.category) || room.currentCategory || "General";
+      patch = { status: "tossup_reading", currentIndex: next, currentCategory: category, currentBuzz: null,
+        lockoutTeam: null, lockoutTeams: [], timers: null };
+      details = `Toss-up ${next} started: ${category}`;
+      break;
+    }
+    case "done_reading": {
+      const seconds = tossupSeconds(room);
+      patch = { status: "tossup_open", timers: timer("tossup", seconds) };
+      details = `Toss-up ${index} read, ${seconds} s to buzz`;
+      break;
+    }
+    case "tossup_grade_correct": {
+      scores[buzz.team] = (scores[buzz.team] || 0) + 4;
+      patch = { scores, stats: tallyBuzz(room, "correct", 4), currentBuzz: null, status: "bonus_ready",
+        bonusTeam: buzz.team, lockoutTeam: null, lockoutTeams: [], timers: null };
+      details = `${who} correct${buzz.interrupt ? " on an interrupt" : ""}, +4`;
+      break;
+    }
+    case "tossup_grade_incorrect": {
+      const teams = teamIds(room);
+      const locked = [...new Set([...(room.lockoutTeams || []), buzz.team])];
+      const finished = teams.every(team => locked.includes(team));
+      let stats: Room;
+      if (buzz.interrupt && teams.length === 2) {
+        const opponent = teams.find(team => team !== buzz.team);
+        scores[opponent] = (scores[opponent] || 0) + 4;
+        stats = addTeamPoints(tallyBuzz(room, "interrupt", 0), opponent, 4);
+        details = `${who} interrupted incorrectly, +4 to ${teamName(room, opponent)}`;
+      } else if (buzz.interrupt) {
+        scores[buzz.team] = (scores[buzz.team] || 0) - 4;
+        stats = tallyBuzz(room, "interrupt", -4);
+        details = `${who} interrupted incorrectly, -4`;
+      } else {
+        stats = tallyBuzz(room, "incorrect", 0);
+        details = `${who} incorrect`;
+      }
+      // After an interrupt the question is read again for the other teams; otherwise they get a fresh timer.
+      const nextStatus = finished ? "tossup_dead" : buzz.interrupt ? "tossup_reading" : "tossup_open";
+      patch = { scores, stats, currentBuzz: null, status: nextStatus, lockoutTeam: buzz.team, lockoutTeams: locked,
+        timers: nextStatus === "tossup_open" ? timer("tossup", tossupSeconds(room)) : null };
+      if (finished) details += `. Toss-up ${index} is dead`;
+      break;
+    }
+    case "tossup_dead":
+      patch = { status: "tossup_dead", timers: null, currentBuzz: null };
+      details = `Toss-up ${index} is dead`;
+      break;
+    case "bonus_start": {
+      const team = options.team || room.bonusTeam;
+      patch = { status: "bonus_open", bonusTeam: team, currentBuzz: null, timers: timer("bonus", bonusSeconds(room)) };
+      details = `Bonus timer started for ${teamName(room, team)}`;
+      break;
+    }
+    case "bonus_team":
+      patch = { bonusTeam: options.team };
+      details = `Bonus goes to ${teamName(room, options.team)}`;
+      break;
+    case "bonus_correct":
+    case "bonus_wrong": {
+      const team = room.bonusTeam;
+      const points = action === "bonus_correct" ? 10 : 0;
+      scores[team] = (scores[team] || 0) + points;
+      const stats = addTeamPoints(clone(room.stats) || {}, team, points, points ? "bonusCorrect" : "bonusMissed");
+      if (buzz && points) {
+        stats.player ||= {};
+        const value = stats.player[buzz.uid] ||= { ...blankStat(), name: buzz.name, team: buzz.team };
+        value.points = (value.points || 0) + points;
+      }
+      patch = { scores, stats, status: "between", currentBuzz: null, timers: null, lockoutTeam: null, lockoutTeams: [] };
+      details = `${teamName(room, team)} bonus ${points ? "correct, +10" : "incorrect"}`;
+      break;
+    }
+    case "set_category": {
+      const category = cleanCategory(options.category);
+      patch = { currentCategory: category };
+      details = `Category: ${category}`;
+      break;
+    }
+    case "adjust_score": {
+      const delta = Number(options.delta);
+      scores[options.team] = (scores[options.team] || 0) + delta;
+      patch = { scores };
+      details = `Score correction: ${teamName(room, options.team)} ${signed(delta)}`;
+      break;
+    }
+    case "end_game": {
+      const clock = gameClockOf(room);
+      const remaining = clock.status === "running" ? clockRemaining(room, Number(options.elapsedMs) || 0) : clock.remainingMs;
+      patch = { status: "ended", currentBuzz: null, timers: null,
+        gameClock: { status: clock.status === "running" ? "paused" : clock.status, remainingMs: remaining, startedAt: null, runKey: null } };
+      details = `Game over. ${teamIds(room).map(team => `${teamName(room, team)} ${scores[team] || 0}`).join(", ")}`;
+      break;
+    }
+    case "game_start":
+      patch = { gameClock: { status: "running", remainingMs: gameClockOf(room).remainingMs, startedAt: SERVER_TIME, runKey: id } };
+      details = "Game clock started";
+      break;
+    case "game_pause": {
+      const clock = gameClockOf(room);
+      const elapsed = typeof options.elapsedMs === "number" ? options.elapsedMs : now - (timeMillis(clock.startedAt) ?? now);
+      patch = { gameClock: { status: "paused", remainingMs: clockRemaining(room, elapsed), startedAt: null, runKey: null } };
+      details = "Game clock paused";
+      break;
+    }
+    case "game_reset":
+      patch = { gameClock: { status: "stopped", remainingMs: halfMs(room), startedAt: null, runKey: null } };
+      details = "Game clock reset";
+      break;
+    default:
+      throw new Error("Unknown room action.");
+  }
+  return finish(room, patch, action, id, now, details);
+}
+
+function finish(room: Room, patch: Room, action: string, id: string, now: number, details: string): Room {
+  const seq = (room.logSeq || 0) + 1;
+  const entry = { id, seq, type: action, at: now, details };
+  return { ...patch, lastAction: entry, logSeq: seq, log: [...(room.log || []), entry].slice(-LOG_LIMIT) };
+}
+
+// ---- Display helpers shared by the host and player pages (pure, no DOM) ----
+
+export const CATEGORIES = ["General", "Biology", "Chemistry", "Earth and space", "Energy", "Math", "Physics", "Computer science"];
+
+/** Sentence case for stored category text, e.g. "PHYSICS" -> "Physics". */
+export function sentenceCase(text: any): string {
+  const value = String(text ?? "").trim().toLowerCase();
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
+}
+
+/** The one-line state for the console, e.g. "Tossup 7, reading". */
+export function stateLine(room: Room): string {
+  const status = room?.status || "lobby";
+  const n = room?.currentIndex || 0;
+  switch (status) {
+    case "lobby": return "Ready to start";
+    case "tossup_reading": return `Tossup ${n}, reading`;
+    case "tossup_open": return `Tossup ${n}, buzzers open`;
+    case "tossup_locked": return `Tossup ${n}, buzz to grade`;
+    case "tossup_dead": return `Tossup ${n}, dead`;
+    case "bonus_ready": return `Bonus ${n}, ready`;
+    case "bonus_open": return `Bonus ${n}, timer running`;
+    case "bonus_locked": return `Bonus ${n}, answer to grade`;
+    case "between": return `Ready for tossup ${n + 1}`;
+    case "ended": return "Game over";
+    default: return sentenceCase(status);
+  }
+}
+
+/** Whole seconds, rounded up, for phase timers: 5, 4, ... 0. */
+export function formatSeconds(ms: number): string {
+  return String(Math.max(0, Math.ceil(ms / 1000)));
+}
+
+/** mm:ss for the game clock. */
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** CSS class for a team's colour token, e.g. "B" -> "team-b". */
+export function teamClass(team: string): string {
+  return `team-${String(team || "a").toLowerCase()}`;
+}
+
+/** Whether the phase timer counts down (toss-up or bonus answer time). */
+export function timedPhase(room: Room): boolean {
+  return !!room?.timers && room.timers.phaseDuration > 0 && (room.status === "tossup_open" || room.status === "bonus_open");
+}
+
+/** Whether the game clock is counting down. */
+export function clockRunning(room: Room): boolean {
+  return gameClockOf(room).status === "running";
 }

@@ -2,154 +2,154 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Room | Atom Bowl</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0b0f14" />
+  <title>Buzzer room | Atom Bowl</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1626" />
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="favicon.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/buzzer_rooms.css?v=20260204c">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/atom.css">
+  <link rel="stylesheet" href="css/buzzer_rooms.css">
 </head>
-<body class="nav-collapsed">
-  <header class="topbar">
-    <a href="buzzer_rooms.html" class="back-link" aria-label="Back to Buzzer Rooms">←</a>
-    <div class="topbar-title" id="roomTitle">Room</div>
-  </header>
-
-  <main class="main">
-    <section id="roomSection" class="room">
-      <div class="room-header">
-        <div>
-          <h2 id="roomCodeTitle">Room</h2>
-          <p class="muted" id="roomStatus">Waiting for host.</p>
-          <div class="room-code-row">
-            <span class="muted">Room Code</span>
-            <span class="room-code" id="roomCodeValue">-----</span>
-            <button id="copyRoomBtn" class="btn mini">Copy Invite</button>
-            <button id="joinAsPlayerBtn" class="btn mini">Join as Player</button>
-          </div>
-        </div>
-        <div class="scoreboard" id="scoreboardHeader"></div>
+<body class="role-host">
+  <main class="main host">
+    <section class="scoreband" aria-label="Scoreboard">
+      <div class="teams" id="teams" aria-live="polite"></div>
+      <div class="invite">
+        <p class="invite-label">Room code</p>
+        <p class="room-code" id="roomCode" aria-label="Room code">-----</p>
+        <button id="copyInviteBtn" class="btn small" type="button"><i data-icon="copy"></i><span id="copyLabel">Copy invite</span></button>
+        <p class="room-name" id="roomName"></p>
       </div>
+    </section>
 
-      <div class="room-body">
-        <div class="desk-panel host-only">
-          <div class="desk-section">
-            <h3>Game Clock</h3>
-            <div class="timer-big" id="gameClockDisplay">03:00</div>
-            <div class="btn-row">
-              <button id="gameStartBtn" class="btn">▶ Start</button>
-              <button id="gamePauseBtn" class="btn">⏸ Pause</button>
-              <button id="gameResetBtn" class="btn">🔁 Reset</button>
-            </div>
+    <p id="hostNote" class="error host-note" role="alert"></p>
+
+    <div class="host-layout">
+      <section class="console" aria-labelledby="consoleTitle">
+        <h2 id="consoleTitle" class="visually-hidden">Moderator console</h2>
+
+        <div class="state-row">
+          <div>
+            <p class="state-line" id="stateLine" aria-live="polite">Loading room</p>
+            <p class="state-note" id="stateNote"></p>
           </div>
-
-          <div class="desk-section">
-            <h3>Tossup</h3>
-            <label class="label">Category</label>
-            <select id="tossupCategory">
-              <option value="Earth & Space Science">Earth & Space Science</option>
-              <option value="Life Science">Life Science</option>
-              <option value="Physics">Physics</option>
-              <option value="Chemistry">Chemistry</option>
-              <option value="Math">Math</option>
-            </select>
-            <div class="timer-small" id="tossupTimerDisplay">00:05</div>
-            <div class="btn-row">
-              <button id="startTossupBtn" class="btn">🟢 Open Tossup</button>
-              <button id="tossupDeadBtn" class="btn">☠️ Dead</button>
-            </div>
-            <div class="btn-row triple">
-              <button id="tossupInterruptBtn" class="btn">⛔ Interrupt</button>
-              <button id="tossupCorrectBtn" class="btn">✅ Correct</button>
-              <button id="tossupWrongBtn" class="btn">❌ Incorrect</button>
-            </div>
-          </div>
-
-          <div class="desk-section">
-            <h3>Bonus</h3>
-            <label class="label">Bonus Team</label>
-            <select id="bonusTeamSelect"></select>
-            <div class="timer-small" id="bonusTimerDisplay">00:20</div>
-            <div class="btn-row triple">
-              <button id="startBonusBtn" class="btn">🟣 Open Bonus</button>
-              <button id="bonusCorrectBtn" class="btn">✅ Bonus Correct</button>
-              <button id="bonusWrongBtn" class="btn">❌ Bonus Incorrect</button>
-            </div>
-          </div>
-
-          <div class="desk-section">
-            <h3>Room</h3>
-            <div class="btn-row single">
-              <button id="nextTossupBtn" class="btn">➡️ Open Next Tossup</button>
-            </div>
-            <p id="hostNote" class="muted"></p>
+          <div class="phase">
+            <span class="numerals phase-time" id="phaseTime"></span>
+            <span class="phase-label" id="phaseLabel">No timer</span>
           </div>
         </div>
 
-        <div class="desk-panel">
-          <div class="desk-section">
-            <div class="status-pill" id="statusPill">LOCKED</div>
-            <div class="question-text" id="questionText">Waiting for host.</div>
+        <div class="lockout" id="lockout">
+          <span class="light" id="lockoutLight" aria-hidden="true"></span>
+          <span id="lockoutText">Buzzers closed</span>
+        </div>
+
+        <div class="buzzer" id="buzzer" hidden>
+          <div>
+            <strong id="buzzerName"></strong>
+            <span class="muted" id="buzzerTeam"></span>
           </div>
-          <div class="desk-section player-only">
-            <div class="player-timers">
-              <div class="player-timer-main" id="playerPhaseTimer">00:05</div>
-              <div class="player-timer-sub" id="playerGameClock">03:00</div>
-            </div>
-            <button id="buzzBtn" class="btn primary buzz-giant">⚡ BUZZ</button>
-            <div class="buzz-row">
-              <span id="buzzStatus" class="muted">Waiting...</span>
-            </div>
-          </div>
-          <div class="desk-section player-only">
-            <button id="toggleLogBtn" class="btn">🧾 Show Buzz Log</button>
-            <div id="playerLogPanel" class="log-panel hidden"></div>
-          </div>
-          <div class="desk-section host-only">
-            <h3>Buzz Log</h3>
-            <div id="logPanel" class="log-panel"></div>
+          <span class="tag bad" id="interruptTag" hidden>Interrupt</span>
+        </div>
+
+        <div class="primary-zone">
+          <button id="primaryBtn" class="btn primary huge" type="button" disabled>
+            <span id="primaryLabel">Start tossup</span>
+            <kbd class="kbd" id="primaryKey">Space</kbd>
+          </button>
+          <div class="grade-pair" id="gradePair" hidden>
+            <button id="correctBtn" class="btn good" type="button">
+              <span id="correctLabel">Correct</span><kbd class="kbd">C</kbd>
+            </button>
+            <button id="incorrectBtn" class="btn danger" type="button">
+              <span id="incorrectLabel">Incorrect</span><kbd class="kbd">X</kbd>
+            </button>
           </div>
         </div>
 
-        <div class="desk-panel">
-          <div class="desk-section">
-            <h3>Scoreboard</h3>
-            <div class="scoreboard" id="scoreboardPanel"></div>
-            <button id="exportBtn" class="btn host-only">📄 Export CSV</button>
+        <div class="bonus-zone" id="bonusZone" hidden>
+          <label class="label" for="bonusTeam">Bonus team</label>
+          <select id="bonusTeam" class="select"></select>
+        </div>
+
+        <div class="secondary">
+          <div class="secondary-row">
+            <button id="deadBtn" class="btn" type="button">Dead tossup<kbd class="kbd">D</kbd></button>
+            <button id="nextBtn" class="btn" type="button">Next tossup<kbd class="kbd">N</kbd></button>
+            <div class="field category-field">
+              <label class="label" for="categorySelect">Category for the next toss-up</label>
+              <select id="categorySelect" class="select"></select>
+            </div>
           </div>
-          <div class="desk-section host-only">
-            <h3>Player Stats</h3>
+
+          <div>
+            <h3>Adjust scores</h3>
+            <div class="adjust-list" id="adjustList"></div>
+          </div>
+
+          <div>
+            <h3>Game clock</h3>
+            <div class="clock-row">
+              <span class="numerals clock-time" id="gameClock">--:--</span>
+              <button id="clockStartBtn" class="btn" type="button"><i data-icon="play"></i>Start</button>
+              <button id="clockPauseBtn" class="btn" type="button"><i data-icon="pause"></i>Pause</button>
+              <button id="clockResetBtn" class="btn" type="button"><i data-icon="reset"></i>Reset</button>
+            </div>
+          </div>
+
+          <div class="secondary-row">
+            <button id="endGameBtn" class="btn danger" type="button">End game</button>
+            <button id="exportBtn" class="btn" type="button"><i data-icon="download"></i>Export CSV</button>
+          </div>
+
+          <div class="confirm" id="endConfirm" hidden>
+            <p>End the game? Scores are kept, and nobody can buzz after this.</p>
+            <button id="endCancelBtn" class="btn" type="button">Cancel</button>
+            <button id="endConfirmBtn" class="btn danger" type="button">End game</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side" aria-label="Room details">
+        <section class="panel roster">
+          <h2 class="side-title">Players</h2>
+          <div id="roster"></div>
+        </section>
+
+        <section class="panel">
+          <h2 class="side-title">Player stats</h2>
+          <div class="stats-wrap">
             <table class="stats-table">
               <thead>
                 <tr>
-                  <th>Player</th>
-                  <th>Team</th>
-                  <th>Correct</th>
-                  <th>Incorrect</th>
-                  <th>Interrupt</th>
-                  <th>Buzzes</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Correct</th>
+                  <th scope="col">Incorrect</th>
+                  <th scope="col">Interrupt</th>
+                  <th scope="col">Buzzes</th>
                 </tr>
               </thead>
-              <tbody id="statsTableBody"></tbody>
+              <tbody id="statsBody"></tbody>
             </table>
           </div>
-          <div class="desk-section">
-            <h3>Players</h3>
-            <div id="playerList" class="player-list"></div>
-          </div>
-        </div>
-      </div>
-    </section>
+        </section>
+
+        <details class="panel log" open>
+          <summary>Log <span class="muted" id="logCount"></span></summary>
+          <ol class="log-list" id="logList"></ol>
+        </details>
+      </aside>
+    </div>
   </main>
 
+  <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
-  <script type="module" src="js/buzzer_room.js?v=20260204c"></script>
+  <script type="module" src="js/buzzer_room.js"></script>
 </body>
 </html>
-
-

@@ -3,6 +3,7 @@
     "site": "atombowl",
     "public": "docs",
     "cleanUrls": false,
+    "rewrites": [{ "source": "/status", "destination": "/status.html" }],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map", "**/*.md", "**/.gitkeep"],
     "headers": [
       {
@@ -27,5 +28,6 @@
     ]
   },
   "firestore": { "rules": "firestore.rules" },
-  "emulators": { "firestore": { "port": 8080 }, "auth": { "port": 9099 }, "hosting": { "port": 5000 }, "ui": { "enabled": false } }
+  "functions": { "source": "functions", "runtime": "nodejs22", "ignore": ["node_modules", ".secret.local"] },
+  "emulators": { "firestore": { "port": 8080 }, "auth": { "port": 9099 }, "functions": { "port": 5001 }, "hosting": { "port": 5000 }, "ui": { "enabled": false } }
 }

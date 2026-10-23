@@ -8,6 +8,11 @@ service cloud.firestore {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
     }
+    // Daily Tutor and Generate credits. Only the `ai` Cloud Function writes these.
+    match /aiUsage/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
     match /usernames/{username} {
       // Legacy documents containing email stay private until administratively sanitized.
       allow get: if !exists(/databases/$(database)/documents/usernames/$(username))
@@ -29,26 +34,35 @@ service cloud.firestore {
     }
     match /rooms/{roomId} {
       function isHost() { return signedIn() && resource.data.hostUid == request.auth.uid; }
+      // A buzz is a plain update from a member. Only the first one can land (old.currentBuzz == null),
+      // it must arrive before the server-anchored phase deadline, and a buzz while the question is
+      // still being read is recorded as an interrupt.
       function validBuzz() {
         let old = resource.data;
         let next = request.resource.data;
         let player = get(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid)).data;
+        let timers = old.get('timers', null);
         return next.diff(old).affectedKeys().hasOnly(['currentBuzz', 'status', 'timers'])
-          && old.currentBuzz == null
-          && old.status in ['tossup_open', 'bonus_open']
-          && (old.timers == null || old.timers.phaseEndAt > request.time.toMillis())
+          && old.get('currentBuzz', null) == null
+          && old.status in ['tossup_reading', 'tossup_open', 'bonus_open']
+          && (timers == null
+            || timers.phaseStartedAt.toMillis() + timers.phaseDuration * 1000 > request.time.toMillis())
           && player.team in old.scores
           && (old.status != 'bonus_open' || old.bonusTeam == player.team)
-          && (old.status != 'tossup_open' || !(player.team in old.get('lockoutTeams', [old.lockoutTeam])))
+          && (old.status == 'bonus_open' || !(player.team in old.get('lockoutTeams', [])))
           && next.status == (old.status == 'bonus_open' ? 'bonus_locked' : 'tossup_locked')
           && next.timers == null
-          && next.currentBuzz.keys().hasOnly(['uid', 'name', 'team', 'at'])
+          && next.currentBuzz.keys().hasOnly(['uid', 'name', 'team', 'at', 'interrupt'])
+          && next.currentBuzz.keys().hasAll(['uid', 'name', 'team', 'at', 'interrupt'])
           && next.currentBuzz.uid == request.auth.uid
           && next.currentBuzz.name == player.name
           && next.currentBuzz.team == player.team
-          && next.currentBuzz.at is number;
+          && next.currentBuzz.at is number
+          && next.currentBuzz.interrupt == (old.status == 'tossup_reading');
       }
-      allow read: if signedIn();
+      // The room code is the document id, so joining is a direct get. Nobody can list rooms.
+      allow get: if signedIn();
+      allow list: if false;
       allow create: if signedIn() && roomId == request.resource.data.roomCode
         && roomId.matches('^[A-Z0-9]{5}$')
         && request.resource.data.hostUid == request.auth.uid
@@ -58,7 +72,10 @@ service cloud.firestore {
         && request.resource.data.roomName.size() <= 80
         && request.resource.data.settings.teamCount in [2, 3, 4]
         && request.resource.data.settings.tuTime >= 1 && request.resource.data.settings.tuTime <= 300
-        && request.resource.data.settings.bonusTime >= 1 && request.resource.data.settings.bonusTime <= 300;
+        && request.resource.data.settings.bonusTime >= 1 && request.resource.data.settings.bonusTime <= 300
+        && request.resource.data.settings.get('halfMinutes', 8) is int
+        && request.resource.data.settings.get('halfMinutes', 8) >= 1
+        && request.resource.data.settings.get('halfMinutes', 8) <= 60;
       allow update: if signedIn() && (
         (isHost() && request.resource.data.hostUid == resource.data.hostUid
           && request.resource.data.roomCode == resource.data.roomCode)

@@ -1,19 +1,4 @@
 (() => {
-    // NAV (Practice Engine hides nav entirely)
-    const nav = document.getElementById('nav');
-    const overlay = document.getElementById('overlay');
-    const hamburger = document.getElementById('hamburger');
-    if (nav && overlay && hamburger) {
-      function toggleNav() {
-        const isOpen = nav.classList.toggle('open');
-        overlay.classList.toggle('show');
-        hamburger.classList.toggle('open');
-        hamburger.textContent = isOpen ? '?' : '?';
-      }
-
-      hamburger.addEventListener('click', toggleNav);
-      overlay.addEventListener('click', toggleNav);
-    }
     // Run config (single source of truth)
     const DEFAULT_RUN = {
       mode: 'rapid',
@@ -37,10 +22,39 @@
     // practice_home should store settings here
     const cfg = safeParseJSON(localStorage.getItem('atom_run'), null) || {};
 
-    const runCfg = {
-      ...DEFAULT_RUN,
-      ...cfg
-    };
+    // question_bank's Practice button hands over one question. It is one-shot:
+    // read it, then clear it so the next normal run uses atom_run again.
+    const singleRaw = localStorage.getItem('atom_single_question');
+    if (singleRaw !== null) {
+      localStorage.removeItem('atom_single_question');
+      localStorage.removeItem('atom_practice_config');
+    }
+    const singleParsed = safeParseJSON(singleRaw, null);
+    const singleQ = singleParsed && typeof singleParsed === 'object' && !Array.isArray(singleParsed)
+      ? singleParsed
+      : null;
+    const singleMode = !!singleQ;
+
+    // Generate's "Practice these" plays its set in order: practice.html?generated=1.
+    const generatedQs = (() => {
+      if (new URLSearchParams(window.location.search).get('generated') !== '1') return null;
+      const list = safeParseJSON(sessionStorage.getItem('atom_generated_set'), null);
+      return Array.isArray(list) ? list.filter(q => q && q.question_text && q.parsed_answer) : null;
+    })();
+
+    // A single-question session ignores atom_run's filters; only timing carries over.
+    const runCfg = singleMode
+      ? {
+          ...DEFAULT_RUN,
+          seconds: cfg.seconds ?? DEFAULT_RUN.seconds,
+          noTimer: !!cfg.noTimer,
+          mode: 'single',
+          bankFile: singleQ.bank_id || DEFAULT_RUN.bankFile
+        }
+      : {
+          ...DEFAULT_RUN,
+          ...cfg
+        };
 
     const TOPIC_GROUPS = [
       { id: 'PHYSICS', categories: ['PHYSICS', 'PHYSICAL SCIENCE'] },
@@ -110,13 +124,53 @@
 
     const settings = loadSettings();
 
-    if (runCfg.level === DEFAULT_RUN.level && ['MS', 'HS'].includes(settings.div)) {
+    if (!singleMode && runCfg.level === DEFAULT_RUN.level && ['MS', 'HS'].includes(settings.div)) {
       runCfg.level = settings.div;
     }
-    if (runCfg.mode === DEFAULT_RUN.mode && settings.mode) {
+    if (!singleMode && runCfg.mode === DEFAULT_RUN.mode && settings.mode) {
       runCfg.mode = settings.mode;
     }
-    document.getElementById('mode').textContent = runCfg.mode;
+
+    const MODE_NAMES = {
+      rapid: 'Rapid fire',
+      regular: 'Regular',
+      tossups: 'Toss-ups only',
+      bonuses: 'Bonuses only',
+      wxyz: 'Multiple choice sprint',
+      sa: 'Short answer drill',
+      set: 'Run a set',
+      single: 'Single question'
+    };
+    const modeKey = String(runCfg.mode || 'rapid').toLowerCase();
+    document.getElementById('mode').textContent = MODE_NAMES[modeKey] || 'Practice';
+    const exitUrl = singleMode ? 'question_bank.html' : generatedQs ? 'generate.html' : 'practice_home.html';
+
+    // ---------- Display helpers (data values stay as they are) ----------
+    function sentenceCase(text) {
+      const s = String(text || '').trim();
+      if (!s) return '';
+      if (s === s.toUpperCase()) return s.charAt(0) + s.slice(1).toLowerCase();
+      return s.split(' ').map((w, i) => (i > 0 && /^[A-Z][a-z]+$/.test(w) ? w.toLowerCase() : w)).join(' ');
+    }
+    function levelName(level) {
+      if (level === 'MS') return 'Middle school';
+      if (level === 'HS') return 'High school';
+      return String(level || '');
+    }
+    function typeName(type) {
+      if (type === 'SA') return 'Short answer';
+      if (type === 'MC') return 'Multiple choice';
+      return String(type || '');
+    }
+    function roundName(round) {
+      const r = String(round ?? '').trim();
+      const m = r.match(/^round\s*(\d+)$/i);
+      if (m) return `round ${m[1]}`;
+      return r ? `${r} round` : '';
+    }
+    function setName(set) {
+      return sentenceCase(String(set || '').replace(/[-_]+/g, ' '));
+    }
 
     // Early appearances for State constants
     let ttsEnabled = settings.tts;
@@ -155,6 +209,11 @@
     const submitBtn = document.getElementById('submitBtn');
     const rightBtn = document.getElementById('rightBtn');
     const wrongBtn = document.getElementById('wrongBtn');
+    const askTutorBtn = document.getElementById('askTutorBtn');
+    const extAiRow = document.getElementById('extAiRow');
+    const extAiBtn = document.getElementById('extAiBtn');
+    const extAiNote = document.getElementById('extAiNote');
+    let lastUserAnswer = '';
     const nextBtn = document.getElementById('nextBtn');
     const errEl = document.getElementById('err');
     const metaLeft = document.getElementById('metaLeft');
@@ -165,7 +224,6 @@
     const interruptBadgeEl = document.getElementById('interruptBadge');
     const learnRow = document.getElementById('learnRow');
     const searchBtn = document.getElementById('searchBtn');
-    const learnBtn = document.getElementById('learnBtn');
     const ttsToggle = document.getElementById('ttsToggle');
     const BANK_DISPLAY_NAMES = {
       A: "Dyrapack",
@@ -181,15 +239,12 @@
       Object.assign(settings, next);
     }
 
-    if (ttsToggle) {
-      ttsToggle.textContent = ttsEnabled ? "TTS ON" : "TTS OFF";
-      ttsToggle.onclick = () => {
-        ttsEnabled = !ttsEnabled;
-        if (!ttsEnabled) stopSpeech();
-        ttsToggle.textContent = ttsEnabled ? "TTS ON" : "TTS OFF";
-        persistSettingsPatch({ tts: ttsEnabled });
-      };
+    function renderTtsToggle() {
+      if (!ttsToggle) return;
+      ttsToggle.innerHTML = `${window.atomIcon?.('volume') || ''}<span>Read aloud ${ttsEnabled ? 'on' : 'off'}</span>`;
+      ttsToggle.setAttribute('aria-pressed', String(!!ttsEnabled));
     }
+    renderTtsToggle();
 
 
     // State
@@ -225,13 +280,6 @@
     }
 
 
-    function animateIn(el) {
-      if (!el) return;
-      el.classList.remove('pop');
-      void el.offsetWidth;
-      el.classList.add('pop');
-      setTimeout(() => el.classList.remove('pop'), 260);
-    }
     function startStopwatch() {
         stopStopwatch();
         stopwatchStart = Date.now();
@@ -256,13 +304,13 @@
     if (speedSlider) {
       speedSlider.value = String(readingSpeed);
       const speedLabel = document.getElementById('speedLabel');
-      if (speedLabel) speedLabel.textContent = `${readingSpeed.toFixed(2)}x`;
+      if (speedLabel) speedLabel.textContent = `${readingSpeed.toFixed(2)}×`;
 
       speedSlider.oninput = (e) => {
         const target = e.target as HTMLInputElement | null;
         if (!target) return;
         readingSpeed = Number(target.value);
-        if (speedLabel) speedLabel.textContent = `${readingSpeed.toFixed(2)}x`;
+        if (speedLabel) speedLabel.textContent = `${readingSpeed.toFixed(2)}×`;
         persistSettingsPatch({ ttsRate: readingSpeed });
 
         // Apply changes immediately to any ongoing typing/speaking.
@@ -314,7 +362,7 @@
     function toggleTts() {
       ttsEnabled = !ttsEnabled;
       if (!ttsEnabled) stopSpeech();
-      if (ttsToggle) ttsToggle.textContent = ttsEnabled ? "TTS ON" : "TTS OFF";
+      renderTtsToggle();
       persistSettingsPatch({ tts: ttsEnabled });
     }
 
@@ -367,6 +415,8 @@
 
 
 
+    const STOPWATCH_TONES = ['sw-fast', 'sw-mid', 'sw-slow', 'sw-late'];
+
     function stopStopwatch() {
         if (stopwatchInterval) clearInterval(stopwatchInterval);
         stopwatchInterval = null;
@@ -377,26 +427,18 @@
         stopStopwatch();
         const el = document.getElementById('stopwatch');
         el.textContent = '0.00 s';
-        el.style.color = 'var(--text)';
-        el.classList.remove('stopwatch-pulse');
+        el.classList.remove(...STOPWATCH_TONES);
     }
 
     function updateStopwatchColor(seconds) {
         const el = document.getElementById('stopwatch');
         if (!el) return;
 
-        el.classList.remove('stopwatch-pulse');
-
-        if (seconds < 5) {
-            el.style.color = 'var(--good)';
-        } else if (seconds < 10) {
-            el.style.color = 'var(--warn)';
-        } else {
-            el.style.color = 'var(--bad)';
-            if (seconds >=20) {
-                el.classList.add('stopwatch-pulse');
-            }
-        }
+        // One class at a time; color only, no animation.
+        const tone = seconds < 5 ? 'sw-fast' : seconds < 10 ? 'sw-mid' : seconds < 20 ? 'sw-slow' : 'sw-late';
+        if (el.classList.contains(tone)) return;
+        el.classList.remove(...STOPWATCH_TONES);
+        el.classList.add(tone);
     }
 
 
@@ -404,7 +446,6 @@
       if (!errEl) return;
       errEl.textContent = msg;
       errEl.classList.remove('hidden');
-      animateIn(errEl);
     }
 
     function hideError() {
@@ -487,19 +528,19 @@
       imgEl.onerror = null;
 
       if (!cands.length) {
-        imgEl.style.display = 'none';
-        imgEl.src = '';
+        imgEl.classList.add('hidden');
+        imgEl.removeAttribute('src');
         return;
       }
 
-      imgEl.style.display = 'block';
+      imgEl.classList.remove('hidden');
       imgEl.src = cands[i];
       imgEl.onerror = () => {
         i += 1;
         if (i >= cands.length) {
           imgEl.onerror = null;
-          imgEl.style.display = 'none';
-          imgEl.src = '';
+          imgEl.classList.add('hidden');
+          imgEl.removeAttribute('src');
           return;
         }
         imgEl.src = cands[i];
@@ -512,8 +553,8 @@
     let textFullyRevealed = true;
 
     function renderQuestion(q) {
-      img.style.display = 'none';
-      img.src = '';
+      img.classList.add('hidden');
+      img.removeAttribute('src');
       questionTextEl.classList.add('hidden');
       questionTextEl.textContent = '';
       clearInterval(typewriterTimer);
@@ -522,7 +563,6 @@
       // TEXT MODE
       if (q.question_text && !q.question_image) {
         questionTextEl.classList.remove('hidden');
-        animateIn(questionTextEl);
         startSyncedRead(q.question_text);
         return;
       }
@@ -631,10 +671,23 @@
     }
 
     // Pair builder: TU -> BO, same SUBJECT (category) required; same set preferred; same round preferred.
+    // Single-question session from the question bank: exactly that question,
+    // plus its bonus when the bank has one with the same set, round and number.
+    function buildSingleQuestions() {
+      const q = singleQ;
+      if (!q) return [];
+      hideError();
+      if (q.bonus) return [q];
+      const key = (x) => `${norm(x?.set_name)}|${norm(x?.round_name)}|${String(x?.num ?? '')}`;
+      const pair = bank.find(x => x && x.bonus === true && key(x) === key(q) && x !== q);
+      return pair ? [q, pair] : [q];
+    }
+
     function buildRunQuestions() {
+      if (singleMode) return buildSingleQuestions();
       const filtered = applyFilters(bank);
       if (!filtered.length) {
-        showError('No matches for your run. Go back and loosen filters.');
+        showError('No questions match these filters. Exit practice and include more topics or levels.');
         return [];
       }
       hideError();
@@ -708,23 +761,23 @@
     function updateProgressUI() {
       const q = currentQ();
       if (!q || !Array.isArray(questions) || !questions.length) {
-        progressEl.textContent = '—';
+        progressEl.textContent = '-';
         return;
       }
 
       const mode = String(runCfg.mode || 'rapid').toLowerCase();
 
-      if (mode === 'tossups' || mode === 'bonuses') {
+      if (mode === 'tossups' || mode === 'bonuses' || singleMode) {
         // raw question progress
-        progressEl.textContent = `${index + 1} / ${questions.length}`;
+        progressEl.textContent = `Question ${index + 1} of ${questions.length}`;
         return;
       }
 
       // pair progress
       const pairIndex = Math.floor(index / 2) + 1;
       const totalPairs = Math.max(1, Math.ceil(questions.length / 2));
-      const label = q.bonus ? 'BO' : 'TU';
-      progressEl.textContent = `${label} ${pairIndex} / ${totalPairs}`;
+      const label = q.bonus ? 'Bonus' : 'Toss-up';
+      progressEl.textContent = `${label} ${pairIndex} of ${totalPairs}`;
     }
 
     function resetForQuestion() {
@@ -745,7 +798,8 @@
       nextBtn.classList.add('hidden');
       learnRow.classList.add('hidden');
 
-      buzzEl.innerHTML = 'Press <span class="kbd">SPACE</span> to buzz';
+      buzzEl.className = 'buzz';
+      buzzEl.innerHTML = 'Press <span class="kbd">Space</span> or tap the card to buzz';
 
       const q = currentQ();
       const isBonus = q?.bonus === true;
@@ -765,7 +819,7 @@
       clearInterval(timerId);
       
       if (runCfg.noTimer) {
-        timerEl.textContent = '∞';
+        timerEl.textContent = 'Off';
         time = Infinity;
       } else {
         time = preBuzzTime;
@@ -802,24 +856,18 @@
       updateProgressUI();
       renderQuestion(q);
       input.value = '';
-      function findBankName(q) {
-        if (!q || !q.set_name) return '—';
-        if (q.set_name === 'SciBowlDB') return 'Scalazar';
-        return 'Dynazar';
-      }
-
-      const bankNameRegistry = findBankName(q);
-
-      const mode = String(runCfg.mode || 'rapid').toLowerCase();
-      const isRapid = !['tossups','bonuses'].includes(mode);
-
-      if (isRapid) {
-        metaLeft.textContent = `${q.level} • ${q.category} • ${q.bonus ? 'Bonus' : 'Toss-up'} • ${q.type}`;
-        metaRight.textContent = `${bankNameRegistry} / ${q.round_name} • #${q.num}`;
-      } else {
-        metaLeft.textContent = `${q.level} • ${q.category} • ${q.type}`;
-        metaRight.textContent = `${bankNameRegistry} / ${q.round_name} • #${q.num}`;
-      }
+      const tags = [
+        `<span class="tag ${q.bonus ? 'accent' : ''}">${q.bonus ? 'Bonus' : 'Toss-up'}</span>`,
+        q.category ? `<span class="tag">${escapeHtml(sentenceCase(q.category))}</span>` : '',
+        q.type ? `<span class="tag">${escapeHtml(typeName(q.type))}</span>` : '',
+        q.level ? `<span class="tag">${escapeHtml(levelName(q.level))}</span>` : ''
+      ];
+      metaLeft.innerHTML = tags.join('');
+      metaRight.textContent = [
+        setName(q.set_name),
+        roundName(q.round_name),
+        q.num !== undefined && q.num !== null && q.num !== '' ? `question ${q.num}` : ''
+      ].filter(Boolean).join(', ');
 
       resetForQuestion();
 
@@ -832,8 +880,8 @@
     
 
       buzzed = true;
-      buzzEl.textContent = 'Buzzed';
-      animateIn(buzzEl);
+      buzzEl.textContent = 'Buzzed. Answer within 5 seconds.';
+      buzzEl.className = 'buzz is-buzzed';
 
       // After-buzz timing: always 5 seconds (TU & BO)
       clearInterval(timerId);
@@ -852,15 +900,12 @@
       if (shouldShowInput) {
         input.classList.remove('hidden');
         submitBtn.classList.remove('hidden');
-        animateIn(input);
-        animateIn(submitBtn);
         input.focus();
         return;
       }
 
       if (q.type === 'MC') {
         choicesEl.classList.remove('hidden');
-        animateIn(choicesEl);
       }
     }
 
@@ -880,10 +925,10 @@
     
       const avg = stats.answered
         ? (stats.totalTime / stats.answered).toFixed(1)
-        : '—';
+        : '-';
     
       document.getElementById('statAccuracy').textContent = `${acc}%`;
-      document.getElementById('statSpeed').textContent = `${avg}s`;
+      document.getElementById('statSpeed').textContent = `${avg} s`;
     document.getElementById('statCorrect').textContent = String(stats.correct);
     document.getElementById('statSlow').textContent = String(stats.slowCorrect);
   }
@@ -936,31 +981,32 @@
 
       const showButtons = opts.showButtons !== false;
       const autoInfo = opts.autoInfo;
-      const ua = norm(userAnswer) || '(no answer)';
-      const ca = norm(correctAnswer) || '(no official answer)';
+      lastUserAnswer = norm(userAnswer);
+      const ua = lastUserAnswer || '(no answer)';
+      // Answer keys in the data are often all caps; show them in sentence case.
+      const ca = sentenceCase(norm(correctAnswer)) || '(no official answer)';
 
+      const line = (label, value, cls = '') =>
+        `<div class="fb-line"><span class="fb-label">${label}</span><span class="fb-value ${cls}">${escapeHtml(value)}</span></div>`;
       const lines = [
-        `Your answer: <span style="color:var(--text)">${escapeHtml(ua)}</span>`,
-        `Official: <span style="color:var(--muted)">${escapeHtml(ca)}</span>`
+        line('Your answer', ua),
+        line('Official answer', ca, 'q-serif')
       ];
 
       if (autoInfo && typeof autoInfo.confidence === 'number') {
         const conf = Math.round(autoInfo.confidence * 100);
-        lines.push(`Confidence: <span style="color:var(--text)">${conf}%</span>`);
+        lines.push(line('Match confidence', `${conf}%`));
         if (autoInfo.matched) {
-          lines.push(`Matched: <span style="color:var(--muted)">${escapeHtml(autoInfo.matched)}</span>`);
+          lines.push(line('Matched', autoInfo.matched));
         }
       }
 
-      feedback.innerHTML = lines.map((line) => `<div>${line}</div>`).join('');
+      feedback.innerHTML = lines.join('');
       feedback.className = 'feedback';
-      animateIn(feedback);
 
       if (showButtons) {
         rightBtn.classList.remove('hidden');
         wrongBtn.classList.remove('hidden');
-        animateIn(rightBtn);
-        animateIn(wrongBtn);
       } else {
         rightBtn.classList.add('hidden');
         wrongBtn.classList.add('hidden');
@@ -971,24 +1017,25 @@
     }
 
     function applyGrade(isRight) {
+      // Only grade once per question (hotkeys can fire after grading).
+      if (!awaitingGrade) return;
+      awaitingGrade = false;
+
       // ---- Stats update ----
       stats.answered++;
-      
+
       const gradeTime = Date.now();
-      
+
       const totalSolveTime = questionStartTime
         ? (gradeTime - questionStartTime) / 1000
         : 0;
-      
+
       stats.totalTime += totalSolveTime;
-      
+
       if (isRight) {
         stats.correct++;
         if (totalSolveTime >= 10) stats.slowCorrect++;
       }
-
-      if (!awaitingGrade) return;
-      awaitingGrade = false;
 
       const q = currentQ();
       const points = q && q.bonus ? 10 : 4;
@@ -997,28 +1044,31 @@
         score += points;
         scoreEl.textContent = String(score);
         feedback.className = 'feedback good';
-        feedback.insertAdjacentHTML('beforeend', `<div>Score change: +${points}</div>`);
+        feedback.insertAdjacentHTML('afterbegin', `<div class="fb-verdict">${window.atomIcon?.('check') || ''}Correct, +${points}</div>`);
       } else {
         if (q && !q.bonus && interrupted) {
           score -= 4;
           scoreEl.textContent = String(score);
-          feedback.insertAdjacentHTML('beforeend', `<div>Interrupt penalty: -4</div>`);
+          feedback.insertAdjacentHTML('afterbegin', `<div class="fb-verdict">${window.atomIcon?.('x') || ''}Incorrect, interrupt penalty -4</div>`);
+        } else {
+          feedback.insertAdjacentHTML('afterbegin', `<div class="fb-verdict">${window.atomIcon?.('x') || ''}Incorrect</div>`);
         }
         feedback.className = 'feedback bad';
       }
 
-      animateIn(feedback);
       rightBtn.classList.add('hidden');
       wrongBtn.classList.add('hidden');
 
-      // Only show Search/Learn AFTER the user grades
+      // Only show Search/Learn AFTER the user grades; Tutor only after a miss
       learnRow.classList.remove('hidden');
-      animateIn(learnRow);
+      askTutorBtn?.classList.toggle('hidden', isRight);
+      extAiRow?.classList.toggle('hidden', isRight);
+      if (extAiNote) extAiNote.textContent = '';
+      (window as any).atomExternalAi?.paint(extAiBtn);
 
       resetStopwatch();
 
       nextBtn.classList.remove('hidden');
-      animateIn(nextBtn);
       updateStatsUI();
     }
 
@@ -1111,10 +1161,11 @@
     function endRun(reason) {
       runActive = false;
       clearInterval(timerId);
+      buzzEl.className = 'buzz is-done';
       buzzEl.textContent = reason || 'Run complete';
 
-      img.style.display = 'none';
-      img.src = '';
+      img.classList.add('hidden');
+      img.removeAttribute('src');
       img.alt = '';
       questionTextEl.classList.add('hidden');
       questionTextEl.textContent = '';
@@ -1128,19 +1179,18 @@
       nextBtn.classList.add('hidden');
       learnRow.classList.add('hidden');
 
-     const mode = String(runCfg.mode || 'rapid').toLowerCase();
-
-      let maxScore = 0;
-      if (mode === 'tossups' || mode === 'bonuses') {
-        maxScore = questions.length * 4;
-      } else {
-        const totalPairs = questions.length ? Math.ceil(questions.length / 2) : 0;
-        maxScore = totalPairs * 14;
-      }
+      // Max score from the questions actually played: 4 per toss-up, 10 per bonus.
+      const maxScore = questions.reduce((sum, q) => sum + (q && q.bonus ? 10 : 4), 0);
 
       if (finalScoreEl) {
-        finalScoreEl.textContent = maxScore ? `Final score: ${score}/${maxScore}` : `Final score: ${score}`;
+        finalScoreEl.innerHTML = `<span class="readout-label">Final score</span>`
+          + `<span class="numerals final-value">${score}${maxScore ? `<span class="final-max"> / ${maxScore}</span>` : ''}</span>`;
       }
+
+      const backToBank = document.getElementById('backToBankBtn');
+      const runAgain = document.getElementById('runAgainBtn');
+      backToBank?.classList.toggle('hidden', !singleMode);
+      runAgain?.classList.toggle('hidden', singleMode);
 
       // Show final summary (DOM-based)
       let atomScore = Number.NaN;
@@ -1148,11 +1198,10 @@
         atomScore = computeAtomScore();
       } catch {}
       if (atomScoreValueEl) {
-        atomScoreValueEl.textContent = Number.isFinite(atomScore) ? atomScore.toFixed(3) : '—';
+        atomScoreValueEl.textContent = Number.isFinite(atomScore) ? atomScore.toFixed(1) : '-';
       }
       if (finalSummaryEl) {
         finalSummaryEl.classList.remove('hidden');
-        animateIn(finalSummaryEl);
       }
 
       syncRunStats();
@@ -1162,7 +1211,7 @@
       feedback.className = 'feedback';
 
 
-      progressEl.textContent = '—';
+      progressEl.textContent = 'Done';
 
       buzzed = false;
       locked = true;
@@ -1221,7 +1270,7 @@
       if (e.altKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         const help = document.getElementById('hotkeyHelp');
-        if (help) help.classList.toggle('open');
+        setHotkeyHelp(!help?.classList.contains('open'));
         return;
       }
       if (e.altKey && e.key.toLowerCase() === 'r') {
@@ -1242,7 +1291,12 @@
       if (e.code === 'Space' && !isTyping) e.preventDefault();
 
       if (e.key === 'Escape') {
-        window.location.href = 'practice_home.html';
+        const help = document.getElementById('hotkeyHelp');
+        if (help?.classList.contains('open')) {
+          setHotkeyHelp(false);
+          return;
+        }
+        window.location.href = exitUrl;
         return;
       }
 
@@ -1300,6 +1354,40 @@
     submitBtn.addEventListener('click', submitSA);
     rightBtn.addEventListener('click', () => applyGrade(true));
     wrongBtn.addEventListener('click', () => applyGrade(false));
+
+    // What Tutor and the external chat apps get about the question just missed.
+    function missContext(q) {
+      return {
+        question: String(q.question_text || ''),
+        hasImage: !q.question_text && !!q.question_image,
+        answer: String(q.parsed_answer || ''),
+        answerLabel: sentenceCase(norm(q.parsed_answer)),
+        userAnswer: lastUserAnswer,
+        category: String(q.category || ''),
+        bonus: !!q.bonus,
+        level: String(q.level || '')
+      };
+    }
+
+    extAiBtn?.addEventListener('click', async () => {
+      const q = currentQ();
+      const ext = (window as any).atomExternalAi;
+      if (!q || !ext) return;
+      const note = await ext.send(missContext(q));
+      if (extAiNote) extAiNote.textContent = note;
+    });
+
+    askTutorBtn?.addEventListener('click', async () => {
+      const q = currentQ();
+      if (!q) return;
+      const context = missContext(q);
+      try {
+        const widget = await import('./tutor_widget.js');
+        widget.openTutor({ context });
+      } catch {
+        showError('Tutor could not load. Check your connection and try again.');
+      }
+    });
     nextBtn.addEventListener('click', nextQuestion);
 
     choicesEl.addEventListener('click', (e) => {
@@ -1311,23 +1399,30 @@
       pickMC(letter);
     });
 
-    searchBtn.addEventListener('click', () => {
+    searchBtn?.addEventListener('click', () => {
       const q = currentQ();
       if (!q || !q.parsed_answer) return;
       const query = encodeURIComponent(q.parsed_answer);
-      window.location.assign(`https://www.bing.com/search?q=${query}`);
+      // New tab so the run keeps going.
+      window.open(`https://www.bing.com/search?q=${query}`, '_blank', 'noopener');
     });
 
-    learnBtn.addEventListener('click', () => {
-      const q = currentQ();
-      if (!q) return;
-      localStorage.setItem('atom_tutor_context', JSON.stringify({
-        answer: q.parsed_answer,
-        category: q.category,
-        level: q.level
-      }));
-      window.location.href = 'tutor.html';
+    // Shortcuts popover: hover/focus on desktop, click or Alt+H anywhere.
+    const hotkeyHelpEl = document.getElementById('hotkeyHelp');
+    const hotkeyBtn = document.getElementById('hotkeyBtn');
+    function setHotkeyHelp(open) {
+      hotkeyHelpEl?.classList.toggle('open', !!open);
+      hotkeyBtn?.setAttribute('aria-expanded', String(!!open));
+    }
+    hotkeyBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setHotkeyHelp(!hotkeyHelpEl?.classList.contains('open'));
     });
+    document.addEventListener('click', (e) => {
+      if (hotkeyHelpEl?.classList.contains('open') && !hotkeyHelpEl.contains(e.target as Node)) setHotkeyHelp(false);
+    });
+
+    document.getElementById('runAgainBtn')?.addEventListener('click', () => window.location.reload());
 
     async function loadBank() {
       const requested = runCfg.bankFile || DEFAULT_RUN.bankFile;
@@ -1368,7 +1463,7 @@
         data = await tryLoad('data/set_A.json');
         if (data && data.length) {
           showError(
-            `⚠ Failed to load ${requested}.
+            `Could not load ${requested}.
 ` +
             `Fell back to data/set_A.json.
 
@@ -1418,17 +1513,36 @@
       ];
     }
 
+    // Single mode only needs the bank to find the paired bonus, so a failed
+    // load is silent: the chosen question still plays on its own.
+    async function loadPairBank() {
+      for (const url of bankCandidates(runCfg.bankFile)) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          if (!res.ok) continue;
+          const data = await res.json();
+          return Array.isArray(data) ? data : (data.questions || []);
+        } catch {}
+      }
+      return [];
+    }
+
     (async () => {
       questions = [];
       index = 0;
 
-      bank = await loadBank();
-      questions = buildRunQuestions();
+      if (generatedQs) {
+        bank = generatedQs;
+        questions = generatedQs.slice();
+      } else {
+        bank = singleMode ? await loadPairBank() : await loadBank();
+        questions = buildRunQuestions();
+      }
 
       if (!questions.length) {
         runActive = false;
-        buzzEl.textContent = 'No questions matched — press Esc';
-        progressEl.textContent = '—';
+        buzzEl.textContent = 'No questions to play. Press Esc to change your setup.';
+        progressEl.textContent = '-';
         return;
       }
 
@@ -1445,6 +1559,3 @@
 
 
 })();
-
-
-

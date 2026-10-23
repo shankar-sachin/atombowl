@@ -1,1 +1,19 @@
-@import url("./game_clock.css");
+/* Redirect stub: the game clock page replaces this one. */
+
+i[data-icon] { display: inline-flex; font-style: normal; }
+
+.redirect-page { display: grid; place-items: start; padding-top: 48px; }
+
+.redirect-page .panel {
+  width: min(560px, 100%);
+  gap: 12px;
+}
+
+.redirect-page h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.redirect-page .btn .icon-svg { width: 18px; height: 18px; }
