@@ -11,6 +11,7 @@
   autoCheck?: boolean;
   autoThreshold?: number;
   externalAi?: string;
+  searchEngine?: string;
   highContrast: boolean;
   animations: boolean;
   fontSize: string;

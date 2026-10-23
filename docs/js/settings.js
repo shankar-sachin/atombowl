@@ -17,6 +17,7 @@
         autoCheck: false,
         autoThreshold: 0.72,
         externalAi: 'claude',
+        searchEngine: 'auto',
         highContrast: false,
         animations: true,
         fontSize: 'm',
@@ -85,6 +86,7 @@
     const divSelect = $('divSelect');
     const modeSelect = $('modeSelect');
     const externalAiSelect = $('externalAiSelect');
+    const searchEngineSelect = $('searchEngineSelect');
     const fontSelect = $('fontSelect');
     const accentGroup = $('accentSelect');
     const swatches = [...accentGroup.querySelectorAll('.swatch')];
@@ -146,6 +148,7 @@
         setToggle(autoCheckToggle, s.autoCheck);
         autoThreshold.value = String((_d = s.autoThreshold) !== null && _d !== void 0 ? _d : 0.72);
         externalAiSelect.value = ['claude', 'chatgpt', 'gemini'].includes(s.externalAi) ? s.externalAi : 'claude';
+        searchEngineSelect.value = ['auto', 'google', 'bing', 'duckduckgo', 'brave'].includes(s.searchEngine) ? s.searchEngine : 'auto';
         divSelect.value = s.div;
         modeSelect.value = s.mode;
         fontSelect.value = s.fontSize;
@@ -170,6 +173,7 @@
             autoCheck: readToggle(autoCheckToggle),
             autoThreshold: Number(autoThreshold.value),
             externalAi: externalAiSelect.value,
+            searchEngine: searchEngineSelect.value,
             highContrast: readToggle(hcToggle),
             animations: readToggle(animToggle),
             fontSize: fontSelect.value,
@@ -194,7 +198,7 @@
             persistCurrentSettings();
         });
     });
-    [divSelect, modeSelect, externalAiSelect, fontSelect, themeSelect, voiceSelect].forEach((el) => {
+    [divSelect, modeSelect, externalAiSelect, searchEngineSelect, fontSelect, themeSelect, voiceSelect].forEach((el) => {
         el.addEventListener('change', () => persistCurrentSettings());
     });
     [autoThreshold, voiceRate, voicePitch, voiceVolume].forEach((el) => {

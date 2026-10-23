@@ -228,7 +228,7 @@
     const searchBtn = document.getElementById('searchBtn');
     const ttsToggle = document.getElementById('ttsToggle');
     const BANK_DISPLAY_NAMES = {
-        A: "Dyrapack",
+        A: "Dynamazar",
         B: "Scalazar"
     };
     const speedSlider = document.getElementById('speedSlider');
@@ -1314,13 +1314,39 @@
             return;
         pickMC(letter);
     });
+    // Pages can't read the browser's default search engine, so guess from the browser
+    // and let Settings > "Look up answers with" override it.
+    function searchEngineUrl(query) {
+        const pick = String(settings.searchEngine || 'auto');
+        const engine = pick !== 'auto' ? pick
+            : navigator.brave ? 'brave'
+                : /Edg\//.test(navigator.userAgent) ? 'bing'
+                    : 'google';
+        const base = {
+            google: 'https://www.google.com/search?q=',
+            bing: 'https://www.bing.com/search?q=',
+            duckduckgo: 'https://duckduckgo.com/?q=',
+            brave: 'https://search.brave.com/search?q='
+        };
+        return (base[engine] || base.google) + encodeURIComponent(query);
+    }
+    const SEARCH_STOP = new Set('a an the of in on at to for from by with and or is are was were be been which what who whom whose this that these those its it as into than then name give identify following most also known called describe term'.split(' '));
+    function lookupQuery(q) {
+        const answer = String(q.parsed_answer || '').replace(/^\s*[WXYZ]\)\s*/i, '').trim();
+        const stem = String(q.question_text || '')
+            .split('\n').filter((line) => !/^\s*[WXYZ]\)/i.test(line)).join(' ')
+            .replace(/\([^)]*\)/g, ' ')
+            .replace(/[^A-Za-z0-9\s-]/g, ' ');
+        const words = stem.split(/\s+/).filter((w) => w.length > 2 && !SEARCH_STOP.has(w.toLowerCase())).slice(0, 10);
+        const context = words.length ? words.join(' ') : String(q.category || '');
+        return `${context} ${answer}`.trim();
+    }
     searchBtn === null || searchBtn === void 0 ? void 0 : searchBtn.addEventListener('click', () => {
         const q = currentQ();
         if (!q || !q.parsed_answer)
             return;
-        const query = encodeURIComponent(q.parsed_answer);
         // New tab so the run keeps going.
-        window.open(`https://www.bing.com/search?q=${query}`, '_blank', 'noopener');
+        window.open(searchEngineUrl(lookupQuery(q)), '_blank', 'noopener');
     });
     // Shortcuts popover: hover/focus on desktop, click or Alt+H anywhere.
     const hotkeyHelpEl = document.getElementById('hotkeyHelp');

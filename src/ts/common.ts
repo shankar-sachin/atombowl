@@ -13,6 +13,7 @@
     mode: 'rapid',
     rememberTopics: false,
     externalAi: 'claude',
+    searchEngine: 'auto',
     highContrast: false,
     animations: true,
     fontSize: 'm',
@@ -146,7 +147,7 @@
       </nav>
       <div class="site-more">
         <button class="site-more-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="siteMoreMenu"${AI.some((item) => item.href === currentSection) ? ' data-current' : ''}>
-          ${icon('sparkles')}<span>AI</span>${icon('chevronDown')}
+          ${icon('sparkles')}<span>SI</span>${icon('chevronDown')}
         </button>
         <div class="menu" id="siteMoreMenu">${AI.map(menuLink).join('')}</div>
       </div>
@@ -264,8 +265,13 @@
     } catch {
       return; // Firebase blocked or offline: the chip stays "Sign in".
     }
-    const account = window.atomAccount;
-    account?.onAuthChange?.((user) => updateAccountChip(user, account));
+    const account: any = window.atomAccount;
+    // onAuthChange replays "no user" before Firebase answers; keep the cached chip until it is ready.
+    account?.onAuthChange?.((user) => {
+      if (!user && !account.isReady?.()) return;
+      updateAccountChip(user, account);
+    });
+    account?.whenReady?.().then(() => updateAccountChip(account.getUser?.() || null, account));
   }
 
   // The floating Tutor button. Practice (focus chrome) opens Tutor from "Ask Tutor" instead,

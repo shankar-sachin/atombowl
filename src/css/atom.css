@@ -231,8 +231,9 @@ code {
 .brand {
   display: inline-flex;
   align-items: center;
+  flex: none;
   gap: 10px;
-  margin-right: 18px;
+  margin-right: 28px;
   color: var(--text);
   text-decoration: none;
   font-family: var(--font-display);
@@ -248,7 +249,7 @@ code {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 .site-link,
@@ -303,7 +304,7 @@ code {
 
 .site-more { position: relative; flex: none; margin-left: 10px; }
 
-/* With a mouse, the AI menu opens on hover too. The ::before bridges the gap under the button. */
+/* With a mouse, the SI menu opens on hover too. The ::before bridges the gap under the button. */
 @media (hover: hover) and (pointer: fine) {
   .site-more:hover > .menu { display: grid; }
   .site-more > .menu::before {
