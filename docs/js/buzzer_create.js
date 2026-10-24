@@ -11,6 +11,8 @@ const els = {
     form: $("createForm"), roomName: $("roomName"), hostName: $("hostName"),
     teamCount: $("teamCount"), teamFields: $("teamNameFields"), nsbToggle: $("nsbToggle"), nsbHelp: $("nsbHelp"),
     customTiming: $("customTiming"), tuTime: $("tuTime"), bonusTime: $("bonusTime"), halfMinutes: $("halfMinutes"),
+    provideToggle: $("provideToggle"), provideHelp: $("provideHelp"), questionOptions: $("questionOptions"),
+    questionLevel: $("questionLevel"),
     create: $("createRoomBtn"), error: $("createError")
 };
 const TEAM_NAME_MAX = 20;
@@ -71,6 +73,15 @@ function setNsb(on) {
         : "Set your own answer times below.";
 }
 els.nsbToggle.addEventListener("click", () => setNsb(els.nsbToggle.getAttribute("aria-checked") !== "true"));
+function setProvide(on) {
+    els.provideToggle.classList.toggle("on", on);
+    els.provideToggle.setAttribute("aria-checked", String(on));
+    els.questionOptions.hidden = !on;
+    els.provideHelp.textContent = on
+        ? "Questions are read aloud automatically."
+        : "Off: you read your own questions.";
+}
+els.provideToggle.addEventListener("click", () => setProvide(els.provideToggle.getAttribute("aria-checked") !== "true"));
 function generateCode() {
     let out = "";
     for (let i = 0; i < 5; i += 1)
@@ -87,6 +98,8 @@ async function create(event) {
     const tuTime = useNsb ? 5 : clampInt(els.tuTime.value, 1, 300, 5);
     const bonusTime = useNsb ? 20 : clampInt(els.bonusTime.value, 1, 300, 20);
     const halfMinutes = clampInt(els.halfMinutes.value, 1, 60, 8);
+    const provideQuestions = els.provideToggle.getAttribute("aria-checked") === "true";
+    const questionLevel = els.questionLevel.value === "MS" ? "MS" : "HS";
     const roomName = els.roomName.value.trim().slice(0, 60) || "Buzzer room";
     const hostName = els.hostName.value.trim().slice(0, 40) || "Host";
     const teamNames = currentTeamNames();
@@ -119,7 +132,7 @@ async function create(event) {
                     logSeq: 0,
                     stats: {},
                     bonusTeam: "A",
-                    settings: { teamCount, nsbRules: useNsb, tuTime, bonusTime, halfMinutes, teamNames }
+                    settings: { teamCount, nsbRules: useNsb, tuTime, bonusTime, halfMinutes, teamNames, provideQuestions, questionLevel }
                 });
                 tx.set(doc(db, "rooms", roomCode, "players", user.uid), {
                     // The host moderates and doesn't play, so they have no team.

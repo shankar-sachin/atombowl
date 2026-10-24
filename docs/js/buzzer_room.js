@@ -4,6 +4,7 @@
 // dropped from the optimistic copy and its real error is shown.
 import { sendHostAction } from "./room_store.js";
 import { hostPatch, actionReason, availableActions, phaseDeadline, clockRemaining, gameClockOf, timeMillis, stateLine, formatSeconds, formatClock, teamClass, teamName, teamIds, CATEGORIES, LOG_LIMIT, timedPhase, clockRunning } from "./room_state.js";
+import { createReader } from "./room_reader.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const $ = (id) => document.getElementById(id);
@@ -39,6 +40,7 @@ const expired = new Set(); // phase keys already expired by this host
 const painted = {};
 let unsubRoom = null;
 let unsubPlayers = null;
+const reader = createReader({ roomId, getRoom: shown, act });
 function note(message) {
     els.hostNote.textContent = message || "";
 }
@@ -537,6 +539,7 @@ function render() {
     renderRoster(room);
     renderStats(room);
     renderLog(room);
+    reader.sync(room);
     renderTimers(room, Date.now());
     if (room.status === "ended")
         els.endConfirm.hidden = true;

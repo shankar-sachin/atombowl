@@ -77,6 +77,27 @@
         <p class="status-note">The game clock counts down this half. The default is 8 minutes.</p>
       </section>
 
+      <section class="panel" aria-labelledby="questionsHeading">
+        <h2 id="questionsHeading">Questions</h2>
+        <div class="rule-row">
+          <div>
+            <h3 id="provideLabel">We provide the questions</h3>
+            <p class="muted" id="provideHelp">Off: you read your own questions.</p>
+          </div>
+          <button id="provideToggle" class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="provideLabel">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <div id="questionOptions" hidden>
+          <label class="label" for="questionLevel">Division</label>
+          <select id="questionLevel" class="select">
+            <option value="HS" selected>High school</option>
+            <option value="MS">Middle school</option>
+          </select>
+          <p class="status-note">Scalazar (Set B) text questions are read aloud from the host's device. The host sees each answer and moves on with Next tossup.</p>
+        </div>
+      </section>
+
       <div class="form-footer">
         <button id="createRoomBtn" class="btn primary large" type="submit">Create room</button>
         <p id="createError" class="error" role="alert"></p>
