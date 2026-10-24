@@ -12,6 +12,7 @@ const profileEmail = $("profileEmail");
 const profilePhoto = $("profilePhoto");
 const profileInitial = $("profileInitial");
 const signedOutActions = $("signedOutActions");
+const signedOutAuthRow = $("signedOutAuthRow");
 const signedInPanel = $("signedInPanel");
 const signOutBtn = $("signOutBtn");
 const syncNotice = $("syncNotice");
@@ -365,6 +366,7 @@ function renderChecking() {
         profileEmail.textContent = hint.email || "";
     setAvatar(hint.photo || "", hint.name || "");
     signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.add("hidden");
+    signedOutAuthRow === null || signedOutAuthRow === void 0 ? void 0 : signedOutAuthRow.classList.add("hidden");
     guestRow === null || guestRow === void 0 ? void 0 : guestRow.classList.add("hidden");
 }
 function localName() {
@@ -407,6 +409,7 @@ function renderSignedOut() {
         guestTagEl.textContent = tag || fallbackGuestTag();
     guestRow === null || guestRow === void 0 ? void 0 : guestRow.classList.remove("hidden");
     signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.remove("hidden");
+    signedOutAuthRow === null || signedOutAuthRow === void 0 ? void 0 : signedOutAuthRow.classList.remove("hidden");
     signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.classList.add("hidden");
     setStats(null);
     if (statsNote) {
@@ -448,6 +451,7 @@ async function renderSignedIn(user) {
         profileEmail.textContent = email || "No email on this account";
     setAvatar(pendingPhotoData || photo, playerName);
     signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.add("hidden");
+    signedOutAuthRow === null || signedOutAuthRow === void 0 ? void 0 : signedOutAuthRow.classList.add("hidden");
     signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.classList.remove("hidden");
     if (playerNameInput)
         playerNameInput.value = playerName;
@@ -516,14 +520,19 @@ function openAuthModal(mode) {
     if (signupPlayerName && !signupPlayerName.value)
         signupPlayerName.value = localName();
     authModal.classList.remove("hidden");
-    const first = mode === "signin" ? signinIdentifierInput : signupFirstName;
-    first === null || first === void 0 ? void 0 : first.focus();
+    document.body.style.overflow = "hidden";
+    // Focusing on a touch screen pops the keyboard over the form before it's been seen.
+    if (!window.matchMedia("(pointer: coarse)").matches) {
+        const first = mode === "signin" ? signinIdentifierInput : signupFirstName;
+        first === null || first === void 0 ? void 0 : first.focus();
+    }
 }
 function closeAuthModal() {
     var _a;
     if (!authModal || authModal.classList.contains("hidden"))
         return;
     authModal.classList.add("hidden");
+    document.body.style.overflow = "";
     (_a = lastFocus === null || lastFocus === void 0 ? void 0 : lastFocus.focus) === null || _a === void 0 ? void 0 : _a.call(lastFocus);
 }
 /* ---------- Sign-up field validation ---------- */
