@@ -32,6 +32,8 @@ i[data-icon] { display: inline-flex; font-style: normal; }
 
 .profile-panel { display: grid; gap: 18px; padding: 24px; }
 
+.auth-top .btn { min-height: 44px; }
+
 .profile {
   display: flex;
   align-items: center;
@@ -300,10 +302,18 @@ input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--buzz-soft); borde
   .profile { gap: 14px; }
   .profile-name { font-size: 1.3rem; }
   .form-grid { grid-template-columns: 1fr; }
+  .auth-top .btn,
   .signed-out .button-row .btn,
   .form-actions .btn.primary { flex: 1 1 auto; }
   .form-actions #signOutBtn { margin-left: 0; flex: 1 1 auto; }
   .provider-soon { grid-template-columns: 1fr; }
+  /* Fill the screen height as a sheet, one scroller, and 16px inputs so iOS doesn't zoom on focus. */
+  #authModal { padding: 0; align-items: end; overscroll-behavior: contain; }
+  .auth-card { width: 100%; max-height: 100dvh; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: var(--r-panel) var(--r-panel) 0 0; border-width: 1px 0 0; overscroll-behavior: contain; }
+  .auth-card .input,
+  .auth-card input { font-size: 16px; min-height: 46px; }
+  .guest-name .input { font-size: 16px; }
+  .modal-header h2 { font-size: 1.7rem; }
   .auth-actions .btn.primary { flex: 1 1 100%; }
   .stat { padding: 14px; }
   .stat dd { font-size: 2.2rem; }

@@ -13,6 +13,7 @@ const profileEmail = $("profileEmail");
 const profilePhoto = $<HTMLImageElement>("profilePhoto");
 const profileInitial = $("profileInitial");
 const signedOutActions = $("signedOutActions");
+const signedOutAuthRow = $("signedOutAuthRow");
 const signedInPanel = $<HTMLFormElement>("signedInPanel");
 const signOutBtn = $<HTMLButtonElement>("signOutBtn");
 const syncNotice = $("syncNotice");
@@ -338,6 +339,7 @@ function renderChecking() {
   if (profileEmail) profileEmail.textContent = hint.email || "";
   setAvatar(hint.photo || "", hint.name || "");
   signedOutActions?.classList.add("hidden");
+  signedOutAuthRow?.classList.add("hidden");
   guestRow?.classList.add("hidden");
 }
 
@@ -363,6 +365,7 @@ function renderSignedOut() {
   if (guestTagEl) guestTagEl.textContent = tag || fallbackGuestTag();
   guestRow?.classList.remove("hidden");
   signedOutActions?.classList.remove("hidden");
+  signedOutAuthRow?.classList.remove("hidden");
   signedInPanel?.classList.add("hidden");
   setStats(null);
   if (statsNote) {
@@ -402,6 +405,7 @@ async function renderSignedIn(user: any) {
   if (profileEmail) profileEmail.textContent = email || "No email on this account";
   setAvatar(pendingPhotoData || photo, playerName);
   signedOutActions?.classList.add("hidden");
+  signedOutAuthRow?.classList.add("hidden");
   signedInPanel?.classList.remove("hidden");
 
   if (playerNameInput) playerNameInput.value = playerName;
@@ -468,13 +472,18 @@ function openAuthModal(mode: "signin" | "signup") {
   switchAuthPanel(mode);
   if (signupPlayerName && !signupPlayerName.value) signupPlayerName.value = localName();
   authModal.classList.remove("hidden");
-  const first = mode === "signin" ? signinIdentifierInput : signupFirstName;
-  first?.focus();
+  document.body.style.overflow = "hidden";
+  // Focusing on a touch screen pops the keyboard over the form before it's been seen.
+  if (!window.matchMedia("(pointer: coarse)").matches) {
+    const first = mode === "signin" ? signinIdentifierInput : signupFirstName;
+    first?.focus();
+  }
 }
 
 function closeAuthModal() {
   if (!authModal || authModal.classList.contains("hidden")) return;
   authModal.classList.add("hidden");
+  document.body.style.overflow = "";
   lastFocus?.focus?.();
 }
 

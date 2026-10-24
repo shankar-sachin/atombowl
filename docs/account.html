@@ -40,6 +40,11 @@
     </div>
 
     <section class="panel profile-panel" aria-labelledby="profilePlayerName">
+      <div class="button-row auth-top hidden" id="signedOutAuthRow">
+        <button class="btn" id="openSignInBtn" type="button" data-auth-action>Sign in</button>
+        <button class="btn primary" id="openSignUpBtn" type="button" data-auth-action>Sign up</button>
+      </div>
+
       <div class="profile">
         <div class="avatar" id="profileAvatar" aria-hidden="true">
           <img id="profilePhoto" class="hidden" src="" alt="" />
@@ -72,10 +77,6 @@
           <li><i data-icon="buzzer"></i><span><strong>Buzzer name and team</strong> for live rooms</span></li>
         </ul>
         <p class="muted">Sign in on another phone or computer and everything is there.</p>
-        <div class="button-row">
-          <button class="btn primary" id="openSignUpBtn" type="button" data-auth-action>Create account</button>
-          <button class="btn" id="openSignInBtn" type="button" data-auth-action>Sign in</button>
-        </div>
       </div>
 
       <form id="signedInPanel" class="profile-form hidden" novalidate>
