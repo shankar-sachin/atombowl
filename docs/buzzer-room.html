@@ -59,6 +59,21 @@
           <span class="tag bad" id="interruptTag" hidden>Interrupt</span>
         </div>
 
+        <section class="question-card" id="questionCard" aria-labelledby="questionTitle" hidden>
+          <div class="question-head">
+            <h3 id="questionTitle">Question</h3>
+            <span class="tag" id="questionMeta"></span>
+          </div>
+          <p class="question-text q-serif" id="questionText">The next toss-up is chosen when you start it.</p>
+          <p class="question-answer" id="questionAnswer" hidden>Answer: <strong id="questionAnswerText"></strong></p>
+          <p class="state-note" id="questionNote" role="status" aria-live="polite"></p>
+          <div class="question-actions">
+            <button id="replayBtn" class="btn small" type="button">Read again</button>
+            <button id="swapBtn" class="btn small" type="button">Different question</button>
+            <button id="voiceBtn" class="btn small" type="button" aria-pressed="true">Read aloud: on</button>
+          </div>
+        </section>
+
         <div class="primary-zone">
           <button id="primaryBtn" class="btn primary huge" type="button" disabled>
             <span id="primaryLabel">Start tossup</span>

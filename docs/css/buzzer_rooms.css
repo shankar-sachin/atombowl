@@ -610,3 +610,24 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
   .console { padding: 18px; }
   .buzz-btn .kbd { display: none; }
 }
+
+/* ---------- Provided questions (host console) ---------- */
+
+.question-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--signal);
+  border-radius: var(--r-control);
+  background: var(--ink);
+}
+
+.question-card[hidden] { display: none; }
+.question-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.question-head h3 { font-size: 1rem; }
+.question-text { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.question-answer { margin: 0; color: var(--muted); }
+.question-answer strong { color: var(--text); }
+.question-card .state-note:empty { display: none; }
+.question-actions { display: flex; flex-wrap: wrap; gap: 8px; }
