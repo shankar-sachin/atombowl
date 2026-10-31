@@ -3,7 +3,7 @@
 // pending patch is rendered at once) and sent in order through a queue; a rejected action is
 // dropped from the optimistic copy and its real error is shown.
 import { sendHostAction } from "./room_store.js";
-import { hostPatch, actionReason, availableActions, phaseDeadline, clockRemaining, gameClockOf, timeMillis, stateLine, formatSeconds, formatClock, teamClass, teamName, teamIds, CATEGORIES, LOG_LIMIT, timedPhase, clockRunning } from "./room_state.js";
+import { hostPatch, actionReason, availableActions, phaseDeadline, clockRemaining, gameClockOf, timeMillis, stateLine, formatSeconds, formatClock, teamClass, teamName, teamIds, CATEGORIES, LOG_LIMIT, timedPhase, clockRunning, locksOnTimerEnd, tossupPoints, bonusPoints, questionMode, isBasic, playerPoints } from "./room_state.js";
 import { createReader } from "./room_reader.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
@@ -18,7 +18,7 @@ const els = {
     incorrect: $("incorrectBtn"), incorrectLabel: $("incorrectLabel"), bonusZone: $("bonusZone"),
     bonusTeam: $("bonusTeam"), dead: $("deadBtn"), next: $("nextBtn"), category: $("categorySelect"),
     adjustList: $("adjustList"), gameClock: $("gameClock"), clockStart: $("clockStartBtn"),
-    clockPause: $("clockPauseBtn"), clockReset: $("clockResetBtn"), endGame: $("endGameBtn"),
+    clockPause: $("clockPauseBtn"), clockReset: $("clockResetBtn"), clockMin: $("clockMin"), clockSec: $("clockSec"), clockSet: $("clockSetBtn"), endGame: $("endGameBtn"),
     endConfirm: $("endConfirm"), endCancel: $("endCancelBtn"), endConfirmBtn: $("endConfirmBtn"),
     exportBtn: $("exportBtn"), roster: $("roster"), statsBody: $("statsBody"), logList: $("logList"),
     logCount: $("logCount")
@@ -143,7 +143,7 @@ function drop(op) {
 /** Send an expiry once per phase, and only when the server still has that phase. */
 function expireIfDue(room, now) {
     var _a;
-    if (timedPhase(room) && now >= phaseDeadlineOf(room)) {
+    if (timedPhase(room) && locksOnTimerEnd(room) && now >= phaseDeadlineOf(room)) {
         const key = room.timers.phaseKey;
         if (((_a = snap === null || snap === void 0 ? void 0 : snap.timers) === null || _a === void 0 ? void 0 : _a.phaseKey) === key && !expired.has(key) && !snap.currentBuzz) {
             expired.add(key);
@@ -160,7 +160,9 @@ function expireIfDue(room, now) {
     }
 }
 function needsLoop(room) {
-    return timedPhase(room) || clockRunning(room);
+    // With the timer lock off, a finished timer just sits at 0; no need to keep repainting.
+    const running = timedPhase(room) && (locksOnTimerEnd(room) || Date.now() < phaseDeadlineOf(room));
+    return running || clockRunning(room);
 }
 function ensureLoop() {
     if (!rafId)
@@ -299,11 +301,11 @@ function renderBuzzer(room) {
 /** Primary button: what Start / Done reading / Next / Start bonus timer does right now. */
 function primarySpec(room) {
     switch (room.status) {
-        case "lobby": return { label: "Start tossup", action: "tossup_start", key: "Space" };
+        case "lobby": return { label: questionMode(room) === "bonus" ? "Start bonus" : "Start tossup", action: "tossup_start", key: "Space" };
         case "tossup_reading": return { label: "Done reading", action: "done_reading", key: "Space" };
         case "tossup_open": return { label: "Waiting for a buzz", action: null, key: "Space" };
         case "tossup_dead":
-        case "between": return { label: "Next tossup", action: "next_tossup", key: "N" };
+        case "between": return { label: questionMode(room) === "bonus" ? "Next bonus" : "Next tossup", action: "next_tossup", key: "N" };
         case "bonus_ready": return { label: "Start bonus timer", action: "bonus_start", key: "Space" };
         case "ended": return { label: "Game over", action: null, key: "Space" };
         default: return null; // grading states show the Correct / Incorrect pair instead
@@ -327,7 +329,7 @@ function renderControls(room, avail) {
     var _a, _b, _c, _d;
     const spec = primarySpec(room);
     const grades = gradeActions(room);
-    const paintKey = JSON.stringify([room.status, spec === null || spec === void 0 ? void 0 : spec.label, (spec === null || spec === void 0 ? void 0 : spec.action) && ((_a = avail[spec.action]) === null || _a === void 0 ? void 0 : _a.reason), room.bonusTeam, grades, grades && [(_b = avail[grades.correct]) === null || _b === void 0 ? void 0 : _b.reason, (_c = avail[grades.incorrect]) === null || _c === void 0 ? void 0 : _c.reason]]);
+    const paintKey = JSON.stringify([room.status, spec === null || spec === void 0 ? void 0 : spec.label, tossupPoints(room), bonusPoints(room), (spec === null || spec === void 0 ? void 0 : spec.action) && ((_a = avail[spec.action]) === null || _a === void 0 ? void 0 : _a.reason), room.bonusTeam, grades, grades && [(_b = avail[grades.correct]) === null || _b === void 0 ? void 0 : _b.reason, (_c = avail[grades.incorrect]) === null || _c === void 0 ? void 0 : _c.reason]]);
     paint("controls", paintKey, () => {
         var _a;
         els.primary.hidden = !spec;
@@ -341,7 +343,7 @@ function renderControls(room, avail) {
         els.gradePair.hidden = !grades;
         if (grades) {
             const bonus = !!grades.correct.startsWith("bonus");
-            setText(els.correctLabel, bonus ? "Bonus correct, +10" : "Correct, +4");
+            setText(els.correctLabel, bonus ? `Bonus correct, +${bonusPoints(room)}` : `Correct, +${tossupPoints(room)}`);
             setText(els.incorrectLabel, bonus ? "Bonus incorrect" : "Incorrect");
             els.correct.disabled = !avail[grades.correct].ok;
             els.incorrect.disabled = !avail[grades.incorrect].ok;
@@ -418,9 +420,10 @@ function renderClock(room, avail) {
     });
 }
 function renderRoster(room) {
-    var _a;
-    const key = JSON.stringify([members, room.hostUid, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, teamIds(room)]);
+    var _a, _b;
+    const key = JSON.stringify([members, room.hostUid, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, teamIds(room), (_b = room.stats) === null || _b === void 0 ? void 0 : _b.player, room.scores]);
     paint("roster", key, () => {
+        var _a, _b;
         els.roster.replaceChildren();
         const host = members.find((member) => member.id === room.hostUid);
         if (host) {
@@ -441,10 +444,10 @@ function renderRoster(room) {
             const group = document.createElement("div");
             group.className = `roster-group ${teamClass(team)}`;
             const people = members.filter((member) => member.team === team && member.id !== room.hostUid)
-                .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+                .sort((a, b) => playerPoints(room, b.id) - playerPoints(room, a.id) || (a.name || "").localeCompare(b.name || ""));
             const heading = document.createElement("h3");
             const title = document.createElement("span");
-            title.textContent = teamName(room, team);
+            title.textContent = `${teamName(room, team)}: ${(_b = (_a = room.scores) === null || _a === void 0 ? void 0 : _a[team]) !== null && _b !== void 0 ? _b : 0}`;
             const count = document.createElement("span");
             count.className = "roster-count";
             count.textContent = people.length === 1 ? "1 player" : `${people.length} players`;
@@ -461,7 +464,10 @@ function renderRoster(room) {
                 const item = document.createElement("li");
                 const name = document.createElement("span");
                 name.textContent = person.name || "Player";
-                item.appendChild(name);
+                const points = document.createElement("strong");
+                points.className = "numerals roster-points";
+                points.textContent = String(playerPoints(room, person.id));
+                item.append(name, points);
                 list.appendChild(item);
             }
             group.append(heading, list);
@@ -672,6 +678,10 @@ els.clockPause.addEventListener("click", () => {
     act("game_pause", { elapsedMs: room ? clockElapsed(room, Date.now()) : 0 });
 });
 els.clockReset.addEventListener("click", () => act("game_reset"));
+els.clockSet.addEventListener("click", () => {
+    const seconds = (parseInt(els.clockMin.value, 10) || 0) * 60 + (parseInt(els.clockSec.value, 10) || 0);
+    act("game_set", { seconds });
+});
 els.endGame.addEventListener("click", () => { els.endConfirm.hidden = false; els.endConfirmBtn.focus(); });
 els.endCancel.addEventListener("click", () => { els.endConfirm.hidden = true; els.endGame.focus(); });
 els.endConfirmBtn.addEventListener("click", () => {
@@ -692,6 +702,10 @@ function attach(room) {
             return;
         }
         const data = snapshot.data();
+        if (isBasic(data)) {
+            window.location.replace(`/buzzer-basic?roomId=${encodeURIComponent(room)}`);
+            return;
+        }
         if (data.hostUid !== uid) {
             window.location.replace(`/buzzer-room-player?roomId=${encodeURIComponent(room)}`);
             return;

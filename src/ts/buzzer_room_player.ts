@@ -4,7 +4,8 @@
 import { sendBuzz, loadMembership } from "./room_store.js";
 import {
   buzzReason, teamIds, teamName, teamClass, stateLine, formatSeconds, formatClock, timedPhase,
-  clockRunning, phaseDeadline, gameClockOf, clockRemaining, timeMillis, sentenceCase, LOG_LIMIT
+  clockRunning, phaseDeadline, gameClockOf, clockRemaining, timeMillis, sentenceCase, LOG_LIMIT,
+  locksOnTimerEnd, playerPoints, timerOf, timerRemaining
 } from "./room_state.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import {
@@ -16,7 +17,7 @@ const els = {
   roomName: $("roomName"), roomCode: $("roomCode"), me: $("me"), rejoin: $("rejoin"), rejoinBtn: $("rejoinBtn"),
   stage: $("stage"), stateLine: $("stateLine"), phaseTime: $("phaseTime"), phaseLabel: $("phaseLabel"),
   category: $("category"), buzz: $("buzzBtn"), buzzLabel: $("buzzLabel"), buzzStatus: $("buzzStatus"),
-  buzzError: $("buzzError"), teams: $("teams"), gameClock: $("gameClock"), roster: $("roster"),
+  buzzError: $("buzzError"), teams: $("teams"), gameClock: $("gameClock"), roster: $("roster"), gameClockLine: $("gameClockLine"),
   logList: $("logList"), logCount: $("logCount")
 };
 
@@ -79,6 +80,7 @@ function reasonNow(room, now = Date.now()) {
 }
 
 function buzzView(room, now) {
+  if (room.status === "basic" && !room.currentBuzz && room.locked) return { label: "Locked", cls: "", disabled: true, title: "Buzzers are locked." };
   if (room.status === "ended") return { label: "Game over", cls: "", disabled: true, title: "The game has ended." };
   if (!member) return { label: memberKnown ? "Rejoin to buzz" : "Joining", cls: "", disabled: true, title: "" };
   if (buzzSent) return { label: "Buzzing...", cls: "", disabled: true, title: "" };
@@ -96,6 +98,7 @@ function buzzView(room, now) {
 
 function stateNoteOf(room) {
   switch (room.status) {
+    case "basic": return room.locked ? "" : "Buzz when you know it.";
     case "tossup_reading": return "Listen. Buzzing now is an interrupt.";
     case "tossup_open": return "Buzz when you know the answer.";
     case "bonus_open": return room.bonusTeam === member?.team ? "Your team's bonus. Answer with the team." : "";
@@ -179,7 +182,7 @@ function rosterGroup(className, title, countText) {
 
 // Same layout as the host page: the moderator first, then each team with its players.
 function renderRoster(room) {
-  paint("roster", JSON.stringify([members, room.settings?.teamNames, uid, room.hostUid]), () => {
+  paint("roster", JSON.stringify([members, room.settings?.teamNames, uid, room.hostUid, room.stats?.player, room.scores]), () => {
     els.roster.replaceChildren();
     const host = members.find((person) => person.id === room.hostUid);
     if (host) {
@@ -191,8 +194,8 @@ function renderRoster(room) {
     }
     for (const team of teamIds(room)) {
       const people = members.filter((person) => person.team === team && person.id !== room.hostUid)
-        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-      const { group, list } = rosterGroup(teamClass(team), teamName(room, team), people.length === 1 ? "1 player" : `${people.length} players`);
+        .sort((a, b) => playerPoints(room, b.id) - playerPoints(room, a.id) || (a.name || "").localeCompare(b.name || ""));
+      const { group, list } = rosterGroup(teamClass(team), `${teamName(room, team)}: ${room.scores?.[team] ?? 0}`, people.length === 1 ? "1 player" : `${people.length} players`);
       if (!people.length) {
         const empty = document.createElement("li");
         empty.className = "muted";
@@ -204,6 +207,10 @@ function renderRoster(room) {
         const name = document.createElement("span");
         name.textContent = person.name || "Player";
         item.appendChild(name);
+        const points = document.createElement("strong");
+        points.className = "numerals roster-points";
+        points.textContent = String(playerPoints(room, person.id));
+        item.appendChild(points);
         if (person.id === uid) {
           const you = document.createElement("span");
           you.className = "muted";
@@ -239,19 +246,32 @@ function renderLog(room) {
   renderedLogSeq = lastSeq;
 }
 
+function basicTimerLeft(room, now) {
+  const timer = timerOf(room);
+  const elapsed = timer.status === "running" ? Math.max(0, now - (anchorFor(timer.runKey, timer.startedAt) ?? now)) : 0;
+  return timerRemaining(room, elapsed);
+}
+
 function renderTimers(room, now) {
+  if (room.status === "basic") {
+    setText(els.phaseTime, formatClock(basicTimerLeft(room, now)));
+    setText(els.phaseLabel, "Timer");
+    setText(els.gameClock, formatClock(clockLeft(room, now)));
+    return;
+  }
   if (timedPhase(room)) {
     setText(els.phaseTime, formatSeconds(phaseDeadlineOf(room) - now));
     setText(els.phaseLabel, room.status === "bonus_open" ? "Bonus time" : "Answer time");
   } else {
-    setText(els.phaseTime, "");
-    setText(els.phaseLabel, room.status === "tossup_reading" ? "Reading, buzzers open" : "");
+    setText(els.phaseTime, "--");
+    setText(els.phaseLabel, room.status === "tossup_reading" ? "Reading, buzzers open" : "Question timer");
   }
   setText(els.gameClock, formatClock(clockLeft(room, now)));
 }
 
 function needsLoop(room) {
-  return timedPhase(room) || clockRunning(room);
+  const running = timedPhase(room) && (locksOnTimerEnd(room) || Date.now() < phaseDeadlineOf(room));
+  return running || clockRunning(room) || (room.status === "basic" && timerOf(room).status === "running");
 }
 
 function ensureLoop() {
@@ -326,7 +346,7 @@ function attach(room) {
     }
     const data = snapshot.data();
     if (data.hostUid === uid) {
-      window.location.replace(`/buzzer-room?roomId=${encodeURIComponent(room)}`);
+      window.location.replace(`/${data.settings?.mode === "basic" ? "buzzer-basic" : "buzzer-room"}?roomId=${encodeURIComponent(room)}`);
       return;
     }
     snap = data;

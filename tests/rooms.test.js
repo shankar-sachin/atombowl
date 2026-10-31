@@ -287,3 +287,63 @@ test('display helpers: state line, clock text, team classes and category case', 
   assert.equal(timedPhase(room), false);
   assert.equal(clockRunning(act(base(), 'game_start', {}, 1000)), true);
 });
+
+test('question mode and point values: toss-up only skips bonuses, bonus only starts on a bonus', () => {
+  let room = base({ questionMode: 'tossup', tossupPoints: 5 });
+  room = buzz(reading(room), ANN, 1100);
+  room = act(room, 'tossup_grade_correct', {}, 1200);
+  assert.equal(room.status, 'between');
+  assert.equal(room.scores.A, 5);
+  let bonusOnly = act(base({ questionMode: 'bonus', bonusPoints: 7 }), 'tossup_start');
+  assert.equal(bonusOnly.status, 'bonus_ready');
+  bonusOnly = act(bonusOnly, 'bonus_correct');
+  assert.equal(bonusOnly.scores.A, 7);
+  assert.equal(bonusOnly.status, 'between');
+});
+
+test('with the timer lock off, the toss-up does not expire and late buzzes are allowed', () => {
+  const room = act(reading(base({ lockOnTimerEnd: false })), 'done_reading', {}, 2000);
+  assert.deepEqual(hostPatch(room, 'host', 'expire', { phaseKey: room.timers.phaseKey }, 9000), {});
+  assert.equal(canBuzz(room, ANN, 60000), true);
+});
+
+test('one-team rooms: an incorrect interrupt costs points and kills the toss-up', () => {
+  let room = base({ teamCount: 1 }, { scores: { A: 0 } });
+  room = buzz(reading(room), ANN, 1100);
+  room = act(room, 'tossup_grade_incorrect', {}, 1200);
+  assert.equal(room.scores.A, -4);
+  assert.equal(room.status, 'tossup_dead');
+});
+
+test('basic mode: first buzz while unlocked, lock, clear, and per-player points', () => {
+  let room = base({ mode: 'basic', teamCount: 1 }, { status: 'basic', locked: true, scores: { A: 0 } });
+  assert.equal(buzzReason(room, ANN), 'Buzzers are locked.');
+  room = act(room, 'basic_lock');
+  assert.equal(room.locked, false);
+  room = buzz(room, ANN);
+  assert.equal(room.currentBuzz.uid, 'a1');
+  assert.match(buzzReason(room, ANN), /already buzzed/);
+  room = act(room, 'basic_clear');
+  assert.equal(room.currentBuzz, null);
+  room = act(room, 'adjust_player', { uid: 'a1', name: 'Ann', team: 'A', delta: 3 });
+  room = act(room, 'adjust_player', { uid: 'a1', name: 'Ann', team: 'A', delta: -1 });
+  assert.equal(S.playerPoints(room, 'a1'), 2);
+  assert.equal(room.scores.A, 2);
+});
+
+test('timer and game clock: set, round-mode locking, and reset keeps the set length', () => {
+  let room = base({ mode: 'basic', timerUnlockOnStart: true, timerLockOnEnd: true }, { status: 'basic', locked: true });
+  room = act(room, 'timer_set', { seconds: 45 });
+  assert.equal(room.basicTimer.remainingMs, 45000);
+  room = act(room, 'timer_start', {}, 2000);
+  assert.equal(room.locked, false);
+  room = act(room, 'timer_expire', { runKey: room.basicTimer.runKey }, 60000);
+  assert.equal(room.locked, true);
+  assert.equal(room.basicTimer.status, 'done');
+  room = act(room, 'game_set', { seconds: 90 });
+  room = act(room, 'game_start', {}, 3000);
+  room = act(room, 'game_pause', { elapsedMs: 10000 }, 4000);
+  assert.equal(room.gameClock.remainingMs, 80000);
+  room = act(room, 'game_reset');
+  assert.equal(room.gameClock.remainingMs, 90000);
+});
