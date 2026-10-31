@@ -22,6 +22,8 @@ export function createReader({ roomId, getRoom, act }) {
     let lastStatus = "";
     let token = 0; // bumps whenever speech is cancelled or restarted
     let voiceOn = readVoice();
+    let chunkIdx = 0; // sentence being spoken, so a graded interrupt resumes there
+    let resumeAt = 0;
     function readVoice() {
         try {
             return localStorage.getItem(VOICE_KEY) !== "off";
@@ -94,7 +96,7 @@ export function createReader({ roomId, getRoom, act }) {
         ui.answer.hidden = false;
     }
     /** Read the current question; `then` runs once it has been read to the end. */
-    function speak(then) {
+    function speak(then, from = 0) {
         stopSpeech();
         const synth = window.speechSynthesis;
         if (!current || !(bank === null || bank === void 0 ? void 0 : bank[current.qIdx]))
@@ -113,7 +115,9 @@ export function createReader({ roomId, getRoom, act }) {
         const voice = settings.ttsVoice ? voices.find((v) => (v.voiceURI || v.name) === settings.ttsVoice) : null;
         const preferred = voice || voices.find((v) => /en-US/i.test(v.lang) && /Google|Microsoft|Samantha/i.test(v.name));
         // Chrome stalls on long utterances, so each sentence is its own utterance.
-        const chunks = speechText(bank[current.qIdx], current.kind).match(/[^.?!]+[.?!]+(\s|$)|[^.?!]+$/g) || [];
+        const all = speechText(bank[current.qIdx], current.kind).match(/[^.?!]+[.?!]+(\s|$)|[^.?!]+$/g) || [];
+        const chunks = all.slice(Math.min(from, Math.max(0, all.length - 1)));
+        const offset = all.length - chunks.length;
         setNote("");
         chunks.forEach((chunk, i) => {
             var _a, _b, _c;
@@ -123,6 +127,8 @@ export function createReader({ roomId, getRoom, act }) {
             utterance.volume = Number((_c = settings.ttsVolume) !== null && _c !== void 0 ? _c : 1);
             if (preferred)
                 utterance.voice = preferred;
+            utterance.onstart = () => { if (mine === token)
+                chunkIdx = offset + i; };
             utterance.onerror = (event) => {
                 if (mine !== token || event.error === "canceled" || event.error === "interrupted")
                     return;
@@ -136,17 +142,20 @@ export function createReader({ roomId, getRoom, act }) {
     }
     function afterReading(kind, n) {
         return () => {
+            var _a;
             const room = getRoom();
             if (!room || room.currentIndex !== n)
                 return;
-            if (kind === "tossup" && room.status === "tossup_reading")
+            if (room.currentBuzz)
+                return; // someone buzzed while the last words were spoken; grade first
+            if (kind === "tossup" && room.status === "tossup_reading" && ((_a = room.settings) === null || _a === void 0 ? void 0 : _a.autoStartTimer) !== false)
                 act("done_reading");
             if (kind === "bonus" && room.status === "bonus_ready")
                 act("bonus_start", { team: room.bonusTeam });
         };
     }
-    function startReading() {
-        speak(afterReading(current.kind, current.n));
+    function startReading(from = 0) {
+        speak(afterReading(current.kind, current.n), from);
     }
     function sync(room) {
         var _a;
@@ -165,6 +174,8 @@ export function createReader({ roomId, getRoom, act }) {
         if (kind) {
             const isNew = !current || current.kind !== kind || current.n !== room.currentIndex;
             if (isNew) {
+                resumeAt = 0;
+                chunkIdx = 0;
                 const kept = restore(room, kind);
                 if (kept)
                     current = kept;
@@ -177,12 +188,15 @@ export function createReader({ roomId, getRoom, act }) {
             }
             else if (lastStatus !== status && current) {
                 paint(room);
-                startReading(); // read again after an interrupt was graded wrong
+                // An interrupt was graded wrong: the other teams hear the question again from the interrupted sentence.
+                startReading(lastStatus === "tossup_locked" ? resumeAt : 0);
             }
         }
         else {
             if (!current)
                 current = restore(room, "");
+            if (lastStatus !== status && status === "tossup_locked" && lastStatus === "tossup_reading")
+                resumeAt = chunkIdx;
             if (lastStatus !== status && ["tossup_open", "tossup_locked", "bonus_open", "bonus_locked", "ended", "tossup_dead", "between"].includes(status))
                 stopSpeech();
             paint(room);
@@ -200,6 +214,8 @@ export function createReader({ roomId, getRoom, act }) {
         if (!room || !["tossup_reading", "bonus_ready"].includes(room.status))
             return setNote("Pick a different question while one is being read.");
         if (choose(room, room.status === "bonus_ready" ? "bonus" : "tossup")) {
+            resumeAt = 0;
+            chunkIdx = 0;
             paint(room);
             startReading();
         }

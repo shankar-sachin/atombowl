@@ -187,3 +187,17 @@ test('the host moderates with no team, but players must pick one of the room tea
  await assertFails(sdk.setDoc(memberRef(db, 'p1'), { name: 'p1', team: 'Z', joinedAt: sdk.serverTimestamp(), isHost: false }));
  await join('p2', 'B');
 });
+
+test('basic rooms: one team is allowed, first buzz lands only while unlocked', async () => {
+ const host = dbFor('host');
+ const basicSettings = { teamCount: 1, tuTime: 5, bonusTime: 20, nsbRules: true, halfMinutes: 8, mode: 'basic' };
+ await assertSucceeds(sdk.setDoc(roomRef(host, 'BASIC'), { roomCode: 'BASIC', hostUid: 'host', roomName: 'Game', status: 'basic', locked: true, currentBuzz: null, scores: { A: 0 }, settings: basicSettings }));
+ await assertSucceeds(sdk.setDoc(memberRef(host, 'host', 'BASIC'), { name: 'Host', team: '', joinedAt: sdk.serverTimestamp(), isHost: true }));
+ const a = dbFor('p1');
+ await assertSucceeds(sdk.setDoc(memberRef(a, 'p1', 'BASIC'), { name: 'Ann', team: 'A', joinedAt: sdk.serverTimestamp(), isHost: false }));
+ const buzz = { currentBuzz: { uid: 'p1', name: 'Ann', team: 'A', at: Date.now(), interrupt: false } };
+ await assertFails(sdk.updateDoc(roomRef(a, 'BASIC'), buzz));
+ await assertSucceeds(sdk.updateDoc(roomRef(host, 'BASIC'), { locked: false }));
+ await assertSucceeds(sdk.updateDoc(roomRef(a, 'BASIC'), buzz));
+ await assertFails(sdk.updateDoc(roomRef(dbFor('p2'), 'BASIC'), buzz));
+});

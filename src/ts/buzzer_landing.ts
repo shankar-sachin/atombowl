@@ -110,6 +110,7 @@ async function join(event) {
     const roomRef = doc(db, "rooms", code);
     const memberRef = doc(db, "rooms", code, "players", user.uid);
     let isHost = false;
+    let basic = false;
     await runTransaction(db, async (tx) => {
       const room = await tx.get(roomRef);
       if (!room.exists()) throw new Error("This room no longer exists.");
@@ -121,6 +122,7 @@ async function join(event) {
         throw new Error("Team changes are only allowed before the game starts.");
       }
       isHost = data.hostUid === user.uid;
+      basic = data.settings?.mode === "basic";
       tx.set(memberRef, {
         name,
         team,
@@ -131,7 +133,7 @@ async function join(event) {
     localStorage.setItem(PROFILE_KEY, JSON.stringify({ name, team }));
     localStorage.setItem("atom_buzzer_role", isHost ? "host" : "player");
     if (window.atomAccount?.getUser?.()) window.atomAccount.saveBuzzerProfile({ name, team }).catch(() => {});
-    window.location.href = `${isHost ? "/buzzer-room" : "/buzzer-room-player"}?roomId=${encodeURIComponent(code)}`;
+    window.location.href = `${isHost ? (basic ? "/buzzer-basic" : "/buzzer-room") : "/buzzer-room-player"}?roomId=${encodeURIComponent(code)}`;
   } catch (err) {
     joinError.textContent = `Could not join: ${err.message || "check your connection and try again."}`;
   } finally {

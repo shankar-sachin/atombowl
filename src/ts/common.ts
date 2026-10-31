@@ -113,6 +113,7 @@
     '/more-options': '/game-clock',
     '/buzzer-create': '/buzzer-rooms',
     '/buzzer-room': '/buzzer-rooms',
+    '/buzzer-basic': '/buzzer-rooms',
     '/buzzer-room-player': '/buzzer-rooms',
     '/microsoft-auth': '/account'
   };

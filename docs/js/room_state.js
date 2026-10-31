@@ -17,7 +17,7 @@ export const BUZZ_STATUSES = ["tossup_reading", "tossup_open", "bonus_open"];
 export const HOST_ACTIONS = [
     "tossup_start", "done_reading", "tossup_grade_correct", "tossup_grade_incorrect", "tossup_dead",
     "next_tossup", "bonus_start", "bonus_team", "bonus_correct", "bonus_wrong", "set_category",
-    "adjust_score", "end_game", "game_start", "game_pause", "game_reset"
+    "adjust_score", "end_game", "game_start", "game_pause", "game_reset", "game_set"
 ];
 const has = (obj, key) => !!obj && Object.prototype.hasOwnProperty.call(obj, key);
 const clone = (value) => JSON.parse(JSON.stringify(value !== null && value !== void 0 ? value : null));
@@ -44,6 +44,37 @@ export function bonusSeconds(room) {
     var _a, _b;
     return ((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.nsbRules) ? 20 : (Number((_b = room === null || room === void 0 ? void 0 : room.settings) === null || _b === void 0 ? void 0 : _b.bonusTime) || 20);
 }
+/** Points a player has earned (live from stats). */
+export function playerPoints(room, uid) {
+    var _a, _b, _c;
+    return Number((_c = (_b = (_a = room === null || room === void 0 ? void 0 : room.stats) === null || _a === void 0 ? void 0 : _a.player) === null || _b === void 0 ? void 0 : _b[uid]) === null || _c === void 0 ? void 0 : _c.points) || 0;
+}
+/** Points for a correct toss-up (also the interrupt penalty). */
+export function tossupPoints(room) {
+    var _a;
+    const n = Number((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.tossupPoints);
+    return Number.isInteger(n) && n >= 0 && n <= 100 ? n : 4;
+}
+export function bonusPoints(room) {
+    var _a;
+    const n = Number((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.bonusPoints);
+    return Number.isInteger(n) && n >= 0 && n <= 100 ? n : 10;
+}
+/** "both", "tossup" (no bonuses) or "bonus" (bonuses only). */
+export function questionMode(room) {
+    var _a;
+    const mode = (_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.questionMode;
+    return mode === "tossup" || mode === "bonus" ? mode : "both";
+}
+/** Whether the toss-up buzzers close when the answer timer runs out (default yes). */
+export function locksOnTimerEnd(room) {
+    var _a;
+    return ((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.lockOnTimerEnd) !== false;
+}
+export function isBasic(room) {
+    var _a;
+    return ((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.mode) === "basic";
+}
 export function halfMs(room) {
     var _a;
     return (Number((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.halfMinutes) || 8) * 60000;
@@ -56,11 +87,17 @@ export function phaseDeadline(room, seenAt) {
     const start = typeof seenAt === "number" ? seenAt : timeMillis(timers.phaseStartedAt);
     return start == null ? null : start + timers.phaseDuration * 1000;
 }
+/** Length the game clock resets to: whatever the host last set, else the length chosen on create. */
+export function gameDurationMs(room) {
+    var _a;
+    const ms = Number((_a = room === null || room === void 0 ? void 0 : room.gameClock) === null || _a === void 0 ? void 0 : _a.durationMs);
+    return Number.isFinite(ms) && ms > 0 ? ms : halfMs(room);
+}
 export function gameClockOf(room) {
     const clock = room === null || room === void 0 ? void 0 : room.gameClock;
     if (clock && typeof clock.remainingMs === "number")
         return clock;
-    return { status: "stopped", remainingMs: halfMs(room), startedAt: null, runKey: null };
+    return { status: "stopped", remainingMs: halfMs(room), durationMs: halfMs(room), startedAt: null, runKey: null };
 }
 /** Remaining game-clock time given how long the current run has been observed. */
 export function clockRemaining(room, elapsedMs = 0) {
@@ -68,6 +105,20 @@ export function clockRemaining(room, elapsedMs = 0) {
     if (clock.status !== "running")
         return Math.max(0, clock.remainingMs);
     return Math.max(0, clock.remainingMs - Math.max(0, elapsedMs));
+}
+export function timerOf(room) {
+    var _a;
+    const timer = room === null || room === void 0 ? void 0 : room.basicTimer;
+    if (timer && typeof timer.remainingMs === "number")
+        return timer;
+    const ms = (Number((_a = room === null || room === void 0 ? void 0 : room.settings) === null || _a === void 0 ? void 0 : _a.timerSeconds) || 30) * 1000;
+    return { status: "stopped", durationMs: ms, remainingMs: ms, startedAt: null, runKey: null };
+}
+export function timerRemaining(room, elapsedMs = 0) {
+    const timer = timerOf(room);
+    if (timer.status !== "running")
+        return Math.max(0, timer.remainingMs);
+    return Math.max(0, timer.remainingMs - Math.max(0, elapsedMs));
 }
 /** Why `player` cannot buzz right now, or "" when they can. */
 export function buzzReason(room, player, now = Date.now(), seenAt) {
@@ -80,6 +131,8 @@ export function buzzReason(room, player, now = Date.now(), seenAt) {
     const buzz = room.currentBuzz;
     if (buzz)
         return buzz.uid === player.uid ? "You already buzzed." : `${teamName(room, buzz.team)} (${buzz.name}) buzzed first.`;
+    if (room.status === "basic")
+        return room.locked ? "Buzzers are locked." : "";
     if (!BUZZ_STATUSES.includes(room.status))
         return "Buzzers are closed.";
     if (room.status === "bonus_open" && room.bonusTeam !== player.team)
@@ -87,7 +140,7 @@ export function buzzReason(room, player, now = Date.now(), seenAt) {
     if (room.status !== "bonus_open" && (room.lockoutTeams || []).includes(player.team))
         return "Your team is locked out of this toss-up.";
     const deadline = phaseDeadline(room, seenAt);
-    if (deadline != null && now >= deadline)
+    if (deadline != null && now >= deadline && locksOnTimerEnd(room))
         return "Time is up.";
     return "";
 }
@@ -99,6 +152,9 @@ export function buzzPatch(room, player, now = Date.now(), seenAt) {
     const reason = buzzReason(room, player, now, seenAt);
     if (reason)
         throw new Error(reason);
+    if (room.status === "basic") {
+        return { currentBuzz: { uid: player.uid, name: player.name, team: player.team, at: now, interrupt: false } };
+    }
     return {
         currentBuzz: { uid: player.uid, name: player.name, team: player.team, at: now, interrupt: room.status === "tossup_reading" },
         status: room.status === "bonus_open" ? "bonus_locked" : "tossup_locked",
@@ -182,6 +238,41 @@ export function actionReason(room, action, options = {}) {
             return gameClockOf(room).status === "running" ? "" : "The game clock is not running.";
         case "game_reset":
             return "";
+        case "game_set": {
+            if (gameClockOf(room).status === "running")
+                return "Pause the game clock first.";
+            const seconds = Number(options.seconds);
+            return Number.isInteger(seconds) && seconds >= 1 && seconds <= 86400 ? "" : "Set the clock between 1 second and 24 hours.";
+        }
+        case "adjust_player": {
+            const delta = Number(options.delta);
+            if (!teams.includes(options.team) || !options.uid || typeof options.name !== "string")
+                return "Choose a player to adjust.";
+            return Number.isInteger(delta) && delta !== 0 && Math.abs(delta) <= 1000 ? "" : "Adjust by a whole number.";
+        }
+        case "set_teams": {
+            const count = Number(options.count);
+            return Number.isInteger(count) && count >= 1 && count <= 4 ? "" : "Choose 1 to 4 teams.";
+        }
+        case "basic_lock":
+        case "basic_clear":
+        case "reset_points":
+        case "set_settings":
+            return status === "basic" ? "" : "This is not a basic game.";
+        case "timer_start": {
+            const timer = timerOf(room);
+            if (timer.status === "running")
+                return "The timer is already running.";
+            return timer.remainingMs > 0 ? "" : "Reset the timer first.";
+        }
+        case "timer_pause":
+            return timerOf(room).status === "running" ? "" : "The timer is not running.";
+        case "timer_reset":
+            return "";
+        case "timer_set": {
+            const seconds = Number(options.seconds);
+            return Number.isInteger(seconds) && seconds >= 1 && seconds <= 36000 ? "" : "Set the timer between 1 second and 10 hours.";
+        }
         default:
             return "Unknown room action.";
     }
@@ -191,7 +282,8 @@ export function availableActions(room) {
     const sample = {
         adjust_score: { team: teamIds(room)[0], delta: 1 },
         bonus_team: { team: (room === null || room === void 0 ? void 0 : room.bonusTeam) || teamIds(room)[0] },
-        set_category: { category: "General" }
+        set_category: { category: "General" },
+        game_set: { seconds: 480 }
     };
     const out = {};
     for (const action of HOST_ACTIONS) {
@@ -200,6 +292,13 @@ export function availableActions(room) {
     }
     return out;
 }
+/** Basic-mode settings the host may change, with their types. */
+export const BASIC_SETTINGS = {
+    showPoints: "bool", showTeams: "bool", showTimer: "bool", showClock: "bool", plusPoints: "int", minusPoints: "int",
+    timerSound: "bool", timerRoundMode: "bool", timerUnlockOnStart: "bool", timerLockOnEnd: "bool",
+    timerLockOnPause: "bool", timerResetBuzzers: "bool", timerStartOnBuzz: "bool", timerPauseOnBuzz: "bool",
+    buzzSound: "bool", showBuzzTime: "bool"
+};
 function blankStat() {
     return { correct: 0, incorrect: 0, interrupt: 0, buzzes: 0, points: 0 };
 }
@@ -239,8 +338,8 @@ function signed(n) {
  * optimistic copy and the transaction produce identical documents.
  */
 export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
-    var _a;
-    var _b, _c;
+    var _a, _b, _c, _d, _e, _f;
+    var _g, _h, _j, _k;
     if (!room || room.hostUid !== uid)
         throw new Error("Only the room host can do that.");
     const status = room.status || "lobby";
@@ -252,11 +351,20 @@ export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
     // Expiry is fired by a host countdown; when the phase already moved on it is a silent no-op.
     if (action === "expire") {
         if (!room.timers || room.timers.phaseKey !== options.phaseKey || room.currentBuzz
-            || !["tossup_open", "bonus_open"].includes(status))
+            || !["tossup_open", "bonus_open"].includes(status) || !locksOnTimerEnd(room))
             return {};
         patch = status === "bonus_open" ? { status: "bonus_locked", timers: null } : { status: "tossup_dead", timers: null };
         details = status === "bonus_open" ? "Time on the bonus" : `Time. Toss-up ${index} is dead`;
         return finish(room, patch, action, id, now, details);
+    }
+    if (action === "timer_expire") {
+        const timer = timerOf(room);
+        if (timer.status !== "running" || timer.runKey !== options.runKey)
+            return {};
+        const patch = { basicTimer: { ...timer, status: "done", remainingMs: 0, startedAt: null, runKey: null } };
+        if ((_a = room.settings) === null || _a === void 0 ? void 0 : _a.timerLockOnEnd)
+            patch.locked = true;
+        return finish(room, patch, action, id, now, "Timer finished");
     }
     if (action === "game_expire") {
         const clock = gameClockOf(room);
@@ -275,6 +383,12 @@ export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
         case "next_tossup": {
             const next = index + 1;
             const category = cleanCategory(options.category) || room.currentCategory || "General";
+            if (questionMode(room) === "bonus") {
+                patch = { status: "bonus_ready", currentIndex: next, currentCategory: category, currentBuzz: null,
+                    lockoutTeam: null, lockoutTeams: [], timers: null };
+                details = `Bonus ${next} started: ${category}`;
+                break;
+            }
             patch = { status: "tossup_reading", currentIndex: next, currentCategory: category, currentBuzz: null,
                 lockoutTeam: null, lockoutTeams: [], timers: null };
             details = `Toss-up ${next} started: ${category}`;
@@ -287,10 +401,12 @@ export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
             break;
         }
         case "tossup_grade_correct": {
-            scores[buzz.team] = (scores[buzz.team] || 0) + 4;
-            patch = { scores, stats: tallyBuzz(room, "correct", 4), currentBuzz: null, status: "bonus_ready",
+            const points = tossupPoints(room);
+            scores[buzz.team] = (scores[buzz.team] || 0) + points;
+            patch = { scores, stats: tallyBuzz(room, "correct", points), currentBuzz: null,
+                status: questionMode(room) === "tossup" ? "between" : "bonus_ready",
                 bonusTeam: buzz.team, lockoutTeam: null, lockoutTeams: [], timers: null };
-            details = `${who} correct${buzz.interrupt ? " on an interrupt" : ""}, +4`;
+            details = `${who} correct${buzz.interrupt ? " on an interrupt" : ""}, +${points}`;
             break;
         }
         case "tossup_grade_incorrect": {
@@ -298,16 +414,17 @@ export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
             const locked = [...new Set([...(room.lockoutTeams || []), buzz.team])];
             const finished = teams.every(team => locked.includes(team));
             let stats;
+            const penalty = tossupPoints(room);
             if (buzz.interrupt && teams.length === 2) {
                 const opponent = teams.find(team => team !== buzz.team);
-                scores[opponent] = (scores[opponent] || 0) + 4;
-                stats = addTeamPoints(tallyBuzz(room, "interrupt", 0), opponent, 4);
-                details = `${who} interrupted incorrectly, +4 to ${teamName(room, opponent)}`;
+                scores[opponent] = (scores[opponent] || 0) + penalty;
+                stats = addTeamPoints(tallyBuzz(room, "interrupt", 0), opponent, penalty);
+                details = `${who} interrupted incorrectly, +${penalty} to ${teamName(room, opponent)}`;
             }
             else if (buzz.interrupt) {
-                scores[buzz.team] = (scores[buzz.team] || 0) - 4;
-                stats = tallyBuzz(room, "interrupt", -4);
-                details = `${who} interrupted incorrectly, -4`;
+                scores[buzz.team] = (scores[buzz.team] || 0) - penalty;
+                stats = tallyBuzz(room, "interrupt", -penalty);
+                details = `${who} interrupted incorrectly, -${penalty}`;
             }
             else {
                 stats = tallyBuzz(room, "incorrect", 0);
@@ -338,16 +455,16 @@ export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
         case "bonus_correct":
         case "bonus_wrong": {
             const team = room.bonusTeam;
-            const points = action === "bonus_correct" ? 10 : 0;
+            const points = action === "bonus_correct" ? bonusPoints(room) : 0;
             scores[team] = (scores[team] || 0) + points;
             const stats = addTeamPoints(clone(room.stats) || {}, team, points, points ? "bonusCorrect" : "bonusMissed");
             if (buzz && points) {
                 stats.player || (stats.player = {});
-                const value = (_b = stats.player)[_c = buzz.uid] || (_b[_c] = { ...blankStat(), name: buzz.name, team: buzz.team });
+                const value = (_g = stats.player)[_h = buzz.uid] || (_g[_h] = { ...blankStat(), name: buzz.name, team: buzz.team });
                 value.points = (value.points || 0) + points;
             }
             patch = { scores, stats, status: "between", currentBuzz: null, timers: null, lockoutTeam: null, lockoutTeams: [] };
-            details = `${teamName(room, team)} bonus ${points ? "correct, +10" : "incorrect"}`;
+            details = `${teamName(room, team)} bonus ${points ? `correct, +${points}` : "incorrect"}`;
             break;
         }
         case "set_category": {
@@ -377,21 +494,117 @@ export function hostPatch(room, uid, action, options = {}, now = Date.now()) {
             break;
         case "game_pause": {
             const clock = gameClockOf(room);
-            const elapsed = typeof options.elapsedMs === "number" ? options.elapsedMs : now - ((_a = timeMillis(clock.startedAt)) !== null && _a !== void 0 ? _a : now);
+            const elapsed = typeof options.elapsedMs === "number" ? options.elapsedMs : now - ((_b = timeMillis(clock.startedAt)) !== null && _b !== void 0 ? _b : now);
             patch = { gameClock: { status: "paused", remainingMs: clockRemaining(room, elapsed), startedAt: null, runKey: null } };
             details = "Game clock paused";
             break;
         }
         case "game_reset":
-            patch = { gameClock: { status: "stopped", remainingMs: halfMs(room), startedAt: null, runKey: null } };
+            patch = { gameClock: { status: "stopped", remainingMs: gameDurationMs(room), startedAt: null, runKey: null } };
             details = "Game clock reset";
             break;
+        case "game_set": {
+            const ms = Number(options.seconds) * 1000;
+            patch = { gameClock: { status: "stopped", remainingMs: ms, durationMs: ms, startedAt: null, runKey: null } };
+            details = `Game clock set to ${formatClock(ms)}`;
+            break;
+        }
+        case "adjust_player": {
+            const delta = Number(options.delta);
+            const stats = clone(room.stats) || {};
+            stats.player || (stats.player = {});
+            const value = (_j = stats.player)[_k = options.uid] || (_j[_k] = blankStat());
+            value.points = (value.points || 0) + delta;
+            Object.assign(value, { name: options.name, team: options.team });
+            scores[options.team] = (scores[options.team] || 0) + delta;
+            patch = { scores, stats };
+            details = `${options.name} ${signed(delta)}`;
+            break;
+        }
+        case "set_teams": {
+            const count = Number(options.count);
+            const next = {};
+            for (const letter of "ABCD".slice(0, count))
+                next[letter] = scores[letter] || 0;
+            patch = { scores: next, settings: { ...(room.settings || {}), teamCount: count } };
+            details = `${count} team${count === 1 ? "" : "s"}`;
+            break;
+        }
+        case "reset_points": {
+            const stats = clone(room.stats) || {};
+            for (const value of Object.values(stats.player || {}))
+                value.points = 0;
+            for (const team of Object.keys(scores))
+                scores[team] = 0;
+            patch = { scores, stats };
+            details = "All points reset";
+            break;
+        }
+        case "basic_lock": {
+            const locked = options.locked === undefined ? !room.locked : !!options.locked;
+            patch = { locked };
+            details = locked ? "Buzzers locked" : "Buzzers unlocked";
+            break;
+        }
+        case "basic_clear":
+            patch = { currentBuzz: null };
+            details = "Buzzers cleared";
+            break;
+        case "set_settings": {
+            const settings = { ...(room.settings || {}) };
+            for (const [key, kind] of Object.entries(BASIC_SETTINGS)) {
+                if (!has(options.changes, key))
+                    continue;
+                const value = options.changes[key];
+                if (kind === "bool" && typeof value === "boolean")
+                    settings[key] = value;
+                else if (kind === "int" && Number.isInteger(value) && value >= 0 && value <= 1000)
+                    settings[key] = value;
+            }
+            patch = { settings };
+            details = "Settings changed";
+            break;
+        }
+        case "timer_start": {
+            const timer = timerOf(room);
+            patch = { basicTimer: { ...timer, status: "running", startedAt: SERVER_TIME, runKey: id } };
+            if ((_c = room.settings) === null || _c === void 0 ? void 0 : _c.timerUnlockOnStart)
+                patch.locked = false;
+            details = "Timer started";
+            break;
+        }
+        case "timer_pause": {
+            const timer = timerOf(room);
+            const elapsed = typeof options.elapsedMs === "number" ? options.elapsedMs : now - ((_d = timeMillis(timer.startedAt)) !== null && _d !== void 0 ? _d : now);
+            patch = { basicTimer: { ...timer, status: "paused", remainingMs: timerRemaining(room, elapsed), startedAt: null, runKey: null } };
+            if ((_e = room.settings) === null || _e === void 0 ? void 0 : _e.timerLockOnPause)
+                patch.locked = true;
+            details = "Timer paused";
+            break;
+        }
+        case "timer_reset": {
+            const timer = timerOf(room);
+            patch = { basicTimer: { ...timer, status: "stopped", remainingMs: timer.durationMs, startedAt: null, runKey: null } };
+            if ((_f = room.settings) === null || _f === void 0 ? void 0 : _f.timerResetBuzzers)
+                patch.currentBuzz = null;
+            details = "Timer reset";
+            break;
+        }
+        case "timer_set": {
+            const ms = Number(options.seconds) * 1000;
+            patch = { basicTimer: { status: "stopped", durationMs: ms, remainingMs: ms, startedAt: null, runKey: null },
+                settings: { ...(room.settings || {}), timerSeconds: Number(options.seconds) } };
+            details = `Timer set to ${formatClock(ms)}`;
+            break;
+        }
         default:
             throw new Error("Unknown room action.");
     }
     return finish(room, patch, action, id, now, details);
 }
 function finish(room, patch, action, id, now, details) {
+    if (patch.gameClock && patch.gameClock.durationMs === undefined)
+        patch = { ...patch, gameClock: { ...patch.gameClock, durationMs: gameDurationMs(room) } };
     const seq = (room.logSeq || 0) + 1;
     const entry = { id, seq, type: action, at: now, details };
     return { ...patch, lastAction: entry, logSeq: seq, log: [...(room.log || []), entry].slice(-LOG_LIMIT) };
@@ -416,7 +629,8 @@ export function stateLine(room) {
         case "bonus_ready": return `Bonus ${n}, ready`;
         case "bonus_open": return `Bonus ${n}, timer running`;
         case "bonus_locked": return `Bonus ${n}, answer to grade`;
-        case "between": return `Ready for tossup ${n + 1}`;
+        case "between": return questionMode(room) === "bonus" ? `Ready for bonus ${n + 1}` : `Ready for tossup ${n + 1}`;
+        case "basic": return room.locked ? "Buzzers locked" : "Buzzers unlocked";
         case "ended": return "Game over";
         default: return sentenceCase(status);
     }

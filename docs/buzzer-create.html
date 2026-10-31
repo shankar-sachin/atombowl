@@ -24,7 +24,19 @@
       </div>
     </header>
 
-    <form id="createForm" class="create-form" novalidate>
+    <section class="mode-picker" aria-label="Game type" id="modePicker">
+      <button type="button" class="mode-card" data-mode="basic" aria-pressed="false">
+        <strong>Basic</strong>
+        <span>One tap. A buzzer and a scoreboard with the code. No setup.</span>
+      </button>
+      <button type="button" class="mode-card" data-mode="advanced" aria-pressed="false">
+        <strong>Advanced</strong>
+        <span>Full NSB match: teams, toss-ups, bonuses, timers, question reader.</span>
+      </button>
+    </section>
+
+    <form id="createForm" class="create-form" novalidate hidden>
+      <div id="advancedFields" class="create-form" hidden>
       <section class="panel" aria-labelledby="roomHeading">
         <h2 id="roomHeading">Room</h2>
         <div class="form-grid">
@@ -44,7 +56,8 @@
         <h2 id="teamsHeading">Teams</h2>
         <label class="label" for="teamCount">Number of teams</label>
         <select id="teamCount" class="select">
-          <option value="2">2 teams</option>
+          <option value="1">1 team</option>
+          <option value="2" selected>2 teams</option>
           <option value="3">3 teams</option>
           <option value="4">4 teams</option>
         </select>
@@ -72,9 +85,9 @@
             <input id="bonusTime" type="number" min="1" max="300" step="1" value="20" inputmode="numeric" />
           </div>
         </div>
-        <label class="label" for="halfMinutes">Half length (minutes)</label>
+        <label class="label" for="halfMinutes">Game clock length (minutes)</label>
         <input id="halfMinutes" type="number" min="1" max="60" step="1" value="8" inputmode="numeric" />
-        <p class="status-note">The game clock counts down this half. The default is 8 minutes.</p>
+        <p class="status-note">The game clock counts down from this. You can set any time later from the room, and it is shown to players.</p>
       </section>
 
       <section class="panel" aria-labelledby="questionsHeading">
@@ -98,8 +111,47 @@
         </div>
       </section>
 
+      <details class="panel advanced-options" id="advancedOptions">
+        <summary>Advanced</summary>
+        <div class="rule-row">
+          <div>
+            <h3 id="lockLabel">Lock buzzers when tossup timer finishes</h3>
+            <p class="muted" id="lockHelp">On: when the answer time runs out, the toss-up is dead.</p>
+          </div>
+          <button id="lockToggle" class="toggle on" type="button" role="switch" aria-checked="true" aria-labelledby="lockLabel">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <div class="rule-row" id="autoTimerRow" hidden>
+          <div>
+            <h3 id="autoTimerLabel">Start tossup timer when question finishes reading</h3>
+            <p class="muted" id="autoTimerHelp">On: the answer timer starts by itself. Off: press Done reading.</p>
+          </div>
+          <button id="autoTimerToggle" class="toggle on" type="button" role="switch" aria-checked="true" aria-labelledby="autoTimerLabel">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <label class="label" for="questionMode">Question types</label>
+        <select id="questionMode" class="select">
+          <option value="both" selected>Toss-ups and bonuses</option>
+          <option value="tossup">Only toss-ups</option>
+          <option value="bonus">Only bonuses</option>
+        </select>
+        <div class="custom-timing">
+          <div>
+            <label class="label" for="tossupPoints">Toss-up points</label>
+            <input id="tossupPoints" type="number" min="0" max="100" step="1" value="4" inputmode="numeric" />
+          </div>
+          <div id="bonusPointsField">
+            <label class="label" for="bonusPoints">Bonus points</label>
+            <input id="bonusPoints" type="number" min="0" max="100" step="1" value="10" inputmode="numeric" />
+          </div>
+        </div>
+      </details>
+      </div>
+
       <div class="form-footer">
-        <button id="createRoomBtn" class="btn primary large" type="submit">Create room</button>
+        <button id="createRoomBtn" class="btn primary large" type="submit">Create game</button>
         <p id="createError" class="error" role="alert"></p>
       </div>
     </form>

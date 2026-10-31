@@ -13,8 +13,12 @@ const els = {
   customTiming: $("customTiming"), tuTime: $("tuTime"), bonusTime: $("bonusTime"), halfMinutes: $("halfMinutes"),
   provideToggle: $("provideToggle"), provideHelp: $("provideHelp"), questionOptions: $("questionOptions"),
   questionLevel: $("questionLevel"),
-  create: $("createRoomBtn"), error: $("createError")
+  create: $("createRoomBtn"), error: $("createError"),
+  picker: $("modePicker"), advancedFields: $("advancedFields"),
+  lockToggle: $("lockToggle"), lockHelp: $("lockHelp"), autoTimerRow: $("autoTimerRow"), autoTimerToggle: $("autoTimerToggle"),
+  questionMode: $("questionMode"), tossupPoints: $("tossupPoints"), bonusPoints: $("bonusPoints"), bonusPointsField: $("bonusPointsField")
 };
+let mode = "";
 
 const TEAM_NAME_MAX = 20;
 
@@ -62,7 +66,7 @@ function buildTeamFields(count) {
 }
 
 els.teamCount.addEventListener("change", () => {
-  const count = clampInt(els.teamCount.value, 2, 4, 2);
+  const count = clampInt(els.teamCount.value, 1, 4, 2);
   buildTeamFields(count);
 });
 
@@ -81,12 +85,38 @@ function setProvide(on) {
   els.provideToggle.classList.toggle("on", on);
   els.provideToggle.setAttribute("aria-checked", String(on));
   els.questionOptions.hidden = !on;
+  els.autoTimerRow.hidden = !on;
   els.provideHelp.textContent = on
     ? "Questions are read aloud automatically."
     : "Off: you read your own questions.";
 }
 
 els.provideToggle.addEventListener("click", () => setProvide(els.provideToggle.getAttribute("aria-checked") !== "true"));
+
+function setSwitch(button, on) {
+  button.classList.toggle("on", on);
+  button.setAttribute("aria-checked", String(on));
+}
+
+els.lockToggle.addEventListener("click", () => {
+  const on = els.lockToggle.getAttribute("aria-checked") !== "true";
+  setSwitch(els.lockToggle, on);
+  els.lockHelp.textContent = on
+    ? "On: when the answer time runs out, the toss-up is dead."
+    : "Off: buzzers stay open after the timer hits zero until you move on.";
+});
+els.autoTimerToggle.addEventListener("click", () => setSwitch(els.autoTimerToggle, els.autoTimerToggle.getAttribute("aria-checked") !== "true"));
+els.questionMode.addEventListener("change", () => {
+  els.bonusPointsField.hidden = els.questionMode.value === "tossup";
+});
+
+function chooseMode(next) {
+  mode = next;
+  els.picker.querySelectorAll("[data-mode]").forEach((card) => card.setAttribute("aria-pressed", String(card.dataset.mode === next)));
+  els.form.hidden = false;
+  els.advancedFields.hidden = next !== "advanced";
+}
+els.picker.querySelectorAll("[data-mode]").forEach((card) => card.addEventListener("click", () => chooseMode(card.dataset.mode)));
 
 function generateCode() {
   let out = "";
@@ -98,16 +128,28 @@ async function create(event) {
   event.preventDefault();
   els.error.textContent = "";
   const user = await ensureAnonAuth();
-  const teamCount = clampInt(els.teamCount.value, 2, 4, 2);
-  const useNsb = els.nsbToggle.getAttribute("aria-checked") === "true";
+  if (!mode) { els.error.textContent = "Choose Basic or Advanced first."; return; }
+  const basic = mode === "basic";
+  const teamCount = basic ? 1 : clampInt(els.teamCount.value, 1, 4, 2);
+  const useNsb = basic || els.nsbToggle.getAttribute("aria-checked") === "true";
   const tuTime = useNsb ? 5 : clampInt(els.tuTime.value, 1, 300, 5);
   const bonusTime = useNsb ? 20 : clampInt(els.bonusTime.value, 1, 300, 20);
-  const halfMinutes = clampInt(els.halfMinutes.value, 1, 60, 8);
-  const provideQuestions = els.provideToggle.getAttribute("aria-checked") === "true";
+  const halfMinutes = basic ? 8 : clampInt(els.halfMinutes.value, 1, 60, 8);
+  const provideQuestions = !basic && els.provideToggle.getAttribute("aria-checked") === "true";
   const questionLevel = els.questionLevel.value === "MS" ? "MS" : "HS";
-  const roomName = els.roomName.value.trim().slice(0, 60) || "Buzzer room";
-  const hostName = els.hostName.value.trim().slice(0, 40) || "Host";
-  const teamNames = currentTeamNames();
+  const roomName = basic ? "Game" : (els.roomName.value.trim().slice(0, 60) || "Buzzer room");
+  const hostName = (basic ? safeParse(localStorage.getItem(PROFILE_KEY))?.name || "" : els.hostName.value).trim().slice(0, 40) || "Host";
+  const teamNames = basic ? {} : currentTeamNames();
+  const extra = basic
+    ? { mode: "basic", showPoints: true, showTeams: false, showTimer: true, showClock: false, plusPoints: 1, minusPoints: 1, timerSeconds: 30 }
+    : {
+      mode: "advanced",
+      lockOnTimerEnd: els.lockToggle.getAttribute("aria-checked") === "true",
+      autoStartTimer: els.autoTimerToggle.getAttribute("aria-checked") === "true",
+      questionMode: ["tossup", "bonus"].includes(els.questionMode.value) ? els.questionMode.value : "both",
+      tossupPoints: clampInt(els.tossupPoints.value, 0, 100, 4),
+      bonusPoints: clampInt(els.bonusPoints.value, 0, 100, 10)
+    };
   const scores = Object.fromEntries(teamLetters(teamCount).map((team) => [team, 0]));
 
   els.create.disabled = true;
@@ -123,7 +165,9 @@ async function create(event) {
           roomName,
           hostUid: user.uid,
           createdAt: serverTimestamp(),
-          status: "lobby",
+          status: basic ? "basic" : "lobby",
+          locked: basic ? false : null,
+          basicTimer: null,
           currentIndex: 0,
           currentBuzz: null,
           scores,
@@ -137,7 +181,7 @@ async function create(event) {
           logSeq: 0,
           stats: {},
           bonusTeam: "A",
-          settings: { teamCount, nsbRules: useNsb, tuTime, bonusTime, halfMinutes, teamNames, provideQuestions, questionLevel }
+          settings: { teamCount, nsbRules: useNsb, tuTime, bonusTime, halfMinutes, teamNames, provideQuestions, questionLevel, ...extra }
         });
         tx.set(doc(db, "rooms", roomCode, "players", user.uid), {
           // The host moderates and doesn't play, so they have no team.
@@ -154,7 +198,7 @@ async function create(event) {
     localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: hostName, team }));
     localStorage.setItem("atom_buzzer_role", "host");
     if (window.atomAccount?.getUser?.()) window.atomAccount.saveBuzzerProfile({ name: hostName, team }).catch(() => {});
-    window.location.href = `/buzzer-room?roomId=${encodeURIComponent(roomCode)}`;
+    window.location.href = `/${basic ? "buzzer-basic" : "buzzer-room"}?roomId=${encodeURIComponent(roomCode)}`;
   } catch (err) {
     els.error.textContent = `Could not create the room: ${err.message || "check your connection and try again."}`;
     els.create.disabled = false;
@@ -166,7 +210,7 @@ els.form.addEventListener("submit", create);
 // Start from the saved profile, then the account profile when it loads.
 const saved = safeParse(localStorage.getItem(PROFILE_KEY)) || {};
 if (saved.name) els.hostName.value = saved.name.slice(0, 40);
-buildTeamFields(clampInt(els.teamCount.value, 2, 4, 2));
+buildTeamFields(clampInt(els.teamCount.value, 1, 4, 2));
 setNsb(true);
 
 if (window.atomAccount?.onAuthChange) {

@@ -34,29 +34,34 @@
     <section class="panel player-stage" id="stage" aria-live="polite" aria-labelledby="stateLine">
       <div class="stage-top">
         <p class="state-line" id="stateLine">Loading room</p>
-        <div class="phase">
-          <span class="numerals phase-time" id="phaseTime"></span>
-          <span class="phase-label" id="phaseLabel"></span>
-        </div>
       </div>
       <p class="category" id="category"></p>
       <button id="buzzBtn" class="buzz-btn" type="button" disabled>
         <span id="buzzLabel">Waiting</span>
         <kbd class="kbd" id="buzzKey">Space</kbd>
       </button>
+      <div class="clock-pair" aria-label="Clocks">
+        <div class="clock-box">
+          <span class="phase-label" id="phaseLabel">Question</span>
+          <span class="numerals phase-time" id="phaseTime">--</span>
+        </div>
+        <div class="clock-box" id="gameClockLine">
+          <span class="phase-label">Game clock</span>
+          <span class="numerals phase-time" id="gameClock">--:--</span>
+        </div>
+      </div>
       <p class="buzz-status" id="buzzStatus" role="status"></p>
       <p class="error" id="buzzError" role="alert"></p>
     </section>
 
     <div class="player-grid">
       <section class="panel" aria-labelledby="scoreTitle">
-        <h2 class="side-title" id="scoreTitle">Scoreboard</h2>
+        <h2 class="side-title" id="scoreTitle">Teams</h2>
         <div class="teams" id="teams"></div>
-        <p class="muted" id="gameClockLine">Game clock <span class="numerals" id="gameClock">--:--</span></p>
       </section>
 
       <section class="panel" aria-labelledby="playersTitle">
-        <h2 class="side-title" id="playersTitle">Players</h2>
+        <h2 class="side-title" id="playersTitle">Scoreboard</h2>
         <div id="roster"></div>
       </section>
 

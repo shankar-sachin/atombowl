@@ -117,6 +117,13 @@
               <button id="clockPauseBtn" class="btn" type="button"><i data-icon="pause"></i>Pause</button>
               <button id="clockResetBtn" class="btn" type="button"><i data-icon="reset"></i>Reset</button>
             </div>
+            <div class="clock-row clock-set">
+              <label class="label" for="clockMin">Set to</label>
+              <input id="clockMin" type="number" min="0" max="99" value="8" inputmode="numeric" aria-label="Minutes" />
+              <span>:</span>
+              <input id="clockSec" type="number" min="0" max="59" value="0" inputmode="numeric" aria-label="Seconds" />
+              <button id="clockSetBtn" class="btn" type="button">Set</button>
+            </div>
           </div>
 
           <div class="secondary-row">
@@ -134,7 +141,7 @@
 
       <aside class="side" aria-label="Room details">
         <section class="panel roster">
-          <h2 class="side-title">Players</h2>
+          <h2 class="side-title">Scoreboard</h2>
           <div id="roster"></div>
         </section>
 
