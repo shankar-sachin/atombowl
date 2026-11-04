@@ -9,13 +9,14 @@ import {
   timedPhase, clockRunning, locksOnTimerEnd, tossupPoints, bonusPoints, questionMode, isBasic, playerPoints
 } from "./room_state.js";
 import { createReader } from "./room_reader.js";
+import { mountCopyButtons } from "./room_invite.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  teams: $("teams"), roomCode: $("roomCode"), roomName: $("roomName"), copyInvite: $("copyInviteBtn"),
-  hostNote: $("hostNote"), copyLabel: $("copyLabel"), stateLine: $("stateLine"), stateNote: $("stateNote"), phaseTime: $("phaseTime"),
+  teams: $("teams"), roomCode: $("roomCode"), roomName: $("roomName"), copyRow: $("copyRow"),
+  hostNote: $("hostNote"), stateLine: $("stateLine"), stateNote: $("stateNote"), phaseTime: $("phaseTime"),
   phaseLabel: $("phaseLabel"), lockout: $("lockout"), light: $("lockoutLight"), lockoutText: $("lockoutText"),
   buzzer: $("buzzer"), buzzerName: $("buzzerName"), buzzerTeam: $("buzzerTeam"), interruptTag: $("interruptTag"),
   primary: $("primaryBtn"), primaryLabel: $("primaryLabel"), primaryKey: $("primaryKey"),
@@ -197,6 +198,8 @@ function teamsKey(room) {
 
 function renderTeams(room) {
   paint("teams", teamsKey(room), () => {
+    // One team means no teams: the score lives in the roster and the adjust row.
+    els.teams.hidden = teamIds(room).length < 2;
     els.teams.replaceChildren();
     const buzzingTeam = room.currentBuzz?.team;
     for (const team of teamIds(room)) {
@@ -361,7 +364,7 @@ function renderControls(room, avail) {
   });
   // Bonus zone is only meaningful once a toss-up is correct.
   const bonusVisible = ["bonus_ready", "bonus_open", "bonus_locked"].includes(room.status);
-  els.bonusZone.hidden = !bonusVisible;
+  els.bonusZone.hidden = !bonusVisible || teamIds(room).length < 2;
   if (bonusVisible) {
     paint("bonusTeam", JSON.stringify([teamIds(room), room.settings?.teamNames, room.bonusTeam, room.status === "bonus_ready"]), () => {
       els.bonusTeam.replaceChildren(...teamIds(room).map((team) => new Option(teamName(room, team), team)));
@@ -392,7 +395,7 @@ function renderAdjust(room) {
       row.className = `adjust-row ${teamClass(team)}`;
       const label = document.createElement("span");
       label.className = "team-name";
-      label.textContent = `${teamName(room, team)}: ${room.scores?.[team] ?? 0}`;
+      label.textContent = `${teams.length < 2 ? "Score" : teamName(room, team)}: ${room.scores?.[team] ?? 0}`;
       const buttons = document.createElement("div");
       buttons.className = "adjust-buttons";
       for (const delta of ADJUSTMENTS) {
@@ -442,14 +445,15 @@ function renderRoster(room) {
       els.roster.appendChild(group);
     }
     const teams = teamIds(room);
+    const solo = teams.length < 2;
     for (const team of teams) {
       const group = document.createElement("div");
-      group.className = `roster-group ${teamClass(team)}`;
+      group.className = `roster-group ${solo ? "players" : teamClass(team)}`;
       const people = members.filter((member) => member.team === team && member.id !== room.hostUid)
         .sort((a, b) => playerPoints(room, b.id) - playerPoints(room, a.id) || (a.name || "").localeCompare(b.name || ""));
       const heading = document.createElement("h3");
       const title = document.createElement("span");
-      title.textContent = `${teamName(room, team)}: ${room.scores?.[team] ?? 0}`;
+      title.textContent = solo ? `Players: ${room.scores?.[team] ?? 0}` : `${teamName(room, team)}: ${room.scores?.[team] ?? 0}`;
       const count = document.createElement("span");
       count.className = "roster-count";
       count.textContent = people.length === 1 ? "1 player" : `${people.length} players`;
@@ -609,19 +613,6 @@ function exportCsv() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function copyInvite() {
-  if (!snap) return;
-  const link = new URL(`/buzzer-rooms?code=${encodeURIComponent(snap.roomCode)}`, window.location.href).href;
-  const text = `Join my Atom Bowl room${snap.roomName ? ` "${snap.roomName}"` : ""} with code ${snap.roomCode}: ${link}`;
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(text);
-    copied = true;
-  } catch {}
-  if (!copied) window.prompt("Copy this invite:", text);
-  setText(els.copyLabel, copied ? "Copied" : "Copy invite");
-  if (copied) setTimeout(() => setText(els.copyLabel, "Copy invite"), 1500);
-}
 
 function isTyping(el) {
   return !!el && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName));
@@ -672,7 +663,7 @@ els.endConfirmBtn.addEventListener("click", () => {
   act("end_game", { elapsedMs: room ? clockElapsed(room, Date.now()) : 0 });
 });
 els.exportBtn.addEventListener("click", exportCsv);
-els.copyInvite.addEventListener("click", copyInvite);
+mountCopyButtons(els.copyRow, () => snap);
 document.addEventListener("keydown", onKey);
 
 function attach(room) {

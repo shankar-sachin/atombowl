@@ -38,17 +38,15 @@
 
     <div class="basic-switches" role="group" aria-label="Show on screen">
       <label class="switch-item"><span>Points</span><button id="swPoints" class="toggle" type="button" role="switch" aria-checked="false"><span class="knob"></span></button></label>
-      <label class="switch-item"><span>Teams</span><button id="swTeams" class="toggle" type="button" role="switch" aria-checked="false"><span class="knob"></span></button></label>
+      <label class="switch-item" id="swTeamsItem"><span>Teams</span><button id="swTeams" class="toggle" type="button" role="switch" aria-checked="false"><span class="knob"></span></button></label>
       <label class="switch-item"><span>Timer</span><button id="swTimer" class="toggle" type="button" role="switch" aria-checked="false"><span class="knob"></span></button></label>
       <label class="switch-item"><span>Game Clock</span><button id="swClock" class="toggle" type="button" role="switch" aria-checked="false"><span class="knob"></span></button></label>
     </div>
 
     <section class="basic-code" aria-label="Game code">
       <p class="invite-label">Game code</p>
-      <div class="basic-code-row">
-        <p class="basic-code-text" id="roomCode">-----</p>
-        <button id="copyBtn" class="btn small" type="button"><i data-icon="copy"></i><span id="copyLabel">Copy</span></button>
-      </div>
+      <p class="basic-code-text" id="roomCode">------</p>
+      <div id="copyRow" aria-label="Share the game"></div>
     </section>
 
     <section class="basic-controls" aria-label="Buzzer controls">
@@ -60,11 +58,12 @@
     <div class="buzzer" id="buzzer" hidden>
       <div><strong id="buzzerName"></strong> <span class="muted" id="buzzerTeam"></span></div>
     </div>
+    <ol class="buzz-queue" id="buzzQueue" hidden aria-label="Buzzes in order"></ol>
 
     <section class="panel basic-timer" id="timerPanel" hidden aria-label="Timer">
       <h2 class="side-title">Timer</h2>
       <div class="clock-row">
-        <button id="timerDisplay" class="numerals timer-display" type="button" title="Click to set the timer">00:30</button>
+        <button id="timerDisplay" class="numerals timer-display" type="button" title="Click to set the timer">00:06</button>
         <button id="timerStart" class="btn" type="button"><i data-icon="play"></i>Start</button>
         <button id="timerPause" class="btn" type="button"><i data-icon="pause"></i>Pause</button>
         <button id="timerReset" class="btn" type="button"><i data-icon="reset"></i>Reset</button>
@@ -98,6 +97,28 @@
       <button class="btn small" value="close">Done</button>
     </form>
     <div class="settings-body" id="settingsBody"></div>
+  </dialog>
+
+  <dialog id="timerDialog" class="settings-dialog timer-dialog" aria-labelledby="timerDialogTitle">
+    <form method="dialog" id="timerForm">
+      <div class="settings-head">
+        <h2 id="timerDialogTitle">Timer</h2>
+      </div>
+      <div class="settings-body">
+        <div class="rule-row settings-row">
+          <div><h4><label for="timerReadInput">After reading</label></h4><p class="muted">Seconds to buzz once you finish the question.</p></div>
+          <div class="number-control"><input id="timerReadInput" type="number" min="1" max="36000" inputmode="numeric" /><span class="muted">s</span></div>
+        </div>
+        <div class="rule-row settings-row">
+          <div><h4><label for="timerBuzzInput">After a buzz</label></h4><p class="muted">Seconds to answer. The timer restarts with this when someone buzzes.</p></div>
+          <div class="number-control"><input id="timerBuzzInput" type="number" min="1" max="600" inputmode="numeric" /><span class="muted">s</span></div>
+        </div>
+        <div class="button-row dialog-actions">
+          <button class="btn" value="cancel" formnovalidate>Cancel</button>
+          <button class="btn primary" value="save">Save</button>
+        </div>
+      </div>
+    </form>
   </dialog>
 
   <script src="js/icons.js"></script>

@@ -4,8 +4,10 @@
 import { sendHostAction } from "./room_store.js";
 import {
   hostPatch, actionReason, timeMillis, teamIds, teamName, teamClass, formatClock, gameClockOf, clockRemaining,
-  timerOf, timerRemaining, playerPoints, isBasic, gameDurationMs
+  timerOf, timerRemaining, playerPoints, isBasic, gameDurationMs, buzzList, firstBuzz, teamsShown, multiBuzz,
+  buzzSeconds
 } from "./room_state.js";
+import { mountCopyButtons } from "./room_invite.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
@@ -15,7 +17,8 @@ const els = {
   fullscreen: $("fullscreenBtn"), endBtn: $("endBtn"), note: $("hostNote"), endConfirm: $("endConfirm"),
   endCancel: $("endCancelBtn"), endConfirmBtn: $("endConfirmBtn"),
   swPoints: $("swPoints"), swTeams: $("swTeams"), swTimer: $("swTimer"), swClock: $("swClock"),
-  code: $("roomCode"), copy: $("copyBtn"), copyLabel: $("copyLabel"), clear: $("clearBtn"), lock: $("lockBtn"),
+  code: $("roomCode"), copyRow: $("copyRow"), swTeamsItem: $("swTeamsItem"), buzzQueue: $("buzzQueue"),
+  timerDialog: $("timerDialog"), timerForm: $("timerForm"), timerReadInput: $("timerReadInput"), timerBuzzInput: $("timerBuzzInput"), clear: $("clearBtn"), lock: $("lockBtn"),
   lockLabel: $("lockLabel"), buzzer: $("buzzer"), buzzerName: $("buzzerName"), buzzerTeam: $("buzzerTeam"),
   timerPanel: $("timerPanel"), timerDisplay: $("timerDisplay"), timerStart: $("timerStart"), timerPause: $("timerPause"),
   timerReset: $("timerReset"), clockPanel: $("clockPanel"), gameClock: $("gameClock"), clockStart: $("clockStart"),
@@ -218,8 +221,8 @@ function buildSettings() {
   numberRow("Plus gives", "Points added by the plus button.", 1, 1000, (r) => num(r, "plusPoints", 1), (v) => change("plusPoints", v));
   numberRow("Minus takes", "Points taken by the minus button.", 1, 1000, (r) => num(r, "minusPoints", 1), (v) => change("minusPoints", v));
   section("Teams");
-  switchRow("Show teams", "Group players by team, with team totals.", (r) => flag(r, "showTeams"), (v) => change("showTeams", v));
-  numberRow("Number of teams", "Players pick a team when they join. A team with players can't be removed.", 1, 4,
+  switchRow("Show teams", "Group players by team, with team totals. Needs 2 or more teams.", (r) => flag(r, "showTeams"), (v) => change("showTeams", v));
+  numberRow("Number of teams", "With 1 team everyone can buzz and buzzes are listed in order. With more, players pick a team and only the first buzz counts. A team with players can't be removed.", 1, 4,
     (r) => teamIds(r).length, (v) => {
       const room = shown();
       const gone = teamIds(room).slice(v);
@@ -231,16 +234,18 @@ function buildSettings() {
   section("Timer / round");
   switchRow("Show timer", "", (r) => flag(r, "showTimer", true), (v) => change("showTimer", v));
   switchRow("Play sound on timer end", "", (r) => flag(r, "timerSound", true), (v) => change("timerSound", v));
-  numberRow("Set timer", "Length in seconds. You can also click the timer's numbers.", 1, 36000,
+  numberRow("Timer after reading", "Seconds to buzz once you finish the question. You can also click the timer.", 1, 36000,
     (r) => Math.round(timerOf(r).durationMs / 1000), (v) => act("timer_set", { seconds: v }), "s");
+  numberRow("Timer after a buzz", "Seconds to answer. The timer restarts with this when someone buzzes.", 1, 600,
+    (r) => buzzSeconds(r), (v) => change("buzzSeconds", v), "s");
+  switchRow("Start timer when a player buzzes", "Restarts the timer with the time after a buzz.", (r) => flag(r, "timerStartOnBuzz"), (v) => change("timerStartOnBuzz", v));
+  switchRow("Pause timer when a player buzzes", "Only when the switch above is off.", (r) => flag(r, "timerPauseOnBuzz"), (v) => change("timerPauseOnBuzz", v));
   switchRow("Enable round mode", "Turns on the four settings below. Tweak them, or turn them all off to leave round mode.",
-    (r) => ROUND_KEYS.some((k) => flag(r, k)), (v) => act("set_settings", { changes: Object.fromEntries(ROUND_KEYS.map((k) => [k, v])) }));
+    (r) => ROUND_KEYS.every((k) => flag(r, k)), (v) => act("set_settings", { changes: Object.fromEntries(ROUND_KEYS.map((k) => [k, v])) }));
   switchRow("Unlock buzzers when timer starts", "", (r) => flag(r, "timerUnlockOnStart"), (v) => change("timerUnlockOnStart", v));
   switchRow("Lock buzzers when timer ends", "", (r) => flag(r, "timerLockOnEnd"), (v) => change("timerLockOnEnd", v));
   switchRow("Lock buzzers on timer pause", "", (r) => flag(r, "timerLockOnPause"), (v) => change("timerLockOnPause", v));
   switchRow("Reset buzzers when timer is reset", "", (r) => flag(r, "timerResetBuzzers"), (v) => change("timerResetBuzzers", v));
-  switchRow("Start timer when a player buzzes", "", (r) => flag(r, "timerStartOnBuzz"), (v) => change("timerStartOnBuzz", v));
-  switchRow("Pause timer when a player buzzes", "", (r) => flag(r, "timerPauseOnBuzz"), (v) => change("timerPauseOnBuzz", v));
   section("Game clock");
   switchRow("Show game clock", "", (r) => flag(r, "showClock"), (v) => change("showClock", v));
   numberRow("Set game clock", "Length in minutes. You can also click the clock's numbers.", 1, 1440,
@@ -267,10 +272,11 @@ function parseTime(text) {
 // ---------- Render ----------
 
 function renderPlayers(room) {
-  const key = JSON.stringify([members, room.hostUid, room.stats?.player, room.scores, room.settings, room.currentBuzz?.uid]);
+  const buzzing = buzzList(room).map((b) => b.uid);
+  const key = JSON.stringify([members, room.hostUid, room.stats?.player, room.scores, room.settings, buzzing]);
   paint("players", key, () => {
     const showPoints = flag(room, "showPoints", true);
-    const showTeams = flag(room, "showTeams");
+    const showTeams = teamsShown(room);
     const people = members.filter((m) => m.id !== room.hostUid);
     setText(els.playerCount, people.length ? `(${people.length})` : "");
     els.playerList.replaceChildren();
@@ -302,7 +308,7 @@ function renderPlayers(room) {
       }
       for (const person of list) {
         const line = document.createElement("div");
-        line.className = `player-row${room.currentBuzz?.uid === person.id ? " is-buzzing" : ""}`;
+        line.className = `player-row${buzzing.includes(person.id) ? " is-buzzing" : ""}`;
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "x-btn";
@@ -354,13 +360,17 @@ function render() {
   setText(els.lockLabel, locked ? "Locked" : "Unlocked");
   els.lock.classList.toggle("is-locked", locked);
   els.lock.disabled = els.clear.disabled = ended;
-  const buzz = room.currentBuzz;
-  els.buzzer.hidden = !buzz;
-  if (buzz) {
+  const list = buzzList(room);
+  const buzz = list[0];
+  const queued = multiBuzz(room);
+  els.buzzer.hidden = !buzz || queued;
+  if (buzz && !queued) {
     els.buzzer.className = `buzzer ${teamClass(buzz.team)}`;
     setText(els.buzzerName, `${buzz.name || "Player"} buzzed`);
-    setText(els.buzzerTeam, flag(room, "showTeams") ? teamName(room, buzz.team) : "");
+    setText(els.buzzerTeam, teamsShown(room) ? teamName(room, buzz.team) : "");
   }
+  els.swTeamsItem.hidden = teamIds(room).length < 2;
+  renderQueue(queued ? list : []);
   els.over.hidden = !ended;
   els.endBtn.disabled = ended;
   renderPlayers(room);
@@ -373,17 +383,45 @@ function render() {
   if (timerOf(room).status === "running" || clockLive(room)) ensureLoop();
 }
 
-/** React to a new buzz: sound, and the timer start/pause options. */
+const ORDINALS = ["1st", "2nd", "3rd"];
+const ordinal = (n) => ORDINALS[n - 1] || `${n}th`;
+
+/** Buzzes in the order they reached the server, with the gap after the first. */
+function renderQueue(list) {
+  paint("queue", JSON.stringify(list), () => {
+    els.buzzQueue.hidden = !list.length;
+    els.buzzQueue.replaceChildren(...list.map((buzz, i) => {
+      const item = document.createElement("li");
+      item.className = i === 0 ? "first" : "";
+      const place = document.createElement("span");
+      place.className = "queue-place numerals";
+      place.textContent = ordinal(i + 1);
+      const name = document.createElement("strong");
+      name.className = "queue-name";
+      name.textContent = buzz.name || "Player";
+      const gap = document.createElement("span");
+      gap.className = "queue-gap muted";
+      const first = list[0].at;
+      gap.textContent = i === 0 ? "first" : buzz.at != null && first != null ? `+${((buzz.at - first) / 1000).toFixed(2)} s` : "";
+      item.append(place, name, gap);
+      return item;
+    }));
+  });
+}
+
+/** React to new buzzes: a sound for each, and the timer start/pause options for the first. */
+let buzzCount = -1;
 function onBuzz(room) {
-  const buzz = snap?.currentBuzz;
-  const key = buzz ? `${buzz.uid}:${buzz.at}` : "";
-  if (key && key !== lastBuzzKey && lastBuzzKey !== null) {
-    if (flag(room, "buzzSound", true)) beep();
-    const timer = timerOf(room);
-    if (flag(room, "timerStartOnBuzz") && timer.status !== "running") act("timer_start");
-    else if (flag(room, "timerPauseOnBuzz") && timer.status === "running") act("timer_pause", { elapsedMs: timerElapsed(room, Date.now()) });
-  }
-  lastBuzzKey = key || null;
+  const list = buzzList(snap);
+  const key = list[0] ? `${list[0].uid}:${list[0].at}` : "";
+  const fresh = buzzCount >= 0 && !!key && key !== lastBuzzKey;
+  if (buzzCount >= 0 && list.length > buzzCount && flag(room, "buzzSound", true)) beep(fresh ? 880 : 740, fresh ? 220 : 120);
+  buzzCount = list.length;
+  lastBuzzKey = key;
+  if (!fresh) return;
+  const timer = timerOf(room);
+  if (flag(room, "timerStartOnBuzz")) act("timer_buzz");
+  else if (flag(room, "timerPauseOnBuzz") && timer.status === "running") act("timer_pause", { elapsedMs: timerElapsed(room, Date.now()) });
 }
 
 // ---------- Wiring ----------
@@ -399,8 +437,20 @@ els.timerStart.addEventListener("click", () => act("timer_start"));
 els.timerPause.addEventListener("click", () => act("timer_pause", { elapsedMs: timerElapsed(shown(), Date.now()) }));
 els.timerReset.addEventListener("click", () => act("timer_reset"));
 els.timerDisplay.addEventListener("click", () => {
-  const seconds = parseTime(window.prompt("Set the timer (mm:ss, or seconds)", formatClock(timerOf(shown()).durationMs)));
-  if (seconds) act("timer_set", { seconds });
+  const room = shown();
+  if (!room) return;
+  els.timerReadInput.value = String(Math.round(timerOf(room).durationMs / 1000));
+  els.timerBuzzInput.value = String(buzzSeconds(room));
+  els.timerDialog.showModal();
+  els.timerReadInput.select();
+});
+els.timerDialog.addEventListener("close", () => {
+  if (els.timerDialog.returnValue !== "save") return;
+  const room = shown();
+  const read = parseInt(els.timerReadInput.value, 10);
+  const after = parseInt(els.timerBuzzInput.value, 10);
+  if (Number.isInteger(read) && read >= 1 && read <= 36000 && read * 1000 !== timerOf(room).durationMs) act("timer_set", { seconds: read });
+  if (Number.isInteger(after) && after >= 1 && after <= 600 && after !== buzzSeconds(room)) change("buzzSeconds", after);
 });
 els.clockStart.addEventListener("click", () => act("game_start"));
 els.clockPause.addEventListener("click", () => act("game_pause", { elapsedMs: clockElapsed(shown(), Date.now()) }));
@@ -420,17 +470,9 @@ els.fullscreen.addEventListener("click", () => {
   if (document.fullscreenElement) document.exitFullscreen?.();
   else els.main.requestFullscreen?.().catch(() => {});
 });
-els.copy.addEventListener("click", async () => {
-  if (!snap) return;
-  const link = new URL(`/buzzer-rooms?code=${encodeURIComponent(snap.roomCode)}`, window.location.href).href;
-  let copied = false;
-  try { await navigator.clipboard.writeText(`Join my Atom Bowl game with code ${snap.roomCode}: ${link}`); copied = true; } catch {}
-  if (!copied) window.prompt("Copy this:", snap.roomCode);
-  setText(els.copyLabel, copied ? "Copied" : "Copy");
-  if (copied) setTimeout(() => setText(els.copyLabel, "Copy"), 1500);
-});
+mountCopyButtons(els.copyRow, () => snap);
 document.addEventListener("keydown", (event) => {
-  if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey || els.dialog.open) return;
+  if (event.defaultPrevented || event.repeat || event.metaKey || event.ctrlKey || event.altKey || els.dialog.open || els.timerDialog.open) return;
   const active = document.activeElement;
   if (active && (active.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName))) return;
   if (event.code === "Space") {

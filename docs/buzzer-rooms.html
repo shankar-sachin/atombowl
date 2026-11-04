@@ -30,16 +30,18 @@
         <p class="muted">Enter the code your moderator shared.</p>
         <form id="joinForm" novalidate>
           <label class="label" for="joinCode">Room code</label>
-          <input id="joinCode" class="input code-input" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="5" placeholder="ABCDE" />
-          <p class="status-note team-status" id="codeHint" aria-live="polite">Five letters or numbers.</p>
+          <input id="joinCode" class="input code-input" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="7" placeholder="ABC123" />
+          <p class="status-note team-status" id="codeHint" aria-live="polite">6 or 7 letters or numbers.</p>
 
           <label class="label" for="displayName">Your name</label>
           <input id="displayName" type="text" maxlength="40" placeholder="Your name" autocomplete="nickname" />
 
-          <label class="label" for="teamSelect">Team</label>
-          <select id="teamSelect" class="select" disabled>
-            <option value="">Find the room first</option>
-          </select>
+          <div id="teamField">
+            <label class="label" for="teamSelect">Team</label>
+            <select id="teamSelect" class="select" disabled>
+              <option value="">Find the room first</option>
+            </select>
+          </div>
 
           <div class="button-row join-actions">
             <button id="joinRoomBtn" class="btn primary large" type="submit">Join room</button>

@@ -108,6 +108,8 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
 
 /* ---------- Shared scoreboard ---------- */
 
+.teams[hidden], .player-grid > .panel[hidden], .switch-item[hidden], .buzz-queue[hidden] { display: none; }
+
 .teams {
   display: flex;
   flex-wrap: wrap;
@@ -423,6 +425,7 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
 }
 .roster-group h3 .roster-count { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
 .roster-group.moderator h3 { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+.roster-group.players h3 { color: var(--text); }
 
 .roster-list {
   display: grid;
@@ -672,11 +675,31 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
 .basic-switches { display: flex; flex-wrap: wrap; gap: 10px 24px; }
 .switch-item { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .basic-code { display: grid; gap: 8px; justify-items: center; text-align: center; padding: 12px 0; }
-.basic-code-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: center; }
 .basic-code-text {
   margin: 0; font-family: var(--font-display); font-weight: 800; line-height: 1;
-  font-size: clamp(4rem, 17vw, 9rem); letter-spacing: 0.1em;
+  font-size: clamp(3.2rem, 14vw, 8.5rem); letter-spacing: 0.08em; margin-right: -0.08em;
 }
+
+/* Copy code / link / invite, under the code. */
+.copy-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.invite .copy-row { justify-content: inherit; }
+@media (min-width: 820px) { .invite .copy-row { justify-content: flex-end; } }
+.copy-btn { gap: 6px; }
+.copy-btn svg { flex: none; opacity: 0.85; }
+.copy-btn.copied { color: var(--correct); border-color: var(--correct); background: var(--correct-soft); }
+
+/* Basic games with one team: everyone's buzz, in order. */
+.buzz-queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.buzz-queue li {
+  display: grid; grid-template-columns: 3.2rem minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  padding: 10px 16px; border: 1px solid var(--rule); border-radius: var(--r-panel, 12px); background: var(--plate);
+}
+.buzz-queue li.first { padding: 16px; border-color: var(--signal); background: var(--signal-soft); }
+.buzz-queue .queue-place { color: var(--muted); font-size: 1.1rem; }
+.buzz-queue li.first .queue-place { color: var(--signal); font-size: 1.5rem; }
+.buzz-queue .queue-name { overflow-wrap: anywhere; font-size: 1.05rem; }
+.buzz-queue li.first .queue-name { font-size: 1.5rem; }
+.buzz-queue .queue-gap { font-variant-numeric: tabular-nums; font-size: 0.9rem; }
 .basic-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .basic-controls .btn { min-height: 64px; font-size: 1.1rem; }
 .lock-toggle.is-locked { color: var(--buzz); border-color: var(--buzz); background: var(--buzz-soft); }
@@ -690,10 +713,16 @@ select:disabled { color: var(--muted); background: var(--plate-2); cursor: defau
 .x-btn { width: 30px; height: 30px; flex: none; border-radius: 50%; border: 1px solid var(--rule); background: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; }
 .x-btn:hover { color: var(--buzz); border-color: var(--buzz); }
 .basic-over { display: flex; align-items: center; gap: 14px; }
-.settings-dialog { width: min(560px, calc(100vw - 24px)); max-height: 90vh; padding: 0; color: var(--text); background: var(--plate); border: 1px solid var(--rule-strong); border-radius: 14px; }
+.settings-dialog { width: min(560px, calc(100vw - 24px)); max-height: min(90vh, 900px); padding: 0; overflow: hidden; color: var(--text); background: var(--plate); border: 1px solid var(--rule-strong); border-radius: 14px; box-shadow: var(--shadow-pop); }
+/* Header stays put; only the body scrolls, so switches never slide over the title. */
+.settings-dialog[open], .timer-dialog > form { display: flex; flex-direction: column; min-height: 0; }
+.timer-dialog > form { max-height: min(90vh, 900px); }
 .settings-dialog::backdrop { background: rgb(0 0 0 / 0.55); }
-.settings-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--plate); }
-.settings-body { padding: 6px 18px 18px; }
+.settings-head { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--rule); background: var(--plate); }
+.settings-head h2 { margin: 0; }
+.settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 6px 18px 18px; scrollbar-width: thin; scrollbar-gutter: stable; }
+.timer-dialog { width: min(440px, calc(100vw - 24px)); }
+.dialog-actions { justify-content: flex-end; margin-top: 14px; }
 .settings-section { margin: 18px 0 4px; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .settings-row { padding: 8px 0; }
 .settings-row h4 { font-size: 0.98rem; margin: 0; }

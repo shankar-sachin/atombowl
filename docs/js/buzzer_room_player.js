@@ -2,7 +2,7 @@
 // Player buzzer for one room. The button locks the moment it is pressed ("Buzzing...") and the
 // rules accept only the first buzz. Membership is watched so a removed player can rejoin.
 import { sendBuzz, loadMembership } from "./room_store.js";
-import { buzzReason, teamIds, teamName, teamClass, stateLine, formatSeconds, formatClock, timedPhase, clockRunning, phaseDeadline, gameClockOf, clockRemaining, timeMillis, sentenceCase, LOG_LIMIT, locksOnTimerEnd, playerPoints, timerOf, timerRemaining } from "./room_state.js";
+import { buzzReason, teamIds, teamName, teamClass, stateLine, formatSeconds, formatClock, timedPhase, clockRunning, phaseDeadline, gameClockOf, clockRemaining, timeMillis, sentenceCase, LOG_LIMIT, locksOnTimerEnd, playerPoints, timerOf, timerRemaining, buzzList, firstBuzz, multiBuzz, teamsShown } from "./room_state.js";
 import { db, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const $ = (id) => document.getElementById(id);
@@ -71,7 +71,20 @@ function reasonNow(room, now = Date.now()) {
         return "Joining the room.";
     return buzzReason(room, myBuzzIdentity(), now, anchorFor((_a = room.timers) === null || _a === void 0 ? void 0 : _a.phaseKey, (_b = room.timers) === null || _b === void 0 ? void 0 : _b.phaseStartedAt));
 }
+const ORDINALS = ["first", "2nd", "3rd"];
+const ordinal = (n) => ORDINALS[n - 1] || `${n}th`;
 function buzzView(room, now) {
+    if (room.status === "basic" && multiBuzz(room) && member) {
+        const place = buzzList(room).findIndex((b) => b.uid === uid);
+        if (place >= 0)
+            return { label: `You buzzed ${ordinal(place + 1)}`, cls: "mine", disabled: true, title: "" };
+        if (buzzSent)
+            return { label: "Buzzing...", cls: "", disabled: true, title: "" };
+        if (room.locked)
+            return { label: "Locked", cls: "", disabled: true, title: "Buzzers are locked." };
+        if (room.status === "basic")
+            return { label: "Buzz now", cls: "ready", disabled: false, title: "" };
+    }
     if (room.status === "basic" && !room.currentBuzz && room.locked)
         return { label: "Locked", cls: "", disabled: true, title: "Buzzers are locked." };
     if (room.status === "ended")
@@ -84,7 +97,7 @@ function buzzView(room, now) {
     if (buzz) {
         if (buzz.uid === uid)
             return { label: "You buzzed first", cls: "mine", disabled: true, title: "" };
-        return { label: `${teamName(room, buzz.team)} (${buzz.name}) buzzed`, cls: "", disabled: true, title: "" };
+        return { label: teamsShown(room) ? `${teamName(room, buzz.team)} (${buzz.name}) buzzed` : `${buzz.name} buzzed`, cls: "", disabled: true, title: "" };
     }
     const reason = reasonNow(room, now);
     if (!reason)
@@ -123,11 +136,11 @@ function renderStage(room, now) {
         els.buzz.title = view.title;
     });
     if (member) {
-        els.me.textContent = `${member.name}, ${teamName(room, member.team)}`;
+        els.me.textContent = teamsShown(room) ? `${member.name}, ${teamName(room, member.team)}` : member.name;
     }
 }
 function renderFlash(room) {
-    const buzz = room.currentBuzz;
+    const buzz = firstBuzz(room);
     const key = buzz ? `${buzz.uid}:${buzz.at}` : "";
     if (key && key !== lastBuzzKey && lastBuzzKey !== null) {
         els.stage.classList.remove("flash");
@@ -137,13 +150,14 @@ function renderFlash(room) {
         els.stage.classList.add("flash");
     }
     lastBuzzKey = key || null;
-    if (buzzSent && buzz)
+    if (buzzSent && buzzList(room).some((b) => b.uid === uid || !multiBuzz(room)))
         buzzSent = false;
 }
 function renderTeams(room) {
     var _a, _b;
-    paint("teams", JSON.stringify([room.scores, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, (_b = room.currentBuzz) === null || _b === void 0 ? void 0 : _b.team]), () => {
+    paint("teams", JSON.stringify([room.scores, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, (_b = room.currentBuzz) === null || _b === void 0 ? void 0 : _b.team, teamsShown(room)]), () => {
         var _a, _b, _c;
+        els.teams.closest("section").hidden = !teamsShown(room);
         els.teams.replaceChildren();
         for (const team of teamIds(room)) {
             const card = document.createElement("div");
@@ -180,8 +194,9 @@ function rosterGroup(className, title, countText) {
 // Same layout as the host page: the moderator first, then each team with its players.
 function renderRoster(room) {
     var _a, _b;
-    paint("roster", JSON.stringify([members, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, uid, room.hostUid, (_b = room.stats) === null || _b === void 0 ? void 0 : _b.player, room.scores]), () => {
+    paint("roster", JSON.stringify([members, (_a = room.settings) === null || _a === void 0 ? void 0 : _a.teamNames, uid, room.hostUid, (_b = room.stats) === null || _b === void 0 ? void 0 : _b.player, room.scores, teamsShown(room)]), () => {
         var _a, _b;
+        const grouped = teamsShown(room);
         els.roster.replaceChildren();
         const host = members.find((person) => person.id === room.hostUid);
         if (host) {
@@ -191,10 +206,14 @@ function renderRoster(room) {
             list.appendChild(item);
             els.roster.appendChild(group);
         }
-        for (const team of teamIds(room)) {
-            const people = members.filter((person) => person.team === team && person.id !== room.hostUid)
+        // Without teams, everyone is listed together under "Players".
+        for (const team of grouped ? teamIds(room) : [null]) {
+            const people = members.filter((person) => (team === null || person.team === team) && person.id !== room.hostUid)
                 .sort((a, b) => playerPoints(room, b.id) - playerPoints(room, a.id) || (a.name || "").localeCompare(b.name || ""));
-            const { group, list } = rosterGroup(teamClass(team), `${teamName(room, team)}: ${(_b = (_a = room.scores) === null || _a === void 0 ? void 0 : _a[team]) !== null && _b !== void 0 ? _b : 0}`, people.length === 1 ? "1 player" : `${people.length} players`);
+            const countText = people.length === 1 ? "1 player" : `${people.length} players`;
+            const { group, list } = team === null
+                ? rosterGroup("players", "Players", countText)
+                : rosterGroup(teamClass(team), `${teamName(room, team)}: ${(_b = (_a = room.scores) === null || _a === void 0 ? void 0 : _a[team]) !== null && _b !== void 0 ? _b : 0}`, countText);
             if (!people.length) {
                 const empty = document.createElement("li");
                 empty.className = "muted";
@@ -320,7 +339,7 @@ async function buzz() {
     catch (err) {
         buzzSent = false;
         els.buzzError.textContent = (err === null || err === void 0 ? void 0 : err.code) === "permission-denied"
-            ? "Someone buzzed first."
+            ? (multiBuzz(room) ? "Your buzz did not count. The buzzers may be locked." : "Someone buzzed first.")
             : ((err === null || err === void 0 ? void 0 : err.message) || "Your buzz did not go through. Try again.");
         render();
     }
