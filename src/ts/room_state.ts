@@ -113,10 +113,53 @@ export function clockRemaining(room: Room, elapsedMs = 0): number {
   return Math.max(0, clock.remainingMs - Math.max(0, elapsedMs));
 }
 
+/** Room codes: Basic games have 6 characters, Advanced rooms 7 (older rooms 5). */
+export const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export function codeLength(mode: string): number {
+  return mode === "basic" ? 6 : 7;
+}
+
+/** Whether the room shows teams: more than one, and (in Basic) the host turned teams on. */
+export function teamsShown(room: Room): boolean {
+  if (teamIds(room).length < 2) return false;
+  return !isBasic(room) || room?.settings?.showTeams !== false;
+}
+
+/** Basic games with one team let everyone buzz; buzzes are listed in the order they reached the server. */
+export function multiBuzz(room: Room): boolean {
+  return isBasic(room) && teamIds(room).length <= 1;
+}
+
+/** Every buzz in order (one at most outside multi-buzz games): {uid, name, team, at}. */
+export function buzzList(room: Room): Room[] {
+  const map = room?.buzzes;
+  if (multiBuzz(room) && map && typeof map === "object" && Object.keys(map).length) {
+    return Object.entries(map)
+      .map(([uid, value]: [string, any]) => ({ uid, name: value?.name || "Player", team: value?.team || "", at: timeMillis(value?.at) }))
+      .sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity) || a.name.localeCompare(b.name));
+  }
+  return room?.currentBuzz ? [room.currentBuzz] : [];
+}
+
+export function firstBuzz(room: Room): Room | null {
+  return buzzList(room)[0] || null;
+}
+
+/** Seconds the Basic timer runs after the host finishes reading (default 6). */
+export function timerSeconds(room: Room): number {
+  return Number(room?.settings?.timerSeconds) || 6;
+}
+
+/** Seconds the Basic timer restarts with when someone buzzes (default 3). */
+export function buzzSeconds(room: Room): number {
+  const n = Number(room?.settings?.buzzSeconds);
+  return Number.isInteger(n) && n >= 1 ? n : 3;
+}
+
 export function timerOf(room: Room): Room {
   const timer = room?.basicTimer;
   if (timer && typeof timer.remainingMs === "number") return timer;
-  const ms = (Number(room?.settings?.timerSeconds) || 30) * 1000;
+  const ms = timerSeconds(room) * 1000;
   return { status: "stopped", durationMs: ms, remainingMs: ms, startedAt: null, runKey: null };
 }
 
@@ -131,6 +174,10 @@ export function buzzReason(room: Room, player: Player, now = Date.now(), seenAt?
   if (!room) return "The room is still loading.";
   if (!player?.uid) return "Join this room before buzzing.";
   if (!has(room.scores, player.team)) return "Your team is not part of this room.";
+  if (room.status === "basic" && multiBuzz(room)) {
+    if (has(room.buzzes, player.uid)) return "You already buzzed.";
+    return room.locked ? "Buzzers are locked." : "";
+  }
   const buzz = room.currentBuzz;
   if (buzz) return buzz.uid === player.uid ? "You already buzzed." : `${teamName(room, buzz.team)} (${buzz.name}) buzzed first.`;
   if (room.status === "basic") return room.locked ? "Buzzers are locked." : "";
@@ -150,6 +197,10 @@ export function canBuzz(room: Room, player: Player, now = Date.now(), seenAt?: n
 export function buzzPatch(room: Room, player: Player, now = Date.now(), seenAt?: number | null): Room {
   const reason = buzzReason(room, player, now, seenAt);
   if (reason) throw new Error(reason);
+  if (room.status === "basic" && multiBuzz(room)) {
+    // The store writes only this player's entry (buzzes.<uid>) with a server timestamp.
+    return { buzzes: { ...(room.buzzes || {}), [player.uid]: { name: player.name, team: player.team, at: now } } };
+  }
   if (room.status === "basic") {
     return { currentBuzz: { uid: player.uid, name: player.name, team: player.team, at: now, interrupt: false } };
   }
@@ -165,6 +216,7 @@ export function materialize(patch: Room, value: any): Room {
   const out = { ...patch };
   if (out.timers && out.timers.phaseStartedAt === SERVER_TIME) out.timers = { ...out.timers, phaseStartedAt: value };
   if (out.gameClock && out.gameClock.startedAt === SERVER_TIME) out.gameClock = { ...out.gameClock, startedAt: value };
+  if (out.basicTimer && out.basicTimer.startedAt === SERVER_TIME) out.basicTimer = { ...out.basicTimer, startedAt: value };
   return out;
 }
 
@@ -246,8 +298,12 @@ export function actionReason(room: Room, action: string, options: Room = {}): st
       return status === "basic" ? "" : "This is not a basic game.";
     case "timer_start": {
       const timer = timerOf(room);
-      if (timer.status === "running") return "The timer is already running.";
-      return timer.remainingMs > 0 ? "" : "Reset the timer first.";
+      return timer.status === "running" ? "The timer is already running." : "";
+    }
+    case "timer_buzz": {
+      if (status !== "basic") return "This is not a basic game.";
+      const seconds = Number(options.seconds ?? buzzSeconds(room));
+      return Number.isInteger(seconds) && seconds >= 1 && seconds <= 600 ? "" : "Set the buzz time between 1 and 600 seconds.";
     }
     case "timer_pause":
       return timerOf(room).status === "running" ? "" : "The timer is not running.";
@@ -281,7 +337,7 @@ export function availableActions(room: Room): { [action: string]: ActionState } 
 /** Basic-mode settings the host may change, with their types. */
 export const BASIC_SETTINGS: { [key: string]: string } = {
   showPoints: "bool", showTeams: "bool", showTimer: "bool", showClock: "bool", plusPoints: "int", minusPoints: "int",
-  timerSound: "bool", timerRoundMode: "bool", timerUnlockOnStart: "bool", timerLockOnEnd: "bool",
+  timerSound: "bool", timerRoundMode: "bool", buzzSeconds: "int", timerUnlockOnStart: "bool", timerLockOnEnd: "bool",
   timerLockOnPause: "bool", timerResetBuzzers: "bool", timerStartOnBuzz: "bool", timerPauseOnBuzz: "bool",
   buzzSound: "bool", showBuzzTime: "bool"
 };
@@ -347,8 +403,9 @@ export function hostPatch(room: Room, uid: string, action: string, options: Room
   if (action === "timer_expire") {
     const timer = timerOf(room);
     if (timer.status !== "running" || timer.runKey !== options.runKey) return {};
-    const patch: Room = { basicTimer: { ...timer, status: "done", remainingMs: 0, startedAt: null, runKey: null } };
-    if (room.settings?.timerLockOnEnd) patch.locked = true;
+    const patch: Room = { basicTimer: { ...timer, status: "done", remainingMs: 0, startedAt: null, runKey: null, buzz: false } };
+    // The answer window after a buzz ends without locking: the buzz already holds the floor.
+    if (room.settings?.timerLockOnEnd && !timer.buzz) patch.locked = true;
     return finish(room, patch, action, id, now, "Timer finished");
   }
   if (action === "game_expire") {
@@ -527,7 +584,7 @@ export function hostPatch(room: Room, uid: string, action: string, options: Room
       break;
     }
     case "basic_clear":
-      patch = { currentBuzz: null };
+      patch = { currentBuzz: null, buzzes: {} };
       details = "Buzzers cleared";
       break;
     case "set_settings": {
@@ -544,23 +601,32 @@ export function hostPatch(room: Room, uid: string, action: string, options: Room
     }
     case "timer_start": {
       const timer = timerOf(room);
-      patch = { basicTimer: { ...timer, status: "running", startedAt: SERVER_TIME, runKey: id } };
+      // A finished timer starts again from its full length.
+      const remainingMs = timer.remainingMs > 0 ? timer.remainingMs : timer.durationMs;
+      patch = { basicTimer: { ...timer, status: "running", remainingMs, startedAt: SERVER_TIME, runKey: id, buzz: false } };
       if (room.settings?.timerUnlockOnStart) patch.locked = false;
       details = "Timer started";
+      break;
+    }
+    case "timer_buzz": {
+      const timer = timerOf(room);
+      const seconds = Number(options.seconds ?? buzzSeconds(room));
+      patch = { basicTimer: { ...timer, status: "running", remainingMs: seconds * 1000, startedAt: SERVER_TIME, runKey: id, buzz: true } };
+      details = `${seconds} s to answer`;
       break;
     }
     case "timer_pause": {
       const timer = timerOf(room);
       const elapsed = typeof options.elapsedMs === "number" ? options.elapsedMs : now - (timeMillis(timer.startedAt) ?? now);
-      patch = { basicTimer: { ...timer, status: "paused", remainingMs: timerRemaining(room, elapsed), startedAt: null, runKey: null } };
+      patch = { basicTimer: { ...timer, status: "paused", remainingMs: timerRemaining(room, elapsed), startedAt: null, runKey: null, buzz: false } };
       if (room.settings?.timerLockOnPause) patch.locked = true;
       details = "Timer paused";
       break;
     }
     case "timer_reset": {
       const timer = timerOf(room);
-      patch = { basicTimer: { ...timer, status: "stopped", remainingMs: timer.durationMs, startedAt: null, runKey: null } };
-      if (room.settings?.timerResetBuzzers) patch.currentBuzz = null;
+      patch = { basicTimer: { ...timer, status: "stopped", remainingMs: timer.durationMs, startedAt: null, runKey: null, buzz: false } };
+      if (room.settings?.timerResetBuzzers) Object.assign(patch, { currentBuzz: null, buzzes: {} });
       details = "Timer reset";
       break;
     }

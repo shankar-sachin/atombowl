@@ -320,11 +320,16 @@ test('basic mode: first buzz while unlocked, lock, clear, and per-player points'
   assert.equal(buzzReason(room, ANN), 'Buzzers are locked.');
   room = act(room, 'basic_lock');
   assert.equal(room.locked, false);
-  room = buzz(room, ANN);
-  assert.equal(room.currentBuzz.uid, 'a1');
+  const ANA = { uid: 'a2', team: 'A', name: 'Ana' };
+  room = buzz(room, ANN, 1500);
   assert.match(buzzReason(room, ANN), /already buzzed/);
-  room = act(room, 'basic_clear');
+  assert.equal(buzzReason(room, ANA), '');
+  room = buzz(room, ANA, 1400);
+  assert.deepEqual(S.buzzList(room).map((b) => b.uid), ['a2', 'a1']);
+  assert.equal(S.firstBuzz(room).uid, 'a2');
   assert.equal(room.currentBuzz, null);
+  room = act(room, 'basic_clear');
+  assert.deepEqual(S.buzzList(room), []);
   room = act(room, 'adjust_player', { uid: 'a1', name: 'Ann', team: 'A', delta: 3 });
   room = act(room, 'adjust_player', { uid: 'a1', name: 'Ann', team: 'A', delta: -1 });
   assert.equal(S.playerPoints(room, 'a1'), 2);
@@ -346,4 +351,38 @@ test('timer and game clock: set, round-mode locking, and reset keeps the set len
   assert.equal(room.gameClock.remainingMs, 80000);
   room = act(room, 'game_reset');
   assert.equal(room.gameClock.remainingMs, 90000);
+});
+
+test('basic mode with teams: only the first buzz lands', () => {
+  let room = base({ mode: 'basic', teamCount: 2 }, { status: 'basic', locked: false });
+  assert.equal(S.multiBuzz(room), false);
+  room = buzz(room, ANN);
+  assert.equal(S.firstBuzz(room).uid, 'a1');
+  assert.match(buzzReason(room, BEN), /buzzed first/);
+});
+
+test('basic timer: 6 s default, a buzz restarts it at 3 s without locking, a finished timer starts again', () => {
+  let room = base({ mode: 'basic', teamCount: 1, timerLockOnEnd: true }, { status: 'basic', locked: false, scores: { A: 0 } });
+  assert.equal(S.timerOf(room).durationMs, 6000);
+  room = act(room, 'timer_start', {}, 1000);
+  room = act(room, 'timer_buzz', {}, 2000);
+  assert.equal(room.basicTimer.remainingMs, 3000);
+  assert.equal(room.basicTimer.durationMs, 6000);
+  room = act(room, 'timer_expire', { runKey: room.basicTimer.runKey }, 5000);
+  assert.equal(room.locked, false);
+  room = act(room, 'timer_start', {}, 6000);
+  assert.equal(room.basicTimer.remainingMs, 6000);
+  room = act(room, 'timer_expire', { runKey: room.basicTimer.runKey }, 12000);
+  assert.equal(room.locked, true);
+  room = act(room, 'set_settings', { changes: { buzzSeconds: 5 } });
+  room = act(room, 'timer_buzz', {}, 13000);
+  assert.equal(room.basicTimer.remainingMs, 5000);
+});
+
+test('room codes and team display', () => {
+  assert.equal(S.codeLength('basic'), 6);
+  assert.equal(S.codeLength('advanced'), 7);
+  assert.equal(S.teamsShown(base({}, { scores: { A: 0 } })), false);
+  assert.equal(S.teamsShown(base()), true);
+  assert.equal(S.teamsShown(base({ mode: 'basic', showTeams: false })), false);
 });

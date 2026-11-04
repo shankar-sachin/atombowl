@@ -1,11 +1,11 @@
 // @ts-nocheck
-// Create a buzzer room. The room id is its five-character code; the host is the first member.
+// Create a buzzer room. The room id is its code (6 characters for Basic, 7 for Advanced); the host is the first member.
 import { db, ensureAnonAuth } from "./firebase.js";
 import "./account_store.js";
 import { doc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
+import { CODE_CHARS, codeLength } from "./room_state.js";
 
 const PROFILE_KEY = "atom_buzzer_profile";
-const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const $ = (id) => document.getElementById(id);
 const els = {
   form: $("createForm"), roomName: $("roomName"), hostName: $("hostName"),
@@ -47,6 +47,9 @@ function currentTeamNames() {
 function buildTeamFields(count) {
   const existing = currentTeamNames();
   els.teamFields.replaceChildren();
+  // One team means no teams: everyone plays for the room, so there is nothing to name.
+  els.teamFields.hidden = count < 2;
+  if (count < 2) return;
   for (const team of teamLetters(count)) {
     const field = document.createElement("div");
     const label = document.createElement("label");
@@ -120,7 +123,8 @@ els.picker.querySelectorAll("[data-mode]").forEach((card) => card.addEventListen
 
 function generateCode() {
   let out = "";
-  for (let i = 0; i < 5; i += 1) out += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  const length = codeLength(mode);
+  for (let i = 0; i < length; i += 1) out += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   return out;
 }
 
@@ -141,7 +145,8 @@ async function create(event) {
   const hostName = (basic ? safeParse(localStorage.getItem(PROFILE_KEY))?.name || "" : els.hostName.value).trim().slice(0, 40) || "Host";
   const teamNames = basic ? {} : currentTeamNames();
   const extra = basic
-    ? { mode: "basic", showPoints: true, showTeams: false, showTimer: true, showClock: false, plusPoints: 1, minusPoints: 1, timerSeconds: 30 }
+    ? { mode: "basic", showPoints: true, showTeams: false, showTimer: true, showClock: false, plusPoints: 1, minusPoints: 1,
+      timerSeconds: 6, buzzSeconds: 3, timerLockOnEnd: true, timerStartOnBuzz: true }
     : {
       mode: "advanced",
       lockOnTimerEnd: els.lockToggle.getAttribute("aria-checked") === "true",

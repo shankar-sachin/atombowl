@@ -11,6 +11,8 @@ const $ = (id) => document.getElementById(id);
 const codeInput = $("joinCode");
 const nameInput = $("displayName");
 const teamSelect = $("teamSelect");
+const teamField = $("teamField");
+const CODE = /^[A-Z0-9]{5,7}$/;
 const codeHint = $("codeHint");
 const joinError = $("joinError");
 const joinButton = $("joinRoomBtn");
@@ -30,6 +32,7 @@ function clearTeams(message) {
     found = null;
     teamSelect.replaceChildren(new Option(message, ""));
     teamSelect.disabled = true;
+    teamField.hidden = false;
 }
 function fillTeams(data) {
     const teams = Object.keys(data.scores || {}).sort();
@@ -37,16 +40,20 @@ function fillTeams(data) {
     teamSelect.disabled = false;
     if (preferredTeam && teams.includes(preferredTeam))
         teamSelect.value = preferredTeam;
+    // One team: nothing to choose.
+    teamField.hidden = teams.length < 2;
 }
 /** Look the room up by code. Resolves to the room, or null when no room has that code. */
 async function lookup(code) {
+    var _a;
     await ensureAnonAuth();
     const snap = await getDoc(doc(db, "rooms", code));
     if (codeInput.value.trim().toUpperCase() !== code)
         return null;
     if (!snap.exists()) {
         clearTeams("No room with this code");
-        codeHint.textContent = "No room has this code. Check it with the host.";
+        // A 6-character prefix of an Advanced code: keep typing.
+        codeHint.textContent = code.length < 7 ? "No game has this code yet. Advanced rooms have 7 characters." : "No room has this code. Check it with the host.";
         return null;
     }
     const data = snap.data();
@@ -57,17 +64,19 @@ async function lookup(code) {
     }
     found = { code, data };
     fillTeams(data);
-    codeHint.textContent = `Found "${data.roomName || `Room ${code}`}". Pick your team.`;
+    const many = Object.keys(data.scores || {}).length > 1;
+    const label = ((_a = data.settings) === null || _a === void 0 ? void 0 : _a.mode) === "basic" ? "the game" : `"${data.roomName || `Room ${code}`}"`;
+    codeHint.textContent = `Found ${label}.${many ? " Pick your team." : ""}`;
     return found;
 }
 codeInput.addEventListener("input", () => {
-    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
     joinError.textContent = "";
     clearTimeout(lookupTimer);
     const code = codeInput.value;
-    if (code.length < 5) {
+    if (code.length < 6) {
         clearTeams("Find the room first");
-        codeHint.textContent = "Five letters or numbers.";
+        codeHint.textContent = "6 or 7 letters or numbers.";
         return;
     }
     codeHint.textContent = "Looking for the room...";
@@ -88,8 +97,8 @@ async function join(event) {
     event.preventDefault();
     joinError.textContent = "";
     const code = codeInput.value.trim();
-    if (!/^[A-Z0-9]{5}$/.test(code)) {
-        joinError.textContent = "Enter the five-character room code.";
+    if (!CODE.test(code)) {
+        joinError.textContent = "Enter the room code (6 or 7 characters).";
         codeInput.focus();
         return;
     }
@@ -171,7 +180,7 @@ if ((_a = window.atomAccount) === null || _a === void 0 ? void 0 : _a.onAuthChan
         catch { }
     });
 }
-const invited = (new URLSearchParams(window.location.search).get("code") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+const invited = (new URLSearchParams(window.location.search).get("code") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
 if (invited) {
     codeInput.value = invited;
     codeInput.dispatchEvent(new Event("input"));

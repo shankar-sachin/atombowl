@@ -188,16 +188,38 @@ test('the host moderates with no team, but players must pick one of the room tea
  await join('p2', 'B');
 });
 
-test('basic rooms: one team is allowed, first buzz lands only while unlocked', async () => {
+test('basic rooms: with one team everyone can buzz once while unlocked, stamped by the server', async () => {
  const host = dbFor('host');
  const basicSettings = { teamCount: 1, tuTime: 5, bonusTime: 20, nsbRules: true, halfMinutes: 8, mode: 'basic' };
- await assertSucceeds(sdk.setDoc(roomRef(host, 'BASIC'), { roomCode: 'BASIC', hostUid: 'host', roomName: 'Game', status: 'basic', locked: true, currentBuzz: null, scores: { A: 0 }, settings: basicSettings }));
- await assertSucceeds(sdk.setDoc(memberRef(host, 'host', 'BASIC'), { name: 'Host', team: '', joinedAt: sdk.serverTimestamp(), isHost: true }));
+ await assertSucceeds(sdk.setDoc(roomRef(host, 'BASIC6'), { roomCode: 'BASIC6', hostUid: 'host', roomName: 'Game', status: 'basic', locked: true, currentBuzz: null, scores: { A: 0 }, settings: basicSettings }));
+ await assertSucceeds(sdk.setDoc(memberRef(host, 'host', 'BASIC6'), { name: 'Host', team: '', joinedAt: sdk.serverTimestamp(), isHost: true }));
  const a = dbFor('p1');
- await assertSucceeds(sdk.setDoc(memberRef(a, 'p1', 'BASIC'), { name: 'Ann', team: 'A', joinedAt: sdk.serverTimestamp(), isHost: false }));
+ const b = dbFor('p2');
+ await assertSucceeds(sdk.setDoc(memberRef(a, 'p1', 'BASIC6'), { name: 'Ann', team: 'A', joinedAt: sdk.serverTimestamp(), isHost: false }));
+ await assertSucceeds(sdk.setDoc(memberRef(b, 'p2', 'BASIC6'), { name: 'Ben', team: 'A', joinedAt: sdk.serverTimestamp(), isHost: false }));
+ const mine = (uid, name) => [new sdk.FieldPath('buzzes', uid), { name, team: 'A', at: sdk.serverTimestamp() }];
+ await assertFails(sdk.updateDoc(roomRef(a, 'BASIC6'), ...mine('p1', 'Ann')));
+ await assertSucceeds(sdk.updateDoc(roomRef(host, 'BASIC6'), { locked: false }));
+ await assertFails(sdk.updateDoc(roomRef(a, 'BASIC6'), { currentBuzz: { uid: 'p1', name: 'Ann', team: 'A', at: Date.now(), interrupt: false } }));
+ await assertFails(sdk.updateDoc(roomRef(a, 'BASIC6'), new sdk.FieldPath('buzzes', 'p1'), { name: 'Ann', team: 'A', at: Date.now() }));
+ await assertFails(sdk.updateDoc(roomRef(a, 'BASIC6'), ...mine('p2', 'Ben')));
+ await assertSucceeds(sdk.updateDoc(roomRef(a, 'BASIC6'), ...mine('p1', 'Ann')));
+ await assertSucceeds(sdk.updateDoc(roomRef(b, 'BASIC6'), ...mine('p2', 'Ben')));
+ await assertFails(sdk.updateDoc(roomRef(a, 'BASIC6'), ...mine('p1', 'Ann')));
+ await assertSucceeds(sdk.updateDoc(roomRef(host, 'BASIC6'), { buzzes: {} }));
+ await assertSucceeds(sdk.updateDoc(roomRef(a, 'BASIC6'), ...mine('p1', 'Ann')));
+});
+
+test('basic rooms with teams: first buzz lands only while unlocked', async () => {
+ const host = dbFor('host');
+ const basicSettings = { teamCount: 2, tuTime: 5, bonusTime: 20, nsbRules: true, halfMinutes: 8, mode: 'basic' };
+ await assertSucceeds(sdk.setDoc(roomRef(host, 'TEAMS77'), { roomCode: 'TEAMS77', hostUid: 'host', roomName: 'Game', status: 'basic', locked: true, currentBuzz: null, scores: { A: 0, B: 0 }, settings: basicSettings }));
+ await assertSucceeds(sdk.setDoc(memberRef(host, 'host', 'TEAMS77'), { name: 'Host', team: '', joinedAt: sdk.serverTimestamp(), isHost: true }));
+ const a = dbFor('p1');
+ await assertSucceeds(sdk.setDoc(memberRef(a, 'p1', 'TEAMS77'), { name: 'Ann', team: 'A', joinedAt: sdk.serverTimestamp(), isHost: false }));
  const buzz = { currentBuzz: { uid: 'p1', name: 'Ann', team: 'A', at: Date.now(), interrupt: false } };
- await assertFails(sdk.updateDoc(roomRef(a, 'BASIC'), buzz));
- await assertSucceeds(sdk.updateDoc(roomRef(host, 'BASIC'), { locked: false }));
- await assertSucceeds(sdk.updateDoc(roomRef(a, 'BASIC'), buzz));
- await assertFails(sdk.updateDoc(roomRef(dbFor('p2'), 'BASIC'), buzz));
+ await assertFails(sdk.updateDoc(roomRef(a, 'TEAMS77'), buzz));
+ await assertSucceeds(sdk.updateDoc(roomRef(host, 'TEAMS77'), { locked: false }));
+ await assertSucceeds(sdk.updateDoc(roomRef(a, 'TEAMS77'), buzz));
+ await assertFails(sdk.updateDoc(roomRef(dbFor('p2'), 'TEAMS77'), buzz));
 });

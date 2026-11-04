@@ -68,6 +68,7 @@ service cloud.firestore {
         let player = get(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid)).data;
         return next.diff(old).affectedKeys().hasOnly(['currentBuzz'])
           && old.status == 'basic'
+          && old.scores.size() > 1
           && old.get('currentBuzz', null) == null
           && old.get('locked', false) == false
           && player.team in old.scores
@@ -79,11 +80,31 @@ service cloud.firestore {
           && next.currentBuzz.at is number
           && next.currentBuzz.interrupt == false;
       }
+      // Basic games with one team: everyone may buzz once while unlocked. Each player writes only
+      // their own buzzes.<uid> entry, stamped with the server time so the order is fair.
+      function validMultiBuzz() {
+        let old = resource.data;
+        let next = request.resource.data;
+        let player = get(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid)).data;
+        let before = old.get('buzzes', {});
+        let entry = next.buzzes[request.auth.uid];
+        return next.diff(old).affectedKeys().hasOnly(['buzzes'])
+          && old.status == 'basic'
+          && old.scores.size() == 1
+          && old.get('locked', false) == false
+          && player.team in old.scores
+          && !(request.auth.uid in before)
+          && next.buzzes.diff(before).affectedKeys().hasOnly([request.auth.uid])
+          && entry.keys().hasOnly(['name', 'team', 'at'])
+          && entry.name == player.name
+          && entry.team == player.team
+          && entry.at == request.time;
+      }
       // The room code is the document id, so joining is a direct get. Nobody can list rooms.
       allow get: if signedIn();
       allow list: if false;
       allow create: if signedIn() && roomId == request.resource.data.roomCode
-        && roomId.matches('^[A-Z0-9]{5}$')
+        && roomId.matches('^[A-Z0-9]{5,7}$')
         && request.resource.data.hostUid == request.auth.uid
         && request.resource.data.status in ['lobby', 'basic']
         && request.resource.data.currentBuzz == null
@@ -98,7 +119,7 @@ service cloud.firestore {
       allow update: if signedIn() && (
         (isHost() && request.resource.data.hostUid == resource.data.hostUid
           && request.resource.data.roomCode == resource.data.roomCode)
-        || validBuzz() || validBasicBuzz());
+        || validBuzz() || validBasicBuzz() || validMultiBuzz());
       allow delete: if isHost();
       match /players/{uid} {
         function roomAfter() { return getAfter(/databases/$(database)/documents/rooms/$(roomId)).data; }

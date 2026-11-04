@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { db, auth, ensureAnonAuth } from './firebase.js';
-import { doc, getDoc, updateDoc, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js';
-import { buzzPatch, hostPatch, materialize } from './room_state.js';
+import { doc, getDoc, updateDoc, runTransaction, serverTimestamp, FieldPath } from 'https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js';
+import { buzzPatch, hostPatch, materialize, multiBuzz } from './room_state.js';
 /**
  * One plain update built from the cached room and membership: no transaction, no reads.
  * Firestore rules accept only the first buzz (old.currentBuzz == null), so a slower
@@ -14,6 +14,11 @@ export async function sendBuzz(roomId, room, member, seenAt) {
     if (!member)
         throw new Error('Join this room before buzzing.');
     const patch = buzzPatch(room, { uid: user.uid, name: member.name, team: member.team }, Date.now(), seenAt);
+    if (multiBuzz(room)) {
+        // Everyone may buzz: write only my entry, stamped by the server so the order is fair.
+        await updateDoc(doc(db, 'rooms', roomId), new FieldPath('buzzes', user.uid), { name: member.name, team: member.team, at: serverTimestamp() });
+        return patch;
+    }
     await updateDoc(doc(db, 'rooms', roomId), patch);
     return patch;
 }
