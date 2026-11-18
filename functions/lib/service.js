@@ -14,34 +14,39 @@ export class AiError extends Error {
   }
 }
 
-// The public status page polls `health`, so one provider check per instance per minute is plenty.
-const HEALTH_TTL_MS = 60 * 1000;
+// The public status page polls `health` every 10 s, so cache a check for 5 s: that keeps each
+// poll fresh while many open pages still share one provider check per instance.
+const HEALTH_TTL_MS = 5 * 1000;
 
-// config() returns { provider, model, followUpModel, apiKey, dailyCredits }; getDb() returns
+// config() returns { provider, model, followUpModel, thinkingModel, apiKey, dailyCredits }; getDb() returns
 // { db, serverTimestamp } and is only called for signed-in actions, so health works without it.
 export function createAiService({ config, getDb, logger = console, completeImpl = complete, checkModelImpl = checkModel }) {
   let lastHealth = null;
 
   async function health() {
     if (lastHealth && Date.now() - lastHealth.at < HEALTH_TTL_MS) return lastHealth.result;
-    const { provider, model, followUpModel: followUpSetting, apiKey } = config();
+    const { provider, model, followUpModel: followUpSetting, thinkingModel: thinkingSetting, apiKey } = config();
     const followUpModel = followUpSetting || model;
+    const thinkingModel = thinkingSetting || model;
     const started = Date.now();
-    const [main, followUp] = await Promise.all([
-      checkModelImpl({ provider, model, apiKey }),
-      followUpModel === model ? null : checkModelImpl({ provider, model: followUpModel, apiKey })
-    ]);
-    const followUpCheck = followUp || main;
-    const ok = main.ok && followUpCheck.ok;
-    if (!ok) logger.warn("ai health check failed", { provider, model, followUpModel, main, followUp });
+    // Each distinct model is checked once, even when several tiers share it.
+    const ids = [...new Set([model, followUpModel, thinkingModel])];
+    const checks = new Map(await Promise.all(ids.map(async (id) => [id, await checkModelImpl({ provider, model: id, apiKey })])));
+    const main = checks.get(model);
+    const followUpCheck = checks.get(followUpModel);
+    const thinkingCheck = checks.get(thinkingModel);
+    const ok = main.ok && followUpCheck.ok && thinkingCheck.ok;
+    if (!ok) logger.warn("ai health check failed", { provider, model, followUpModel, thinkingModel, main, followUpCheck, thinkingCheck });
     const result = {
       ok,
       provider,
       model,
       followUpModel,
+      thinkingModel,
       models: {
         main: { id: model, ...main },
-        followUp: { id: followUpModel, ...followUpCheck }
+        followUp: { id: followUpModel, ...followUpCheck },
+        thinking: { id: thinkingModel, ...thinkingCheck }
       },
       latencyMs: Date.now() - started,
       checkedAt: new Date().toISOString()
@@ -62,7 +67,7 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
       throw new AiError("permission-denied", "Confirm your email to use Tutor and Generate. Open the link we emailed you, or send a new one from your account page.", { reason: "email-unverified" });
     }
 
-    const { provider, model, followUpModel, apiKey, dailyCredits: limit } = config();
+    const { provider, model, followUpModel, thinkingModel, apiKey, dailyCredits: limit } = config();
     const { db, serverTimestamp } = getDb();
     const usageRef = db.doc(`aiUsage/${auth.uid}`);
     const action = String(data?.action || "");
@@ -100,7 +105,7 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
     try {
       const text = await completeImpl({
         provider,
-        model: job.tier === "followup" ? (followUpModel || model) : model,
+        model: (job.tier === "followup" ? followUpModel : job.tier === "thinking" ? thinkingModel : "") || model,
         apiKey,
         system: job.system,
         messages: job.messages,
@@ -116,7 +121,7 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
     } catch (err) {
       logger.warn("ai call failed", { action, uid: auth.uid, error: err?.message, status: err?.status });
       const restored = await giveBack(job.cost);
-      if (err?.status === 429) {
+      if (err?.status === 429 || err?.status === 529) {
         throw new AiError("resource-exhausted", "The SI service is busy right now. Wait a minute and try again. Your credits were not used.", { credits: restored });
       }
       throw new AiError("unavailable", "The SI service didn't give a usable answer. Try again. Your credits were not used.", { credits: restored });

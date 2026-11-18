@@ -69,9 +69,9 @@ function tutorMessages(raw) {
 }
 
 // Tutor's first answer in a chat uses the main model and follow-ups the cheaper follow-up model.
-// Extra thinking always uses the main model with high reasoning effort, for more credits.
+// Extra thinking uses the thinking model (falls back to main) with high reasoning effort, for more credits.
 export const TUTOR_COST = 1;
-export const THINKING_COST = 3;
+export const THINKING_COST = 5;
 
 function tutorJob(data) {
   const messages = tutorMessages(data?.messages);
@@ -79,7 +79,7 @@ function tutorJob(data) {
   const followUp = messages.some((m) => m.role === "assistant");
   return {
     cost: thinking ? THINKING_COST : TUTOR_COST,
-    tier: thinking || !followUp ? "main" : "followup",
+    tier: thinking ? "thinking" : !followUp ? "main" : "followup",
     reasoning: thinking ? "high" : "low",
     system: TUTOR_RULES + tutorContext(data?.context),
     messages,

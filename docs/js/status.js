@@ -1,11 +1,11 @@
-// Status page (/status): polls the `ai` endpoint's public `health` action once a minute.
+// Status page (/status): polls the `ai` endpoint's public `health` action every 10 seconds.
 // It posts the callable protocol by hand ({data} in, {result} out) so it needs no Firebase SDK
 // and still loads when the rest of the SI stack is broken.
 (() => {
     // Same as AI_URL in ai_client.ts: the Vercel function (functions/api/ai.js).
     const PROD_URL = 'https://atombowl-ai.vercel.app/api/ai';
     const EMULATOR_URL = 'http://127.0.0.1:5001/nsbatombowl/us-central1/ai';
-    const REFRESH_MS = 60 * 1000;
+    const REFRESH_MS = 10 * 1000;
     const TIMEOUT_MS = 15 * 1000;
     // Same switch as firebase.ts: ?emulators=1 on localhost, remembered for the tab.
     const isLocalHost = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
@@ -13,7 +13,7 @@
     if (isLocalHost && flag !== null)
         sessionStorage.setItem('atom_emulators', flag === '1' ? '1' : '0');
     const endpoint = isLocalHost && sessionStorage.getItem('atom_emulators') === '1' ? EMULATOR_URL : PROD_URL;
-    const PROVIDER_NAMES = { groq: 'Groq', gemini: 'Google Gemini' };
+    const PROVIDER_NAMES = { anthropic: 'Claude', groq: 'Groq', gemini: 'Google Gemini' };
     const LABELS = { ok: 'Operational', degraded: 'Degraded', down: 'Down', checking: 'Checking' };
     const banner = document.getElementById('statusBanner');
     const headline = document.getElementById('statusHeadline');
@@ -64,7 +64,7 @@
     }
     let running = false;
     async function check() {
-        var _a, _b;
+        var _a, _b, _c;
         if (running)
             return;
         running = true;
@@ -75,7 +75,10 @@
             const health = await fetchHealth();
             const provider = PROVIDER_NAMES[health.provider] || health.provider;
             const main = ((_a = health.models) === null || _a === void 0 ? void 0 : _a.main) || { id: health.model, ok: health.ok };
-            const followUp = ((_b = health.models) === null || _b === void 0 ? void 0 : _b.followUp) || main;
+            // Follow-ups and Extra thinking both belong to Tutor, so show whichever of them is failing.
+            const followUpOnly = ((_b = health.models) === null || _b === void 0 ? void 0 : _b.followUp) || main;
+            const thinking = ((_c = health.models) === null || _c === void 0 ? void 0 : _c.thinking) || main;
+            const followUp = followUpOnly.ok ? thinking : followUpOnly;
             setRow('function', 'ok', `Responded in ${health.latencyMs} ms`);
             setRow('provider', health.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down', health.ok ? `${provider}, ${main.id}` : `${provider}: ${(main.ok ? followUp : main).detail || 'not responding'}`);
             setRow('generate', main.ok ? 'ok' : 'down');

@@ -11,10 +11,12 @@ initializeApp();
 const db = getFirestore();
 
 const AI_API_KEY = defineSecret("AI_API_KEY");
-const AI_PROVIDER = defineString("AI_PROVIDER", { default: "groq" });
-const AI_MODEL = defineString("AI_MODEL", { default: "openai/gpt-oss-120b" });
+const AI_PROVIDER = defineString("AI_PROVIDER", { default: "anthropic" });
+const AI_MODEL = defineString("AI_MODEL", { default: "claude-sonnet-5-5" });
 // Tutor follow-ups in a chat use this smaller model; empty means AI_MODEL.
 const AI_FOLLOWUP_MODEL = defineString("AI_FOLLOWUP_MODEL", { default: "" });
+// Extra thinking uses this model; empty means AI_MODEL.
+const AI_THINKING_MODEL = defineString("AI_THINKING_MODEL", { default: "" });
 const AI_DAILY_CREDITS = defineInt("AI_DAILY_CREDITS", { default: 30 });
 
 const service = createAiService({
@@ -22,6 +24,7 @@ const service = createAiService({
     provider: AI_PROVIDER.value(),
     model: AI_MODEL.value(),
     followUpModel: AI_FOLLOWUP_MODEL.value(),
+    thinkingModel: AI_THINKING_MODEL.value(),
     apiKey: AI_API_KEY.value(),
     dailyCredits: AI_DAILY_CREDITS.value()
   }),

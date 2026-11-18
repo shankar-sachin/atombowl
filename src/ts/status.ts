@@ -1,11 +1,11 @@
-// Status page (/status): polls the `ai` endpoint's public `health` action once a minute.
+// Status page (/status): polls the `ai` endpoint's public `health` action every 10 seconds.
 // It posts the callable protocol by hand ({data} in, {result} out) so it needs no Firebase SDK
 // and still loads when the rest of the SI stack is broken.
 (() => {
   // Same as AI_URL in ai_client.ts: the Vercel function (functions/api/ai.js).
   const PROD_URL = 'https://atombowl-ai.vercel.app/api/ai';
   const EMULATOR_URL = 'http://127.0.0.1:5001/nsbatombowl/us-central1/ai';
-  const REFRESH_MS = 60 * 1000;
+  const REFRESH_MS = 10 * 1000;
   const TIMEOUT_MS = 15 * 1000;
 
   // Same switch as firebase.ts: ?emulators=1 on localhost, remembered for the tab.
@@ -14,7 +14,7 @@
   if (isLocalHost && flag !== null) sessionStorage.setItem('atom_emulators', flag === '1' ? '1' : '0');
   const endpoint = isLocalHost && sessionStorage.getItem('atom_emulators') === '1' ? EMULATOR_URL : PROD_URL;
 
-  const PROVIDER_NAMES = { groq: 'Groq', gemini: 'Google Gemini' };
+  const PROVIDER_NAMES = { anthropic: 'Claude', groq: 'Groq', gemini: 'Google Gemini' };
   const LABELS = { ok: 'Operational', degraded: 'Degraded', down: 'Down', checking: 'Checking' };
 
   const banner = document.getElementById('statusBanner');
@@ -74,7 +74,10 @@
       const health = await fetchHealth();
       const provider = PROVIDER_NAMES[health.provider] || health.provider;
       const main = health.models?.main || { id: health.model, ok: health.ok };
-      const followUp = health.models?.followUp || main;
+      // Follow-ups and Extra thinking both belong to Tutor, so show whichever of them is failing.
+      const followUpOnly = health.models?.followUp || main;
+      const thinking = health.models?.thinking || main;
+      const followUp = followUpOnly.ok ? thinking : followUpOnly;
 
       setRow('function', 'ok', `Responded in ${health.latencyMs} ms`);
       setRow('provider', health.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down',
