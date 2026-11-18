@@ -8,7 +8,7 @@ const icon = (name) => { var _a; return ((_a = window.atomIcon) === null || _a =
 const aiClient = () => import("./ai_client.js");
 // Credits per message, matching TUTOR_COST and THINKING_COST in functions/lib/prompts.js.
 const MESSAGE_COST = 1;
-const THINKING_COST = 3;
+const THINKING_COST = 5;
 const STARTERS = [
     "Explain the photoelectric effect",
     "How do I find oxidation numbers?",
@@ -157,7 +157,7 @@ function build(container) {
     </div>
     <form class="tutor-form" data-form>
       <label class="visually-hidden" for="tutorInput">Message the tutor</label>
-      <textarea id="tutorInput" rows="1" maxlength="2000" placeholder="Ask about any science or math idea"></textarea>
+      <textarea id="tutorInput" rows="1" maxlength="2000" enterkeyhint="send" placeholder="Ask about any science or math idea"></textarea>
       <button class="btn primary tutor-send" type="submit" aria-label="Send">${icon("send")}</button>
       <div class="tutor-think">
         <button class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="tutorThinkLabel" data-thinking><span class="knob"></span></button>

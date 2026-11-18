@@ -31,7 +31,7 @@ test('tutor jobs keep the recent conversation and put the missed question in the
   const followUp = buildJob('tutor', { messages: [{ role: 'user', text: 'Why?' }, { role: 'assistant', text: 'Because.' }, { role: 'user', text: 'And?' }] });
   assert.deepEqual([followUp.tier, followUp.cost], ['followup', 1]);
   const thinking = buildJob('tutor', { thinking: true, messages: [{ role: 'user', text: 'Why?' }, { role: 'assistant', text: 'Because.' }, { role: 'user', text: 'And?' }] });
-  assert.deepEqual([thinking.tier, thinking.reasoning, thinking.cost], ['main', 'high', 3]);
+  assert.deepEqual([thinking.tier, thinking.reasoning, thinking.cost], ['thinking', 'high', 5]);
   assert.ok(thinking.maxTokens > job.maxTokens);
   assert.equal(buildJob('tutor', { thinking: 'yes', messages: [{ role: 'user', text: 'Why?' }] }).cost, 1);
   assert.throws(() => buildJob('tutor', { messages: [{ role: 'assistant', text: 'hi' }] }), /Type a question/);
@@ -104,6 +104,22 @@ test('providers send the right request shape and surface HTTP errors', async () 
   await complete({ provider: 'gemini', apiKey: 'k', fetchImpl: reply({ candidates: [{ content: { parts: [] } }] }), ...job, reasoning: 'high' });
   assert.equal(calls[4].init.body.generationConfig.thinkingConfig.thinkingBudget, -1);
 
+  const claude = await complete({ provider: 'anthropic', apiKey: 'a', fetchImpl: reply({ content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: 'hey' }], stop_reason: 'end_turn' }), ...job });
+  assert.equal(claude, 'hey');
+  assert.equal(calls[5].url, 'https://api.anthropic.com/v1/messages');
+  assert.equal(calls[5].init.headers['x-api-key'], 'a');
+  assert.equal(calls[5].init.headers['anthropic-version'], '2023-06-01');
+  assert.equal(calls[5].init.body.model, 'claude-sonnet-5-5');
+  assert.equal(calls[5].init.body.system, 'sys');
+  assert.deepEqual(calls[5].init.body.messages.map((m) => m.role), ['user', 'assistant', 'user']);
+  assert.deepEqual(calls[5].init.body.output_config, { effort: 'low' });
+  assert.equal(calls[5].init.body.temperature, undefined);
+  assert.equal(calls[5].init.body.thinking, undefined);
+  assert.ok(calls[5].init.body.max_tokens > job.maxTokens);
+  await complete({ provider: 'anthropic', model: 'claude-opus-5-5', apiKey: 'a', fetchImpl: reply({ content: [] }), ...job, reasoning: 'high' });
+  assert.deepEqual([calls[6].init.body.model, calls[6].init.body.output_config.effort], ['claude-opus-5-5', 'high']);
+  await assert.rejects(complete({ provider: 'anthropic', apiKey: 'a', fetchImpl: reply({ content: [], stop_reason: 'refusal' }), ...job }), /refused/);
+
   await assert.rejects(complete({ provider: 'groq', apiKey: 'g', fetchImpl: reply({ error: { message: 'slow down' } }, 429), ...job }),
     (err) => err instanceof ProviderError && err.status === 429);
   await assert.rejects(complete({ provider: 'gemini', apiKey: '', ...job }), /AI_API_KEY/);
@@ -124,6 +140,9 @@ test('health checks report whether the configured model is still listed', async 
   assert.deepEqual(await checkModel({ provider: 'gemini', apiKey: 'k', fetchImpl: reply({}, 404) }), { ok: false, detail: 'model gemini-2.5-flash is not available' });
   assert.match(urls[2], /models\/gemini-2\.5-flash$/);
   assert.equal((await checkModel({ provider: 'groq', apiKey: 'g', fetchImpl: reply({ error: { message: 'Invalid API Key' } }, 401) })).ok, false);
+  assert.deepEqual(await checkModel({ provider: 'anthropic', model: 'claude-haiku-5-5', apiKey: 'a', fetchImpl: reply({ id: 'claude-haiku-5-5' }) }), { ok: true });
+  assert.match(urls[urls.length - 1], /api\.anthropic\.com\/v1\/models\/claude-haiku-5-5$/);
+  assert.deepEqual(await checkModel({ provider: 'anthropic', model: 'claude-nope', apiKey: 'a', fetchImpl: reply({}, 404) }), { ok: false, detail: 'model claude-nope is not available' });
   assert.deepEqual(await checkModel({ provider: 'groq', apiKey: '' }), { ok: false, detail: 'AI_API_KEY is not set' });
 });
 
@@ -154,7 +173,7 @@ test('the ai service charges, refunds and routes models', async () => {
   const calls = [];
   let reply = 'Because.';
   const service = createAiService({
-    config: () => ({ provider: 'groq', model: 'big', followUpModel: 'small', apiKey: 'k', dailyCredits: 5 }),
+    config: () => ({ provider: 'groq', model: 'big', followUpModel: 'small', thinkingModel: 'deep', apiKey: 'k', dailyCredits: 10 }),
     getDb: () => ({ db, serverTimestamp: () => 'now' }),
     logger: { warn() {} },
     completeImpl: async (args) => {
@@ -171,22 +190,23 @@ test('the ai service charges, refunds and routes models', async () => {
 
   const first = await service.handle({ action: 'tutor', messages: [{ role: 'user', text: 'Why?' }] }, user);
   assert.equal(first.reply, 'Because.');
-  assert.equal(first.credits.remaining, 4);
+  assert.equal(first.credits.remaining, 9);
   assert.equal(calls[0].model, 'big');
   await service.handle({ action: 'tutor', messages: [{ role: 'user', text: 'Why?' }, { role: 'assistant', text: 'Because.' }, { role: 'user', text: 'And?' }] }, user);
   assert.equal(calls[1].model, 'small');
 
   reply = new Error('boom');
   await assert.rejects(service.handle({ action: 'tutor', thinking: true, messages: [{ role: 'user', text: 'Why?' }] }, user),
-    (e) => e.code === 'unavailable' && e.details.credits.remaining === 3);
+    (e) => e.code === 'unavailable' && e.details.credits.remaining === 8);
+  assert.equal(calls[2].model, 'deep');
   assert.equal(docs.get('aiUsage/u1').used, 2);
-  docs.set('aiUsage/u3', { day: new Date().toISOString().slice(0, 10), used: 4 });
+  docs.set('aiUsage/u3', { day: new Date().toISOString().slice(0, 10), used: 8 });
   await assert.rejects(service.handle({ action: 'tutor', thinking: true, messages: [{ role: 'user', text: 'Why?' }] }, { ...user, uid: 'u3' }),
-    (e) => e.code === 'resource-exhausted' && /needs 3 credits/.test(e.message));
+    (e) => e.code === 'resource-exhausted' && /needs 5 credits/.test(e.message));
 
   const health = await service.handle({ action: 'health' }, null);
   assert.equal(health.ok, false);
-  assert.deepEqual([health.models.main.ok, health.models.followUp.detail], [true, 'gone']);
+  assert.deepEqual([health.models.main.ok, health.models.followUp.detail, health.models.thinking.ok], [true, 'gone', true]);
 });
 
 test('email/password accounts must confirm their email before using credits', async () => {

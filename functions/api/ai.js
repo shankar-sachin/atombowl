@@ -5,7 +5,7 @@
 //   AI_API_KEY                the provider key (secret)
 //   FIREBASE_SERVICE_ACCOUNT  a service account key's JSON, for verifying sign-ins and the
 //                             aiUsage credits in Firestore (secret)
-//   AI_PROVIDER, AI_MODEL, AI_FOLLOWUP_MODEL, AI_DAILY_CREDITS  optional, defaults below
+//   AI_PROVIDER, AI_MODEL, AI_FOLLOWUP_MODEL, AI_THINKING_MODEL, AI_DAILY_CREDITS  optional, defaults below
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -23,9 +23,10 @@ function adminApp() {
 
 const service = createAiService({
   config: () => ({
-    provider: process.env.AI_PROVIDER || "groq",
-    model: process.env.AI_MODEL || "openai/gpt-oss-120b",
-    followUpModel: process.env.AI_FOLLOWUP_MODEL ?? "openai/gpt-oss-20b",
+    provider: process.env.AI_PROVIDER || "anthropic",
+    model: process.env.AI_MODEL || "claude-sonnet-5-5",
+    followUpModel: process.env.AI_FOLLOWUP_MODEL ?? "claude-haiku-5-5",
+    thinkingModel: process.env.AI_THINKING_MODEL ?? "claude-opus-5-5",
     apiKey: process.env.AI_API_KEY || "",
     dailyCredits: parseInt(process.env.AI_DAILY_CREDITS || "30", 10) || 30
   }),

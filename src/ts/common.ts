@@ -285,7 +285,26 @@
     } catch {}
   }
 
+  // Phones open the keyboard over the page without resizing it, so fixed bars and the Tutor panel
+  // end up underneath. Expose the keyboard height (--kb) and top offset (--vvt) of the visual
+  // viewport, and mark body.kb-open so the CSS can get bars out of the way.
+  function trackKeyboard() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const update = () => {
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      root.style.setProperty('--kb', `${kb}px`);
+      root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
+      document.body.classList.toggle('kb-open', kb > 120);
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+  }
+
   function init() {
+    trackKeyboard();
     renderNav();
     renderFooter();
     (window as any).atomHydrateIcons?.();
