@@ -429,9 +429,14 @@ document.addEventListener('DOMContentLoaded', () => {
             setAdvanced(next);
         });
     }
+    const bankNote = document.getElementById('bankNote');
+    const showBankNote = () => { if (bankNote)
+        bankNote.hidden = els.bankSelect.value !== 'data/set_A.json'; };
     els.bankSelect.addEventListener('change', () => {
+        showBankNote();
         loadBank();
     });
+    showBankNote();
     loadBank();
 });
 //# sourceMappingURL=practice_home.js.map

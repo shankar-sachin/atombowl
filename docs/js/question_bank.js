@@ -239,7 +239,11 @@
         };
     })();
     searchEl.addEventListener('input', () => debounced(apply));
-    bankSelectEl.addEventListener('change', apply);
+    const bankNoteEl = document.getElementById('bankNote');
+    const showBankNote = () => { if (bankNoteEl)
+        bankNoteEl.hidden = bankSelectEl.value !== 'data/set_A.json'; };
+    bankSelectEl.addEventListener('change', () => { showBankNote(); apply(); });
+    showBankNote();
     levelEl.addEventListener('change', apply);
     categoryEl.addEventListener('change', apply);
     bonusEl.addEventListener('change', apply);
