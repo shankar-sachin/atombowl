@@ -1,18 +1,31 @@
 // Pure helpers for Tutor's saved chats, shared by the widget and the tests.
 // Chats are kept in localStorage and mirrored to users/{uid}/tutorChats/{id} in Firestore.
 
-export type ChatMessage = { role: "user" | "assistant"; text: string };
+export type ChatMessage = { role: "user" | "assistant"; text: string; quiz?: { a: Record<string, string>; ok: Record<string, boolean> } };
 export type Chat = { id: string; title: string; updated: number; messages: ChatMessage[]; context: Record<string, unknown> | null };
 
 export const MAX_CHATS = 40;
 export const MAX_MESSAGES = 30;
+
+// Quiz progress on a message: answers as strings, results as booleans, nothing else.
+function cleanQuizState(raw: any) {
+  if (!raw || typeof raw !== "object") return null;
+  const a: Record<string, string> = {};
+  const ok: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(raw.a || {})) if (typeof v === "string" && /^\d+\.\d+$/.test(k)) a[k] = v.slice(0, 300);
+  for (const [k, v] of Object.entries(raw.ok || {})) if (typeof v === "boolean" && /^\d+\.\d+$/.test(k)) ok[k] = v;
+  return Object.keys(a).length || Object.keys(ok).length ? { a, ok } : null;
+}
 
 // Accepts a stored or remote chat and returns a clean copy, or null when it is unusable.
 export function cleanChat(raw: any): Chat | null {
   if (!raw || typeof raw.id !== "string" || !raw.id || !Array.isArray(raw.messages)) return null;
   const messages: ChatMessage[] = raw.messages
     .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string" && m.text)
-    .map((m: any) => ({ role: m.role, text: m.text }))
+    .map((m: any) => {
+      const quiz = cleanQuizState(m.quiz);
+      return quiz ? { role: m.role, text: m.text, quiz } : { role: m.role, text: m.text };
+    })
     .slice(-MAX_MESSAGES);
   if (!messages.length) return null;
   const context = raw.context && typeof raw.context === "object" ? JSON.parse(JSON.stringify(raw.context)) : null;

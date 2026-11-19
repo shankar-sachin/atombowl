@@ -26,6 +26,8 @@ test('tutor jobs keep the recent conversation and put the missed question in the
   assert.match(job.system, /Official answer: NEWTON/);
   assert.match(job.system, /Student's answer: joule/);
   assert.deepEqual(job.parse('  A newton is a kg m/s^2. '), { reply: 'A newton is a kg m/s^2.' });
+  assert.match(job.system, /:::quiz/);
+  assert.match(job.system, /never .{0,3}ce/);
   assert.equal(job.tier, 'main');
   assert.equal(job.reasoning, 'low');
   const followUp = buildJob('tutor', { messages: [{ role: 'user', text: 'Why?' }, { role: 'assistant', text: 'Because.' }, { role: 'user', text: 'And?' }] });

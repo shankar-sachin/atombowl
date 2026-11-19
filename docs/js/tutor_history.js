@@ -2,13 +2,30 @@
 // Chats are kept in localStorage and mirrored to users/{uid}/tutorChats/{id} in Firestore.
 export const MAX_CHATS = 40;
 export const MAX_MESSAGES = 30;
+// Quiz progress on a message: answers as strings, results as booleans, nothing else.
+function cleanQuizState(raw) {
+    if (!raw || typeof raw !== "object")
+        return null;
+    const a = {};
+    const ok = {};
+    for (const [k, v] of Object.entries(raw.a || {}))
+        if (typeof v === "string" && /^\d+\.\d+$/.test(k))
+            a[k] = v.slice(0, 300);
+    for (const [k, v] of Object.entries(raw.ok || {}))
+        if (typeof v === "boolean" && /^\d+\.\d+$/.test(k))
+            ok[k] = v;
+    return Object.keys(a).length || Object.keys(ok).length ? { a, ok } : null;
+}
 // Accepts a stored or remote chat and returns a clean copy, or null when it is unusable.
 export function cleanChat(raw) {
     if (!raw || typeof raw.id !== "string" || !raw.id || !Array.isArray(raw.messages))
         return null;
     const messages = raw.messages
         .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string" && m.text)
-        .map((m) => ({ role: m.role, text: m.text }))
+        .map((m) => {
+        const quiz = cleanQuizState(m.quiz);
+        return quiz ? { role: m.role, text: m.text, quiz } : { role: m.role, text: m.text };
+    })
         .slice(-MAX_MESSAGES);
     if (!messages.length)
         return null;
