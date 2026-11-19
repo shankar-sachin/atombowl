@@ -60,6 +60,7 @@ const authStatus = $("authStatus");
 const usernameStatus = $("usernameStatus");
 
 const googleBtn = $<HTMLButtonElement>("googleBtn");
+const githubBtn = $<HTMLButtonElement>("githubBtn");
 const signinIdentifierInput = $<HTMLInputElement>("signinIdentifierInput");
 const signinPasswordInput = $<HTMLInputElement>("signinPasswordInput");
 const signinBtn = $<HTMLButtonElement>("signinBtn");
@@ -228,7 +229,7 @@ function friendlyAuthError(err: any): string {
     case "auth/unauthorized-domain":
       return "Sign-in isn't allowed from this web address yet. Use atombowl.web.app.";
     case "auth/account-exists-with-different-credential":
-      return "This email already uses a different sign-in method. Sign in that way instead.";
+      return "This email already has an account that uses a different sign-in method (Google, GitHub or a password). Sign in that way instead.";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "The sign-in window was closed before finishing.";
@@ -394,9 +395,8 @@ async function renderSignedIn(user: any) {
   }
   if (statusSub) {
     const providers: string[] = Array.isArray(user?.providerData) ? user.providerData.map((p: any) => p?.providerId) : [];
-    statusSub.textContent = providers.includes("google.com")
-      ? "Signed in with Google. Your stats and settings save to this account."
-      : "Signed in with email. Your stats and settings save to this account.";
+    const how = providers.includes("google.com") ? "Google" : providers.includes("github.com") ? "GitHub" : "email";
+    statusSub.textContent = `Signed in with ${how}. Your stats and settings save to this account.`;
   }
   guestRow?.classList.add("hidden");
   if (profileUsername) profileUsername.textContent = username;
@@ -694,6 +694,20 @@ googleBtn?.addEventListener("click", async () => {
   try {
     await withBusy(googleBtn, "Waiting for Google…", async () => {
       await requireAccount().signInWithProvider("google");
+      await waitForAccountLoaded();
+    });
+    closeAuthModal();
+    showToast(`Signed in as ${welcomeName()}`);
+  } catch (err: any) {
+    setAuthError(friendlyAuthError(err));
+  }
+});
+
+githubBtn?.addEventListener("click", async () => {
+  setAuthError("");
+  try {
+    await withBusy(githubBtn, "Waiting for GitHub…", async () => {
+      await requireAccount().signInWithProvider("github");
       await waitForAccountLoaded();
     });
     closeAuthModal();

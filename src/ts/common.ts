@@ -114,8 +114,7 @@
     '/buzzer-create': '/buzzer-rooms',
     '/buzzer-room': '/buzzer-rooms',
     '/buzzer-basic': '/buzzer-rooms',
-    '/buzzer-room-player': '/buzzer-rooms',
-    '/microsoft-auth': '/account'
+    '/buzzer-room-player': '/buzzer-rooms'
   };
 
   // The current page as its clean path (/practice-home), however it was opened:

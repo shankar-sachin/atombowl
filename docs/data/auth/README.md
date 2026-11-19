@@ -1,10 +1,8 @@
 # Sign-in artwork
 
-Official assets, downloaded September 12, 2026:
-
 - Google logo: https://developers.google.com/static/identity/images/g-logo.png
 - Google guidance: https://developers.google.com/identity/branding-guidelines
-- Microsoft logo: https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_mssymbol_19.svg
-- Apple web button (unaltered): https://appleid.cdn-apple.com/appleid/button?color=black&border=false&height=44&width=200&type=sign-in&border_radius=0
+- GitHub mark: the Simple Icons GitHub path (CC0), recolored gray so it reads on light and dark.
 
-Google is enabled. Apple and Microsoft show “Coming soon” and do not start OAuth.
+Google and GitHub are enabled. Turn each on in Firebase Authentication, Sign-in method. GitHub also needs
+an OAuth app (client ID and secret) whose callback URL is the one Firebase shows on that screen.

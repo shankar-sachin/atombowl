@@ -3,6 +3,7 @@ import { auth, db } from "./firebase.js";
 // @ts-ignore
 import {
   GoogleAuthProvider,
+  GithubAuthProvider,
   OAuthProvider,
   EmailAuthProvider,
   signInWithPopup,
@@ -392,6 +393,12 @@ async function saveLearnProgress(completedLessons: string[]) {
 
 function buildProvider(providerId: string) {
   if (providerId === "google") return new GoogleAuthProvider();
+  if (providerId === "github") {
+    const provider = new GithubAuthProvider();
+    // Without this scope GitHub accounts come back with no email address.
+    provider.addScope("user:email");
+    return provider;
+  }
   return null;
 }
 
@@ -409,8 +416,9 @@ async function signInWithProvider(providerId: string) {
     } catch (err: any) {
       const code = err?.code || "";
       if (code === "auth/credential-already-in-use") {
-        const credential = providerId === "google"
-          ? GoogleAuthProvider.credentialFromError(err) : OAuthProvider.credentialFromError(err);
+        const credential = providerId === "google" ? GoogleAuthProvider.credentialFromError(err)
+          : providerId === "github" ? GithubAuthProvider.credentialFromError(err)
+          : OAuthProvider.credentialFromError(err);
         if (!credential) throw err;
         const res = await signInWithCredential(auth, credential);
         return res.user;

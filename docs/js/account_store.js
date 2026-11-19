@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { auth, db } from "./firebase.js";
 // @ts-ignore
-import { GoogleAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, sendEmailVerification, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { GoogleAuthProvider, GithubAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, sendEmailVerification, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import { doc, getDoc, setDoc, serverTimestamp, increment, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const SETTINGS_KEY = "atom_settings_v1";
@@ -367,6 +367,12 @@ async function saveLearnProgress(completedLessons) {
 function buildProvider(providerId) {
     if (providerId === "google")
         return new GoogleAuthProvider();
+    if (providerId === "github") {
+        const provider = new GithubAuthProvider();
+        // Without this scope GitHub accounts come back with no email address.
+        provider.addScope("user:email");
+        return provider;
+    }
     return null;
 }
 async function signInWithProvider(providerId) {
@@ -385,8 +391,9 @@ async function signInWithProvider(providerId) {
         catch (err) {
             const code = (err === null || err === void 0 ? void 0 : err.code) || "";
             if (code === "auth/credential-already-in-use") {
-                const credential = providerId === "google"
-                    ? GoogleAuthProvider.credentialFromError(err) : OAuthProvider.credentialFromError(err);
+                const credential = providerId === "google" ? GoogleAuthProvider.credentialFromError(err)
+                    : providerId === "github" ? GithubAuthProvider.credentialFromError(err)
+                        : OAuthProvider.credentialFromError(err);
                 if (!credential)
                     throw err;
                 const res = await signInWithCredential(auth, credential);
