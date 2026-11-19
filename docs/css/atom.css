@@ -1057,6 +1057,69 @@ input:disabled { color: var(--muted); background: var(--plate-2); cursor: defaul
 .tutor-msg .katex { font-size: 1.05em; }
 .tutor-msg .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
 
+/* Quizzes the tutor writes into a reply */
+.tutor-msg.has-quiz { max-width: 100%; width: 100%; }
+.tutor-quiz {
+  display: grid;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-control);
+  background: var(--plate);
+}
+.tutor-msg p + .tutor-quiz { margin-top: 10px; }
+.tq-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 8px; }
+.tq-score { color: var(--muted); font-size: 0.8rem; }
+.tq { display: grid; gap: 8px; }
+.tq + .tq { padding-top: 12px; border-top: 1px solid var(--rule); }
+.tq-q { display: flex; gap: 10px; }
+.tq-q > div { min-width: 0; }
+.tq-q p { margin: 0; }
+.tq-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--signal-soft);
+  color: var(--signal);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.tq-choices { display: grid; gap: 6px; }
+.tq-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-control);
+  background: var(--ink);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tq-choice:hover:not(:disabled) { border-color: var(--signal); }
+.tq-choice:disabled { cursor: default; color: var(--text); opacity: 1; }
+.tq-letter { flex: none; min-width: 1ch; color: var(--muted); font-weight: 700; }
+.tq-choice.right { border-color: var(--correct); background: color-mix(in srgb, var(--correct) 14%, transparent); }
+.tq-choice.wrong { border-color: var(--buzz); background: color-mix(in srgb, var(--buzz) 14%, transparent); }
+.tq-sa { display: flex; gap: 8px; }
+.tq-sa input { flex: 1; min-width: 0; }
+.tq-input.right { border-color: var(--correct); }
+.tq-input.wrong { border-color: var(--buzz); }
+.tq-result { padding: 9px 11px; border-left: 3px solid var(--rule); border-radius: var(--r-control); background: var(--ink); font-size: 0.9rem; }
+.tq-result.right { border-left-color: var(--correct); }
+.tq-result.wrong { border-left-color: var(--buzz); }
+.tq-why { margin-top: 4px; color: var(--muted); }
+.tq-done { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--rule); }
+.tq-done p { margin: 0; }
+.tq-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .tutor-msg.typing { display: flex; gap: 4px; padding: 14px; }
 .tutor-msg.typing span {
   width: 7px;

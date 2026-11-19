@@ -52,3 +52,10 @@ test('only the newest chats are kept and the rest are pruned from the account', 
   assert.deepEqual(r.prune.sort(), ['c0', 'c1', 'c2']);
   assert.equal(r.history[0].id, `c${MAX_CHATS + 2}`);
 });
+
+test('quiz progress survives cleaning and junk in it does not', () => {
+  const quiz = { a: { '0.0': 'B', bad: 'x' }, ok: { '0.0': true, '0.1': 'yes' } };
+  const c = cleanChat({ id: 'a', messages: [{ role: 'assistant', text: 'q', quiz }, { role: 'user', text: 'hi', quiz: { a: {}, ok: {} } }] });
+  assert.deepEqual(c.messages[0].quiz, { a: { '0.0': 'B' }, ok: { '0.0': true } });
+  assert.equal('quiz' in c.messages[1], false);
+});

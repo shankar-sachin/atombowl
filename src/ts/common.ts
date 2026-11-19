@@ -288,15 +288,29 @@
   // Phones open the keyboard over the page without resizing it, so fixed bars and the Tutor panel
   // end up underneath. Expose the keyboard height (--kb) and top offset (--vvt) of the visual
   // viewport, and mark body.kb-open so the CSS can get bars out of the way.
+  // Some phones (newer iOS, installed web apps) shrink the page itself when the keyboard opens, so
+  // the viewport math sees no keyboard. A focused text field on a touch device counts as one too.
   function trackKeyboard() {
+    const root = document.documentElement;
+    const coarse = window.matchMedia('(pointer: coarse)');
+    const isTyping = (el: any) => !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable ||
+      (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|file|color|image)$/.test(el.type)));
+    let viewportKeyboard = false;
+    let focused = false;
+    const apply = () => document.body.classList.toggle('kb-open', viewportKeyboard || focused);
+    document.addEventListener('focusin', (event) => { focused = coarse.matches && isTyping(event.target); apply(); });
+    document.addEventListener('focusout', () => {
+      // Moving between two fields fires focusout first, so look again once focus has settled.
+      setTimeout(() => { focused = coarse.matches && isTyping(document.activeElement); apply(); }, 60);
+    });
     const vv = window.visualViewport;
     if (!vv) return;
-    const root = document.documentElement;
     const update = () => {
       const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       root.style.setProperty('--kb', `${kb}px`);
       root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
-      document.body.classList.toggle('kb-open', kb > 120);
+      viewportKeyboard = kb > 120;
+      apply();
     };
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);

@@ -6,6 +6,8 @@
 // (users/{uid}/tutorChats in Firestore) so it shows up on other devices.
 import "./account_store.js";
 import { cleanChat, mergeRemote, MAX_CHATS } from "./tutor_history.js";
+import { fixMath } from "./tutor_math.js";
+import { splitQuiz, gradeQuestion, quizScore, answerText, missedMessage } from "./tutor_quiz.js";
 const STORE_KEY = "atom_tutor_v1";
 const icon = (name) => { var _a; return ((_a = window.atomIcon) === null || _a === void 0 ? void 0 : _a.call(window, name)) || ""; };
 const aiClient = () => import("./ai_client.js");
@@ -89,6 +91,7 @@ function chatTitle(messages) {
 // Keeps the saved copy of the current chat in step with it. A chat that has no messages left
 // (the first question failed) is removed again.
 function recordChat() {
+    var _a;
     if (!uid)
         return;
     if (!state.messages.length) {
@@ -102,8 +105,8 @@ function recordChat() {
     if (!state.id)
         state.id = newId();
     const existing = history.find((c) => c.id === state.id);
-    const messages = state.messages.slice(-30);
-    if (existing && existing.messages.length === messages.length && existing.messages[messages.length - 1].text === messages[messages.length - 1].text)
+    const messages = ((_a = cleanChat({ id: state.id, messages: state.messages })) === null || _a === void 0 ? void 0 : _a.messages) || [];
+    if (existing && JSON.stringify(existing.messages) === JSON.stringify(messages))
         return;
     const entry = { id: state.id, title: (existing === null || existing === void 0 ? void 0 : existing.title) || chatTitle(messages), updated: Date.now(), messages, context: state.context };
     const all = [entry, ...history.filter((c) => c.id !== entry.id)];
@@ -167,7 +170,6 @@ function setSyncNote(on) {
         els.hnote.textContent = on ? "Chats sync with your account." : "Chats are saved on this device.";
 }
 function applyRemote(docs) {
-    var _a, _b;
     const result = mergeRemote(history, docs.map(cleanChat).filter(Boolean), loadSynced());
     history = result.history;
     saveHistory();
@@ -178,9 +180,9 @@ function applyRemote(docs) {
     const open = state.id && history.find((c) => c.id === state.id);
     if (open && !busy) {
         const mine = state.messages;
-        const same = open.messages.length === mine.length && ((_a = open.messages[open.messages.length - 1]) === null || _a === void 0 ? void 0 : _a.text) === ((_b = mine[mine.length - 1]) === null || _b === void 0 ? void 0 : _b.text);
+        const same = JSON.stringify(open.messages) === JSON.stringify(mine);
         if (!same && open.messages.length >= mine.length) {
-            state = { ...state, messages: open.messages.slice(), context: open.context || state.context };
+            state = { ...state, messages: JSON.parse(JSON.stringify(open.messages)), context: open.context || state.context };
             save();
             renderContext();
             renderLog();
@@ -254,7 +256,7 @@ function openChat(id) {
     const chat = history.find((c) => c.id === id);
     if (!chat)
         return;
-    state = { id: chat.id, messages: chat.messages.slice(), context: chat.context || null, thinking: state.thinking };
+    state = { id: chat.id, messages: JSON.parse(JSON.stringify(chat.messages)), context: chat.context || null, thinking: state.thinking };
     notice = "";
     els.error.textContent = "";
     save();
@@ -304,12 +306,19 @@ function loadKatex() {
 function renderMath(tex, display) {
     if (!katex)
         return `<code>${escapeHtml(tex)}</code>`;
-    try {
-        return katex.renderToString(tex, { displayMode: display, throwOnError: false, output: "html" });
+    // Try the formula as written, then with common model slips repaired (commands inside \text{},
+    // packages KaTeX lacks). If it still fails show it as plain code, never as red error text.
+    for (const source of [tex, fixMath(tex)]) {
+        try {
+            return katex.renderToString(source, { displayMode: display, throwOnError: true, output: "html" });
+        }
+        catch { }
     }
-    catch {
-        return `<code>${escapeHtml(tex)}</code>`;
-    }
+    return `<code>${escapeHtml(tex)}</code>`;
+}
+// One line of rich text without the paragraph wrapper, for quiz choices and headings.
+function richInline(text) {
+    return richText(text).replace(/^<p>/, "").replace(/<\/p>$/, "");
 }
 function richText(text) {
     // Pull math out first so markdown and escaping leave it alone; \u0001n\u0001 marks its place.
@@ -503,10 +512,43 @@ function build(container) {
             close();
     });
     els.log.addEventListener("click", (event) => {
-        var _a, _b;
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         const chip = (_b = (_a = event.target).closest) === null || _b === void 0 ? void 0 : _b.call(_a, "[data-starter]");
-        if (chip)
+        if (chip) {
             send(chip.dataset.starter);
+            return;
+        }
+        const pick = (_d = (_c = event.target).closest) === null || _d === void 0 ? void 0 : _d.call(_c, "[data-pick]");
+        if (pick) {
+            answerQuiz(pick.closest("[data-ref]").dataset.ref, pick.dataset.pick);
+            return;
+        }
+        const retry = (_f = (_e = event.target).closest) === null || _f === void 0 ? void 0 : _f.call(_e, "[data-retry]");
+        if (retry) {
+            retryQuiz(retry.dataset.retry);
+            return;
+        }
+        const ask = (_h = (_g = event.target).closest) === null || _h === void 0 ? void 0 : _h.call(_g, "[data-send]");
+        if (ask)
+            send(ask.dataset.send);
+    });
+    els.log.addEventListener("submit", (event) => {
+        var _a, _b;
+        const form = (_b = (_a = event.target).closest) === null || _b === void 0 ? void 0 : _b.call(_a, "[data-sa]");
+        if (!form)
+            return;
+        event.preventDefault();
+        answerQuiz(form.closest("[data-ref]").dataset.ref, form.querySelector("input").value);
+    });
+    // Keep a half-typed short answer if the chat redraws, and keep keys out of page shortcuts.
+    els.log.addEventListener("input", (event) => {
+        var _a, _b;
+        const input = (_b = (_a = event.target).closest) === null || _b === void 0 ? void 0 : _b.call(_a, "[data-sa] input");
+        const target = input && quizTarget(input.closest("[data-ref]").dataset.ref);
+        if (!target)
+            return;
+        target.message.quiz = target.message.quiz || { a: {}, ok: {} };
+        target.message.quiz.a[target.key] = input.value.slice(0, 300);
     });
 }
 function autosize() {
@@ -528,10 +570,124 @@ function renderContext() {
       <div><dt>You said</dt><dd>${escapeHtml(ctx.userAnswer || "No answer")}</dd></div>
     </dl>`;
 }
-function renderLog() {
-    const parts = state.messages.map((m) => m.role === "user"
+// ---------- Quizzes ----------
+let graderLoading = null;
+function loadGrader() {
+    if (window.autoChecker)
+        return Promise.resolve();
+    if (!graderLoading) {
+        graderLoading = new Promise((resolve) => {
+            const script = document.createElement("script");
+            script.src = "/js/autochecker.js";
+            script.onload = resolve;
+            script.onerror = resolve;
+            document.head.appendChild(script);
+        });
+    }
+    return graderLoading;
+}
+function quizHtml(quiz, mi, qi, progress) {
+    const { done, correct, total } = quizScore(quiz, qi, progress);
+    const finished = done === total;
+    const questions = quiz.questions.map((q, i) => {
+        var _a, _b, _c;
+        const key = `${qi}.${i}`;
+        const ref = `${mi}.${qi}.${i}`;
+        const ok = (_a = progress === null || progress === void 0 ? void 0 : progress.ok) === null || _a === void 0 ? void 0 : _a[key];
+        const answered = ok !== undefined;
+        const mine = (_c = (_b = progress === null || progress === void 0 ? void 0 : progress.a) === null || _b === void 0 ? void 0 : _b[key]) !== null && _c !== void 0 ? _c : "";
+        let input;
+        if (q.kind === "mc") {
+            input = `<div class="tq-choices" role="radiogroup" aria-label="Answer choices">${q.choices.map((c) => {
+                const state = !answered ? "" : c.letter === q.answer ? " right" : c.letter === mine ? " wrong" : "";
+                return `<button type="button" role="radio" class="tq-choice${state}" data-pick="${c.letter}" aria-checked="${c.letter === mine}"${answered ? " disabled" : ""}><span class="tq-letter">${c.letter}</span><span>${richInline(c.text)}</span></button>`;
+            }).join("")}</div>`;
+        }
+        else {
+            input = `<form class="tq-sa" data-sa><input type="text" class="tq-input${answered ? (ok ? " right" : " wrong") : ""}" value="${escapeHtml(mine)}" placeholder="Your answer" aria-label="Your answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"${answered ? " readonly" : ""}>${answered ? "" : `<button class="btn small primary" type="submit">Check</button>`}</form>`;
+        }
+        const result = !answered ? "" : `<div class="tq-result ${ok ? "right" : "wrong"}" role="status">
+        <strong>${ok ? "Correct." : "Not quite."}</strong>${ok && q.kind === "mc" ? "" : ` Answer: ${richInline(answerText(q))}`}
+        ${q.why ? `<div class="tq-why">${richInline(q.why)}</div>` : ""}
+      </div>`;
+        return `<div class="tq" data-ref="${ref}"><div class="tq-q"><span class="tq-n">${i + 1}</span><div>${richText(q.q)}</div></div>${input}${result}</div>`;
+    }).join("");
+    const footer = !finished ? "" : (() => {
+        const missed = correct < total;
+        const chips = [
+            missed ? `<button class="btn small" type="button" data-send="${escapeHtml(missedMessage(quiz, qi, progress))}">Explain what I missed</button>` : "",
+            `<button class="btn small" type="button" data-send="${escapeHtml(missed ? `Give me another quiz on "${quiz.title}".` : `Give me a harder quiz on "${quiz.title}".`)}">${missed ? "Another quiz" : "Harder quiz"}</button>`,
+            `<button class="btn small" type="button" data-retry="${mi}.${qi}">Retry</button>`
+        ].join("");
+        return `<div class="tq-done"><p><strong>${correct} of ${total} correct.</strong></p><div class="tq-actions">${chips}</div></div>`;
+    })();
+    return `<section class="tutor-quiz" aria-label="Quiz: ${escapeHtml(quiz.title)}">
+    <header class="tq-head"><strong>${escapeHtml(quiz.title)}</strong><span class="tq-score">${done} of ${total} answered</span></header>
+    ${questions}${footer}
+  </section>`;
+}
+function botHtml(m, mi) {
+    const segments = splitQuiz(m.text);
+    if (!segments.some((s) => s.type === "quiz"))
+        return `<div class="tutor-msg bot">${richText(m.text)}</div>`;
+    let qi = -1;
+    const body = segments.map((s) => {
+        if (s.type === "text")
+            return richText(s.text);
+        qi += 1;
+        return quizHtml(s.quiz, mi, qi, m.quiz);
+    }).join("");
+    return `<div class="tutor-msg bot has-quiz">${body}</div>`;
+}
+// Finds the quiz a rendered question belongs to: ref is "message.quiz.question".
+function quizTarget(ref) {
+    var _a;
+    const [mi, qi, i] = String(ref).split(".").map(Number);
+    const message = state.messages[mi];
+    if (!message || message.role !== "assistant")
+        return null;
+    const quiz = (_a = splitQuiz(message.text).filter((s) => s.type === "quiz")[qi]) === null || _a === void 0 ? void 0 : _a.quiz;
+    const question = quiz === null || quiz === void 0 ? void 0 : quiz.questions[i];
+    return question ? { message, quiz, question, qi, i, key: `${qi}.${i}` } : null;
+}
+async function answerQuiz(ref, value) {
+    var _a, _b, _c;
+    const target = quizTarget(ref);
+    if (!target || ((_b = (_a = target.message.quiz) === null || _a === void 0 ? void 0 : _a.ok) === null || _b === void 0 ? void 0 : _b[target.key]) !== undefined)
+        return;
+    const v = String(value || "").trim();
+    if (!v)
+        return;
+    if (target.question.kind === "sa")
+        await loadGrader();
+    const progress = target.message.quiz || { a: {}, ok: {} };
+    progress.a[target.key] = v.slice(0, 300);
+    progress.ok[target.key] = gradeQuestion(target.question, v, (_c = window.autoChecker) === null || _c === void 0 ? void 0 : _c.grade);
+    target.message.quiz = progress;
+    save();
+    renderLog(true);
+}
+function retryQuiz(ref) {
+    var _a;
+    const [mi, qi] = String(ref).split(".").map(Number);
+    const progress = (_a = state.messages[mi]) === null || _a === void 0 ? void 0 : _a.quiz;
+    if (!progress)
+        return;
+    for (const key of Object.keys({ ...progress.a, ...progress.ok })) {
+        if (key.startsWith(`${qi}.`)) {
+            delete progress.a[key];
+            delete progress.ok[key];
+        }
+    }
+    save();
+    renderLog(true);
+}
+// keepScroll: quiz taps redraw the log in place instead of jumping to the newest message.
+function renderLog(keepScroll = false) {
+    const scrollTop = els.log.scrollTop;
+    const parts = state.messages.map((m, mi) => m.role === "user"
         ? `<div class="tutor-msg user">${escapeHtml(m.text).replace(/\n/g, "<br>")}</div>`
-        : `<div class="tutor-msg bot">${richText(m.text)}</div>`);
+        : botHtml(m, mi));
     if (notice)
         parts.push(`<div class="tutor-msg bot notice" role="alert">${notice}</div>`);
     if (busy)
@@ -547,7 +703,7 @@ function renderLog() {
     </div>`);
     }
     els.log.innerHTML = parts.join("");
-    els.log.scrollTop = els.log.scrollHeight;
+    els.log.scrollTop = keepScroll ? scrollTop : els.log.scrollHeight;
 }
 function messageCost() {
     return state.thinking ? THINKING_COST : MESSAGE_COST;
