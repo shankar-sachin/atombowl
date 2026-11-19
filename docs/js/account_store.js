@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { auth, db } from "./firebase.js";
 // @ts-ignore
-import { GoogleAuthProvider, GithubAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, sendEmailVerification, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+import { GoogleAuthProvider, GithubAuthProvider, OAuthProvider, EmailAuthProvider, signInWithPopup, signInWithCredential, signInWithCustomToken, linkWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, linkWithCredential, signOut as fbSignOut, onIdTokenChanged, updateProfile, sendPasswordResetEmail, sendEmailVerification, validatePassword } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 // @ts-ignore
 import { doc, getDoc, setDoc, serverTimestamp, increment, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 const SETTINGS_KEY = "atom_settings_v1";
@@ -405,6 +405,14 @@ async function signInWithProvider(providerId) {
     const res = await signInWithPopup(auth, provider);
     return res.user;
 }
+// Passkey sign-in: the server checks the passkey and hands back a Firebase custom token.
+async function signInWithPasskey() {
+    await auth.authStateReady();
+    const { loginWithPasskey } = await import("./passkeys.js");
+    const token = await loginWithPasskey();
+    const res = await signInWithCustomToken(auth, token);
+    return res.user;
+}
 async function signInWithEmail(email, password) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!normalizedEmail)
@@ -747,6 +755,7 @@ window.atomAccount = {
     getGuestTag,
     onAuthChange,
     signInWithProvider,
+    signInWithPasskey,
     signInWithEmail,
     signInWithIdentifier,
     signUpWithEmail,
