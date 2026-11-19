@@ -223,3 +223,17 @@ test('basic rooms with teams: first buzz lands only while unlocked', async () =>
  await assertSucceeds(sdk.updateDoc(roomRef(a, 'TEAMS77'), buzz));
  await assertFails(sdk.updateDoc(roomRef(dbFor('p2'), 'TEAMS77'), buzz));
 });
+
+test('tutor chats sync under the owner account only', async () => {
+ const chat = { title: 'Why?', updated: 1, messages: [{ role: 'user', text: 'Why?' }, { role: 'assistant', text: 'Because.' }], context: null };
+ const mine = env.authenticatedContext('u1', { firebase: { sign_in_provider: 'password' } }).firestore();
+ const theirs = env.authenticatedContext('u2', { firebase: { sign_in_provider: 'password' } }).firestore();
+ const ref = (db) => sdk.doc(db, 'users', 'u1', 'tutorChats', 'c1');
+ await assertSucceeds(sdk.setDoc(ref(mine), chat));
+ const list = await assertSucceeds(sdk.getDocs(sdk.query(sdk.collection(mine, 'users', 'u1', 'tutorChats'), sdk.orderBy('updated', 'desc'), sdk.limit(50))));
+ assert.equal(list.size, 1);
+ await assertFails(sdk.getDoc(ref(theirs)));
+ await assertFails(sdk.setDoc(ref(theirs), chat));
+ await assertFails(sdk.deleteDoc(ref(theirs)));
+ await assertSucceeds(sdk.deleteDoc(ref(mine)));
+});

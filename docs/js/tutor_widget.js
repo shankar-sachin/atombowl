@@ -2,8 +2,10 @@
 // Tutor chat. common.js mounts it with a floating button on every page except practice
 // (focus chrome), where practice.js opens it from "Ask Tutor" with the missed question.
 // /tutor mounts it inline with a list of saved chats. The current chat lives in sessionStorage so it
-// follows the tab across pages; every chat is also saved per account in localStorage (this device only).
+// follows the tab across pages; every chat is also cached in localStorage and synced to the account
+// (users/{uid}/tutorChats in Firestore) so it shows up on other devices.
 import "./account_store.js";
+import { cleanChat, mergeRemote, MAX_CHATS } from "./tutor_history.js";
 const STORE_KEY = "atom_tutor_v1";
 const icon = (name) => { var _a; return ((_a = window.atomIcon) === null || _a === void 0 ? void 0 : _a.call(window, name)) || ""; };
 const aiClient = () => import("./ai_client.js");
@@ -21,10 +23,13 @@ const CONTEXT_STARTERS = [
     "Give me a similar question to try"
 ];
 const HISTORY_KEY = "atom_tutor_history_v1";
-const MAX_CHATS = 40;
+const SYNCED_KEY = "atom_tutor_synced_v1";
+const syncModule = () => import("./tutor_sync.js");
 let state = load();
 let uid = "";
 let history = [];
+let syncUnsub = null;
+let syncUid = "";
 let els = null;
 let embedded = false;
 let signedIn = false;
@@ -63,7 +68,7 @@ function loadHistory() {
     try {
         const raw = JSON.parse(localStorage.getItem(`${HISTORY_KEY}:${uid}`) || "[]");
         if (Array.isArray(raw))
-            history = raw.filter((c) => c && c.id && Array.isArray(c.messages) && c.messages.length);
+            history = raw.map(cleanChat).filter(Boolean);
     }
     catch { }
 }
@@ -101,9 +106,111 @@ function recordChat() {
     if (existing && existing.messages.length === messages.length && existing.messages[messages.length - 1].text === messages[messages.length - 1].text)
         return;
     const entry = { id: state.id, title: (existing === null || existing === void 0 ? void 0 : existing.title) || chatTitle(messages), updated: Date.now(), messages, context: state.context };
-    history = [entry, ...history.filter((c) => c.id !== entry.id)].slice(0, MAX_CHATS);
+    const all = [entry, ...history.filter((c) => c.id !== entry.id)];
+    history = all.slice(0, MAX_CHATS);
+    all.slice(MAX_CHATS).forEach((c) => removeRemote(c.id));
     saveHistory();
     renderHistory();
+    pushRemote(entry);
+}
+// ---------- Sync with the account (users/{uid}/tutorChats) ----------
+// Every chat is written to the account when it changes. Only the Tutor page listens for chats
+// from other devices, so the floating Tutor on other pages costs no reads.
+function loadSynced() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(`${SYNCED_KEY}:${uid}`) || "[]");
+        return Array.isArray(raw) ? raw : [];
+    }
+    catch {
+        return [];
+    }
+}
+function saveSynced(ids) {
+    if (!uid)
+        return;
+    try {
+        localStorage.setItem(`${SYNCED_KEY}:${uid}`, JSON.stringify(ids));
+    }
+    catch { }
+}
+function markSynced(id, on = true) {
+    const ids = new Set(loadSynced());
+    if (on)
+        ids.add(id);
+    else
+        ids.delete(id);
+    saveSynced([...ids]);
+}
+async function pushRemote(chat) {
+    const forUid = uid;
+    if (!forUid)
+        return;
+    try {
+        await (await syncModule()).pushChat(forUid, chat);
+        if (uid === forUid)
+            markSynced(chat.id);
+    }
+    catch { }
+}
+async function removeRemote(id) {
+    const forUid = uid;
+    if (!forUid)
+        return;
+    markSynced(id, false);
+    try {
+        await (await syncModule()).removeChat(forUid, id);
+    }
+    catch { }
+}
+function setSyncNote(on) {
+    if (els === null || els === void 0 ? void 0 : els.hnote)
+        els.hnote.textContent = on ? "Chats sync with your account." : "Chats are saved on this device.";
+}
+function applyRemote(docs) {
+    var _a, _b;
+    const result = mergeRemote(history, docs.map(cleanChat).filter(Boolean), loadSynced());
+    history = result.history;
+    saveHistory();
+    saveSynced(result.synced);
+    result.upload.forEach(pushRemote);
+    result.prune.forEach(removeRemote);
+    // Show new messages added to the open chat from another device, unless a reply is on its way.
+    const open = state.id && history.find((c) => c.id === state.id);
+    if (open && !busy) {
+        const mine = state.messages;
+        const same = open.messages.length === mine.length && ((_a = open.messages[open.messages.length - 1]) === null || _a === void 0 ? void 0 : _a.text) === ((_b = mine[mine.length - 1]) === null || _b === void 0 ? void 0 : _b.text);
+        if (!same && open.messages.length >= mine.length) {
+            state = { ...state, messages: open.messages.slice(), context: open.context || state.context };
+            save();
+            renderContext();
+            renderLog();
+        }
+    }
+    setSyncNote(true);
+    renderHistory();
+}
+async function startSync() {
+    if (!embedded || !uid || (syncUid === uid && syncUnsub))
+        return;
+    stopSync();
+    const forUid = uid;
+    syncUid = forUid;
+    try {
+        const mod = await syncModule();
+        if (uid !== forUid)
+            return;
+        syncUnsub = mod.subscribe(forUid, (docs) => { if (uid === forUid)
+            applyRemote(docs); }, () => setSyncNote(false));
+    }
+    catch {
+        setSyncNote(false);
+    }
+}
+function stopSync() {
+    syncUnsub === null || syncUnsub === void 0 ? void 0 : syncUnsub();
+    syncUnsub = null;
+    syncUid = "";
+    setSyncNote(false);
 }
 function whenText(ms) {
     const d = new Date(ms);
@@ -156,10 +263,11 @@ function openChat(id) {
 }
 function deleteChat(id) {
     const chat = history.find((c) => c.id === id);
-    if (!chat || !window.confirm(`Delete this chat?\n\n${chat.title}`))
+    if (!chat || !window.confirm(`Delete this chat? It will be removed from all your devices.\n\n${chat.title}`))
         return;
     history = history.filter((c) => c.id !== id);
     saveHistory();
+    removeRemote(id);
     if (state.id === id)
         startNewChat();
     else
@@ -302,7 +410,7 @@ function build(container) {
       </div>
       <ul class="tutor-history-list" data-hlist></ul>
       <div class="tutor-history-foot">
-        <p class="muted">Chats are saved on this device only.</p>
+        <p class="muted" data-hnote>Chats are saved on this device.</p>
         <button class="btn small" type="button" data-hclear hidden>Clear all</button>
       </div>`;
         container.appendChild(aside);
@@ -326,6 +434,7 @@ function build(container) {
         history: aside,
         hlist: aside === null || aside === void 0 ? void 0 : aside.querySelector("[data-hlist]"),
         hclear: aside === null || aside === void 0 ? void 0 : aside.querySelector("[data-hclear]"),
+        hnote: aside === null || aside === void 0 ? void 0 : aside.querySelector("[data-hnote]"),
         htoggle: panel.querySelector("[data-htoggle]"),
         credits: panel.querySelector("[data-credits]"),
         context: panel.querySelector("[data-context]"),
@@ -345,8 +454,9 @@ function build(container) {
         aside.querySelector("[data-hnew]").addEventListener("click", startNewChat);
         aside.querySelector("[data-hclose]").addEventListener("click", () => setHistoryOpen(false));
         els.hclear.addEventListener("click", () => {
-            if (!window.confirm("Delete all saved chats on this device?"))
+            if (!window.confirm("Delete all saved chats? They will be removed from all your devices."))
                 return;
+            history.forEach((c) => removeRemote(c.id));
             history = [];
             saveHistory();
             startNewChat();
@@ -569,6 +679,12 @@ export function mount(options = {}) {
         signedIn = !!user;
         uid = (user === null || user === void 0 ? void 0 : user.uid) || "";
         loadHistory();
+        if (embedded) {
+            if (uid)
+                startSync();
+            else
+                stopSync();
+        }
         if (signedIn)
             recordChat();
         if (!signedIn)
