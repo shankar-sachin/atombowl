@@ -1,4 +1,129 @@
-/* Tutor page: the chat panel inline under the header. */
+/* Tutor page: the chat panel inline under the header, with saved chats beside it. */
 
-.tutor-page { width: min(820px, 100% - 32px); }
+.tutor-page { width: min(1040px, 100% - 32px); }
 .tutor-mount { margin-bottom: 12px; }
+
+.tutor-layout.has-history {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.tutor-history {
+  display: flex;
+  flex-direction: column;
+  height: min(680px, calc(100vh - 260px));
+  min-height: 440px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-panel);
+  background: var(--plate);
+  overflow: hidden;
+}
+
+.tutor-history[hidden] { display: none; }
+
+.tutor-history-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tutor-history-head h2 { flex: 1; font-size: 1.05rem; }
+.tutor-history-head .btn { gap: 6px; }
+.tutor-history-head .btn .icon-svg { width: 16px; height: 16px; }
+
+.tutor-history-list {
+  flex: 1;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tutor-chat-row { display: flex; align-items: center; gap: 2px; }
+
+.tutor-chat {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tutor-chat:hover { background: var(--plate-2); }
+.tutor-chat[aria-current="true"] { background: var(--signal-soft); }
+
+.tutor-chat-title {
+  font-size: 0.93rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutor-chat-when { color: var(--muted); font-size: 0.78rem; }
+
+.tutor-chat-row .icon-btn { flex: none; opacity: 0.6; }
+.tutor-chat-row:hover .icon-btn,
+.tutor-chat-row .icon-btn:focus-visible { opacity: 1; }
+@media (hover: none) { .tutor-chat-row .icon-btn { opacity: 1; } }
+
+.tutor-history-empty { padding: 12px 10px; color: var(--muted); font-size: 0.9rem; }
+
+.tutor-history-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--rule);
+}
+
+.tutor-history-foot .muted { font-size: 0.8rem; }
+
+.tutor-history-toggle,
+.tutor-history-close { display: none; }
+.tutor-history-toggle[hidden] { display: none !important; }
+
+/* Phones: the chat fills the screen between the top bar and the tab bar, and the chat list
+   slides over it. Same insets as the floating Tutor panel, so the keyboard handling matches. */
+@media (max-width: 960px) {
+  .tutor-page .header,
+  .tutor-page > .status-note { display: none; }
+  .tutor-layout.has-history { display: block; }
+
+  .tutor-panel.embedded,
+  .tutor-history {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    top: calc(var(--bar-h) + 8px);
+    bottom: calc(var(--tab-h) + env(safe-area-inset-bottom) + 8px);
+    width: auto;
+    height: auto;
+    min-height: 0;
+    z-index: 60;
+  }
+  body:not(.has-tab-bar) .tutor-panel.embedded,
+  body:not(.has-tab-bar) .tutor-history { bottom: 8px; }
+  body.kb-open .tutor-panel.embedded,
+  body.kb-open .tutor-history {
+    top: calc(var(--vvt, 0px) + 8px);
+    bottom: calc(var(--kb, 0px) + 8px);
+  }
+
+  .tutor-history { display: none; z-index: 61; box-shadow: var(--shadow-pop); }
+  .tutor-history.open { display: flex; }
+  .tutor-history-toggle,
+  .tutor-history-close { display: inline-grid; }
+}

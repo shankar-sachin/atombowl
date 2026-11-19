@@ -1,7 +1,8 @@
 // @ts-nocheck
 // Tutor chat. common.js mounts it with a floating button on every page except practice
 // (focus chrome), where practice.js opens it from "Ask Tutor" with the missed question.
-// /tutor mounts it inline. The chat lives in sessionStorage so it follows the tab across pages.
+// /tutor mounts it inline with a list of saved chats. The current chat lives in sessionStorage so it
+// follows the tab across pages; every chat is also saved per account in localStorage (this device only).
 import "./account_store.js";
 
 const STORE_KEY = "atom_tutor_v1";
@@ -22,7 +23,12 @@ const CONTEXT_STARTERS = [
   "Give me a similar question to try"
 ];
 
+const HISTORY_KEY = "atom_tutor_history_v1";
+const MAX_CHATS = 40;
+
 let state = load();
+let uid = "";
+let history = [];
 let els = null;
 let embedded = false;
 let signedIn = false;
@@ -37,14 +43,122 @@ function load() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null");
     if (saved && Array.isArray(saved.messages)) {
-      return { messages: saved.messages.slice(-30), context: saved.context || null, thinking: saved.thinking === true };
+      return { id: saved.id || null, messages: saved.messages.slice(-30), context: saved.context || null, thinking: saved.thinking === true };
     }
   } catch {}
-  return { messages: [], context: null, thinking: false };
+  return { id: null, messages: [], context: null, thinking: false };
 }
 
 function save() {
+  recordChat();
   try { sessionStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
+}
+
+// ---------- Saved chats ----------
+
+function newId() {
+  return window.crypto?.randomUUID?.() || `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function loadHistory() {
+  history = [];
+  if (!uid) return;
+  try {
+    const raw = JSON.parse(localStorage.getItem(`${HISTORY_KEY}:${uid}`) || "[]");
+    if (Array.isArray(raw)) history = raw.filter((c) => c && c.id && Array.isArray(c.messages) && c.messages.length);
+  } catch {}
+}
+
+function saveHistory() {
+  if (!uid) return;
+  try { localStorage.setItem(`${HISTORY_KEY}:${uid}`, JSON.stringify(history)); } catch {}
+}
+
+function chatTitle(messages) {
+  const first = messages.find((m) => m.role === "user")?.text || "New chat";
+  const flat = first.replace(/\s+/g, " ").trim();
+  return flat.length > 60 ? `${flat.slice(0, 57)}...` : flat;
+}
+
+// Keeps the saved copy of the current chat in step with it. A chat that has no messages left
+// (the first question failed) is removed again.
+function recordChat() {
+  if (!uid) return;
+  if (!state.messages.length) {
+    if (state.id && history.some((c) => c.id === state.id)) {
+      history = history.filter((c) => c.id !== state.id);
+      saveHistory();
+      renderHistory();
+    }
+    return;
+  }
+  if (!state.id) state.id = newId();
+  const existing = history.find((c) => c.id === state.id);
+  const messages = state.messages.slice(-30);
+  if (existing && existing.messages.length === messages.length && existing.messages[messages.length - 1].text === messages[messages.length - 1].text) return;
+  const entry = { id: state.id, title: existing?.title || chatTitle(messages), updated: Date.now(), messages, context: state.context };
+  history = [entry, ...history.filter((c) => c.id !== entry.id)].slice(0, MAX_CHATS);
+  saveHistory();
+  renderHistory();
+}
+
+function whenText(ms) {
+  const d = new Date(ms);
+  const today = new Date();
+  return d.toDateString() === today.toDateString()
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function renderHistory() {
+  if (!els?.history) return;
+  els.history.hidden = !signedIn;
+  if (els.htoggle) els.htoggle.hidden = !signedIn;
+  els.mountEl.classList.toggle("has-history", signedIn);
+  els.hlist.innerHTML = history.length
+    ? history.map((c) => `<li class="tutor-chat-row">
+        <button type="button" class="tutor-chat" data-open="${escapeHtml(c.id)}"${c.id === state.id ? ' aria-current="true"' : ""}>
+          <span class="tutor-chat-title">${escapeHtml(c.title)}</span>
+          <span class="tutor-chat-when">${escapeHtml(whenText(c.updated))}</span>
+        </button>
+        <button type="button" class="icon-btn" data-del="${escapeHtml(c.id)}" aria-label="Delete chat: ${escapeHtml(c.title)}">${icon("x")}</button>
+      </li>`).join("")
+    : `<li class="tutor-history-empty">No saved chats yet.</li>`;
+  els.hclear.hidden = !history.length;
+}
+
+function setHistoryOpen(open) {
+  els?.history?.classList.toggle("open", open);
+  els?.htoggle?.setAttribute("aria-expanded", String(open));
+}
+
+function startNewChat() {
+  state = { id: null, messages: [], context: null, thinking: state.thinking };
+  notice = "";
+  save();
+  setHistoryOpen(false);
+  render();
+  els.input.focus();
+}
+
+function openChat(id) {
+  const chat = history.find((c) => c.id === id);
+  if (!chat) return;
+  state = { id: chat.id, messages: chat.messages.slice(), context: chat.context || null, thinking: state.thinking };
+  notice = "";
+  els.error.textContent = "";
+  save();
+  setHistoryOpen(false);
+  render();
+}
+
+function deleteChat(id) {
+  const chat = history.find((c) => c.id === id);
+  if (!chat || !window.confirm(`Delete this chat?\n\n${chat.title}`)) return;
+  history = history.filter((c) => c.id !== id);
+  saveHistory();
+  if (state.id === id) startNewChat();
+  else renderHistory();
 }
 
 function escapeHtml(text) {
@@ -134,6 +248,7 @@ function build(container) {
   }
   panel.innerHTML = `
     <header class="tutor-head">
+      ${embedded ? `<button class="icon-btn tutor-history-toggle" type="button" data-htoggle aria-expanded="false" aria-label="Chat history" title="Chat history">${icon("menu")}</button>` : ""}
       <span class="tutor-mark" aria-hidden="true">${icon("tutor")}</span>
       <div class="tutor-title">
         <h2>Tutor</h2>
@@ -150,7 +265,7 @@ function build(container) {
     </div>
     <form class="tutor-form" data-form>
       <label class="visually-hidden" for="tutorInput">Message the tutor</label>
-      <textarea id="tutorInput" rows="1" maxlength="2000" enterkeyhint="send" placeholder="Ask about any science or math idea"></textarea>
+      <textarea id="tutorInput" rows="1" maxlength="2000" enterkeyhint="send" placeholder="Ask Tutor a question"></textarea>
       <button class="btn primary tutor-send" type="submit" aria-label="Send">${icon("send")}</button>
       <div class="tutor-think">
         <button class="toggle" type="button" role="switch" aria-checked="false" aria-labelledby="tutorThinkLabel" data-thinking><span class="knob"></span></button>
@@ -159,6 +274,26 @@ function build(container) {
       </div>
     </form>
     <p class="tutor-error error" data-error role="alert"></p>`;
+  let aside = null;
+  if (embedded) {
+    container.classList.add("tutor-layout");
+    aside = document.createElement("aside");
+    aside.className = "tutor-history";
+    aside.setAttribute("aria-label", "Chat history");
+    aside.hidden = true;
+    aside.innerHTML = `
+      <div class="tutor-history-head">
+        <h2>Chats</h2>
+        <button class="btn small" type="button" data-hnew>${icon("plus")}<span>New chat</span></button>
+        <button class="icon-btn tutor-history-close" type="button" data-hclose aria-label="Close chat history">${icon("close")}</button>
+      </div>
+      <ul class="tutor-history-list" data-hlist></ul>
+      <div class="tutor-history-foot">
+        <p class="muted">Chats are saved on this device only.</p>
+        <button class="btn small" type="button" data-hclear hidden>Clear all</button>
+      </div>`;
+    container.appendChild(aside);
+  }
   container.appendChild(panel);
 
   let fab = null;
@@ -176,6 +311,11 @@ function build(container) {
   els = {
     panel,
     fab,
+    mountEl: container,
+    history: aside,
+    hlist: aside?.querySelector("[data-hlist]"),
+    hclear: aside?.querySelector("[data-hclear]"),
+    htoggle: panel.querySelector("[data-htoggle]"),
     credits: panel.querySelector("[data-credits]"),
     context: panel.querySelector("[data-context]"),
     log: panel.querySelector("[data-log]"),
@@ -189,12 +329,28 @@ function build(container) {
   };
 
   panel.querySelector("[data-close]")?.addEventListener("click", () => close());
-  panel.querySelector("[data-new]").addEventListener("click", () => {
-    state = { messages: [], context: null, thinking: state.thinking };
-    save();
-    render();
-    els.input.focus();
-  });
+  panel.querySelector("[data-new]").addEventListener("click", startNewChat);
+  els.htoggle?.addEventListener("click", () => setHistoryOpen(!els.history.classList.contains("open")));
+  if (aside) {
+    aside.querySelector("[data-hnew]").addEventListener("click", startNewChat);
+    aside.querySelector("[data-hclose]").addEventListener("click", () => setHistoryOpen(false));
+    els.hclear.addEventListener("click", () => {
+      if (!window.confirm("Delete all saved chats on this device?")) return;
+      history = [];
+      saveHistory();
+      startNewChat();
+    });
+    els.hlist.addEventListener("click", (event) => {
+      const open = event.target.closest?.("[data-open]");
+      const del = event.target.closest?.("[data-del]");
+      if (open) openChat(open.dataset.open);
+      else if (del) deleteChat(del.dataset.del);
+    });
+    aside.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Escape") setHistoryOpen(false);
+    });
+  }
   els.form.addEventListener("submit", (event) => {
     event.preventDefault();
     send(els.input.value);
@@ -206,6 +362,10 @@ function build(container) {
     }
   });
   els.input.addEventListener("input", autosize);
+  // On phones the keyboard hides the newest messages; bring them back into view once it is up.
+  els.input.addEventListener("focus", () => setTimeout(() => { els.log.scrollTop = els.log.scrollHeight; }, 300));
+  // Tapping Send must not take focus from the box, or the keyboard closes and then can't reopen on its own.
+  els.send.addEventListener("pointerdown", (event) => event.preventDefault());
   els.thinking.addEventListener("click", () => {
     state.thinking = !state.thinking;
     save();
@@ -254,7 +414,7 @@ function renderLog() {
       ? "Ask what went wrong, or about the idea behind it."
       : "Ask about a concept, a calculation or a question you missed.";
     parts.push(`<div class="tutor-empty">
-      <p>${intro} Each message uses ${creditWord(messageCost())}.</p>
+      <p>${intro} Each message uses ${creditWord(messageCost())}. Tutor can make mistakes, so check important facts.</p>
       <div class="tutor-starters">${starters.map((s) => `<button class="btn small" type="button" data-starter="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}</div>
     </div>`);
   }
@@ -275,7 +435,8 @@ function render() {
   els.gate.hidden = signedIn || !authKnown;
   els.form.hidden = !signedIn && authKnown;
   els.log.hidden = authKnown && !signedIn;
-  els.input.disabled = busy;
+  // readOnly, not disabled: disabling the focused box would close the phone keyboard mid-reply.
+  els.input.readOnly = busy;
   els.send.disabled = busy;
   els.thinking.setAttribute("aria-checked", String(!!state.thinking));
   els.thinking.disabled = busy;
@@ -284,6 +445,7 @@ function render() {
     : `${creditWord(THINKING_COST)} a message`;
   renderContext();
   renderLog();
+  renderHistory();
 }
 
 function showCredits(credits) {
@@ -345,7 +507,7 @@ function open(options = {}) {
   returnFocus = document.activeElement;
   if (options.context) {
     const same = JSON.stringify(options.context) === JSON.stringify(state.context);
-    if (!same) state = { messages: [], context: options.context, thinking: state.thinking };
+    if (!same) state = { id: null, messages: [], context: options.context, thinking: state.thinking };
     save();
   }
   els.panel.hidden = false;
@@ -376,6 +538,9 @@ export function mount(options: { launcher?: boolean; container?: HTMLElement } =
   account?.onAuthChange?.((user) => {
     authKnown = !!account.isReady?.() || !!user;
     signedIn = !!user;
+    uid = user?.uid || "";
+    loadHistory();
+    if (signedIn) recordChat();
     if (!signedIn) creditsRequested = false;
     render();
     if (signedIn && (embedded || !els.panel.hidden)) loadCredits();
