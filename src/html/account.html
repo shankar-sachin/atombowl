@@ -262,6 +262,19 @@
         <p class="switch-line">Already have an account? <a href="#" id="gotoSigninLink">Sign in</a></p>
       </form>
     </div>
+
+    <div class="auth-wait hidden" id="authWait" role="status" aria-live="polite">
+      <div class="auth-wait-card">
+        <div class="auth-wait-mark" aria-hidden="true">
+          <span class="auth-wait-ring"></span>
+          <img src="images/brand/logo.svg" width="56" height="56" alt="" />
+        </div>
+        <h3 id="authWaitTitle">Continue in the pop-up</h3>
+        <p id="authWaitText">Finish signing in there and you'll come straight back.</p>
+        <p class="muted">Can't see it? Check your pop-up blocker, or look for another window or tab.</p>
+        <button class="btn" id="authWaitCancel" type="button">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <div id="accountToast" class="toast" role="status" aria-live="polite"></div>

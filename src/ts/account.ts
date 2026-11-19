@@ -62,6 +62,10 @@ const usernameStatus = $("usernameStatus");
 const googleBtn = $<HTMLButtonElement>("googleBtn");
 const githubBtn = $<HTMLButtonElement>("githubBtn");
 const passkeyBtn = $<HTMLButtonElement>("passkeyBtn");
+const authWait = $("authWait");
+const authWaitTitle = $("authWaitTitle");
+const authWaitText = $("authWaitText");
+const authWaitCancel = $("authWaitCancel");
 const passkeySection = $("passkeySection");
 const passkeyList = $("passkeyList");
 const addPasskeyBtn = $<HTMLButtonElement>("addPasskeyBtn");
@@ -188,6 +192,29 @@ function setBusy(isBusy: boolean, active?: HTMLButtonElement | null, busyText?: 
     active.removeAttribute("aria-busy");
   }
 }
+
+// Google and GitHub finish in a pop-up window, which is Firebase's own plain page and can't be
+// restyled. While it is open, cover the modal with our own screen so the wait doesn't look broken.
+let waitingButton: HTMLButtonElement | null = null;
+
+function showAuthWait(provider: string, button: HTMLButtonElement | null) {
+  waitingButton = button;
+  if (authWaitTitle) authWaitTitle.textContent = `Continue with ${provider}`;
+  if (authWaitText) authWaitText.textContent = `A ${provider} window opened so you can sign in. Finish there and you'll come straight back.`;
+  authWait?.classList.remove("hidden");
+}
+
+function hideAuthWait() {
+  authWait?.classList.add("hidden");
+  waitingButton = null;
+}
+
+authWaitCancel?.addEventListener("click", () => {
+  const button = waitingButton;
+  hideAuthWait();
+  // Let the student pick another way in; the pop-up flow, if still open, just ends on its own.
+  if (button) setBusy(false, button);
+});
 
 async function withBusy<T>(button: HTMLButtonElement | null, busyText: string, task: () => Promise<T>) {
   setBusy(true, button, busyText);
@@ -749,6 +776,7 @@ function welcomeName() {
 googleBtn?.addEventListener("click", async () => {
   setAuthError("");
   try {
+    showAuthWait("Google", googleBtn);
     await withBusy(googleBtn, "Waiting for Google…", async () => {
       await requireAccount().signInWithProvider("google");
       await waitForAccountLoaded();
@@ -757,6 +785,8 @@ googleBtn?.addEventListener("click", async () => {
     showToast(`Signed in as ${welcomeName()}`);
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
+  } finally {
+    hideAuthWait();
   }
 });
 
@@ -805,6 +835,7 @@ passkeyList?.addEventListener("click", async (event) => {
 githubBtn?.addEventListener("click", async () => {
   setAuthError("");
   try {
+    showAuthWait("GitHub", githubBtn);
     await withBusy(githubBtn, "Waiting for GitHub…", async () => {
       await requireAccount().signInWithProvider("github");
       await waitForAccountLoaded();
@@ -813,6 +844,8 @@ githubBtn?.addEventListener("click", async () => {
     showToast(`Signed in as ${welcomeName()}`);
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
+  } finally {
+    hideAuthWait();
   }
 });
 
