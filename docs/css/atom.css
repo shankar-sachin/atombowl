@@ -989,6 +989,14 @@ input:disabled { color: var(--muted); background: var(--plate-2); cursor: defaul
 }
 
 .tutor-context[hidden] { display: none; }
+.tutor-context { padding: 8px 16px; max-height: 40%; overflow-y: auto; }
+.tutor-ctx summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; min-width: 0; }
+.tutor-ctx summary::-webkit-details-marker { display: none; }
+.tutor-ctx summary::after { content: "\25BE"; color: var(--muted); margin-left: auto; }
+.tutor-ctx[open] summary::after { content: "\25B4"; }
+.tutor-ctx-peek { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; color: var(--ink-2, var(--muted)); }
+.tutor-ctx[open] .tutor-ctx-peek { display: none; }
+.tutor-ctx[open] > .tutor-q, .tutor-ctx[open] > .tutor-answers { margin-top: 8px; }
 .tutor-context-label { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
 
 .tutor-q {

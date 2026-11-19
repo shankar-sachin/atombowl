@@ -265,6 +265,7 @@ function escapeHtml(text) {
 function inline(text) {
   return escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![*\w])/g, "$1<em>$2</em>")
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
@@ -519,14 +520,16 @@ function renderContext() {
   const ctx = state.context;
   els.context.hidden = !ctx;
   if (!ctx) return;
-  const question = ctx.question ? `<p class="tutor-q q-serif">${escapeHtml(ctx.question)}</p>` : `<p class="muted">Picture question</p>`;
+  const q = ctx.question ? escapeHtml(ctx.question) : "Picture question";
   els.context.innerHTML = `
-    <span class="tutor-context-label">About this question</span>
-    ${question}
-    <dl class="tutor-answers">
-      <div><dt>Official answer</dt><dd>${escapeHtml(ctx.answerLabel || ctx.answer || "Not given")}</dd></div>
-      <div><dt>You said</dt><dd>${escapeHtml(ctx.userAnswer || "No answer")}</dd></div>
-    </dl>`;
+    <details class="tutor-ctx">
+      <summary><span class="tutor-context-label">About this question</span><span class="tutor-ctx-peek">${q}</span></summary>
+      <p class="tutor-q q-serif">${q}</p>
+      <dl class="tutor-answers">
+        <div><dt>Official answer</dt><dd>${escapeHtml(ctx.answerLabel || ctx.answer || "Not given")}</dd></div>
+        <div><dt>You said</dt><dd>${escapeHtml(ctx.userAnswer || "No answer")}</dd></div>
+      </dl>
+    </details>`;
 }
 
 // ---------- Quizzes ----------
