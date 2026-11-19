@@ -23,15 +23,17 @@ function setup() {
  loadTS('src/ts/account.ts', { './account_store.js': {} }, { document, window });
  return { element, calls };
 }
-test('Apple and Microsoft are disabled "coming soon" buttons with no sign-in wired', async () => {
+test('the account page offers Google and GitHub only, with no "coming soon" buttons', async () => {
  const html = fs.readFileSync('src/html/account.html', 'utf8');
- for (const [id, label] of [['microsoftBtn', 'Microsoft (coming soon)'], ['appleBtn', 'Apple (coming soon)']]) {
-  assert.match(html, new RegExp(`<button[^>]*id="${id}"[^>]*\\bdisabled\\b[^>]*>${label.replace(/[()]/g, '\\$&')}</button>`));
- }
- const ui = setup();
- assert.equal(ui.element('appleBtn').handlers.click, undefined);
- assert.equal(ui.element('microsoftBtn').handlers.click, undefined);
- assert.deepEqual(ui.calls, []);
+ assert.match(html, /id="googleBtn"/);
+ assert.match(html, /id="githubBtn"/);
+ assert.doesNotMatch(html, /coming soon|microsoftBtn|appleBtn/i);
+ assert.equal(fs.existsSync('src/html/microsoft-auth.html'), false);
+});
+test('GitHub invokes the GitHub sign-in flow', async () => {
+ const ui = setup(); await ui.element('githubBtn').handlers.click();
+ assert.deepEqual(ui.calls, ['github']);
+ assert.equal(ui.element('githubBtn').disabled, false);
 });
 test('Google invokes the Google sign-in flow', async () => {
  const ui = setup(); await ui.element('googleBtn').handlers.click();

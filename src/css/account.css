@@ -1,4 +1,4 @@
-/* Account: profile panel, stats strip, auth modal. Also used by microsoft_auth.html. */
+/* Account: profile panel, stats strip, auth modal. */
 
 i[data-icon] { display: inline-flex; font-style: normal; }
 
@@ -214,32 +214,18 @@ input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--buzz-soft); borde
 
 .provider-row { display: grid; gap: 10px; }
 
-.provider-soon {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
 .btn.provider { width: 100%; min-height: 46px; }
 .btn.provider .brand-icon { width: 20px; height: 20px; }
 
-#googleBtn {
+#googleBtn,
+#githubBtn {
   background: var(--plate-2);
   border-color: var(--rule-strong);
   color: var(--text);
 }
 
-#googleBtn:hover:not(:disabled) { border-color: var(--signal); }
-
-.provider-soon .btn.provider {
-  min-height: 40px;
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: var(--muted);
-  background: transparent;
-}
-
-.provider-soon .btn.provider:disabled { opacity: 0.7; }
+#googleBtn:hover:not(:disabled),
+#githubBtn:hover:not(:disabled) { border-color: var(--signal); }
 
 .auth-card .divider { margin: 20px 0 2px; }
 
@@ -284,10 +270,6 @@ input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--buzz-soft); borde
 .pw-rules li.met { color: var(--correct); }
 .pw-rules li.met::before { background: var(--correct); border-color: var(--correct); }
 
-/* ---------- Simple info page (microsoft_auth.html) ---------- */
-
-.info-panel { display: grid; gap: 16px; max-width: 640px; }
-
 /* ---------- Narrow ---------- */
 
 @media (max-width: 760px) {
@@ -306,7 +288,6 @@ input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--buzz-soft); borde
   .signed-out .button-row .btn,
   .form-actions .btn.primary { flex: 1 1 auto; }
   .form-actions #signOutBtn { margin-left: 0; flex: 1 1 auto; }
-  .provider-soon { grid-template-columns: 1fr; }
   /* Fill the screen height as a sheet, one scroller, and 16px inputs so iOS doesn't zoom on focus. */
   #authModal { padding: 0; align-items: end; overscroll-behavior: contain; }
   .auth-card { width: 100%; max-height: 100dvh; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: var(--r-panel) var(--r-panel) 0 0; border-width: 1px 0 0; overscroll-behavior: contain; }
