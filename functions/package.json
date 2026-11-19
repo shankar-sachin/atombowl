@@ -3,8 +3,11 @@
   "private": true,
   "type": "module",
   "main": "index.js",
-  "engines": { "node": "22" },
+  "engines": {
+    "node": "22"
+  },
   "dependencies": {
+    "@simplewebauthn/server": "^14.1.0",
     "firebase-admin": "^13.5.0",
     "firebase-functions": "^6.4.0"
   }

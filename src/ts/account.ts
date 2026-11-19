@@ -61,6 +61,12 @@ const usernameStatus = $("usernameStatus");
 
 const googleBtn = $<HTMLButtonElement>("googleBtn");
 const githubBtn = $<HTMLButtonElement>("githubBtn");
+const passkeyBtn = $<HTMLButtonElement>("passkeyBtn");
+const passkeySection = $("passkeySection");
+const passkeyList = $("passkeyList");
+const addPasskeyBtn = $<HTMLButtonElement>("addPasskeyBtn");
+const passkeyStatus = $("passkeyStatus");
+const passkeyError = $("passkeyError");
 const signinIdentifierInput = $<HTMLInputElement>("signinIdentifierInput");
 const signinPasswordInput = $<HTMLInputElement>("signinPasswordInput");
 const signinBtn = $<HTMLButtonElement>("signinBtn");
@@ -196,6 +202,9 @@ async function withBusy<T>(button: HTMLButtonElement | null, busyText: string, t
 
 function friendlyAuthError(err: any): string {
   const code = err?.code || "";
+  // Errors from the browser's passkey prompt.
+  if (err?.name === "NotAllowedError" || err?.name === "AbortError") return "The passkey prompt was cancelled or timed out. Try again.";
+  if (err?.name === "InvalidStateError") return "This device already has a passkey for your account.";
   switch (code) {
     case "auth/user-not-found":
     case "auth/invalid-credential":
@@ -245,6 +254,51 @@ function friendlyAuthError(err: any): string {
       return msg.replace(/^Firebase:\s*/, "");
     }
   }
+}
+
+/* ---------- Passkeys ---------- */
+
+// Passkeys are tied to one web address (PASSKEY_HOST in passkeys.ts), so elsewhere they stay hidden.
+function passkeysOn() {
+  return !!(window as any).PublicKeyCredential && !!navigator.credentials && location.hostname === "atombowl.web.app";
+}
+
+function passkeyDefaultName() {
+  const ua = navigator.userAgent;
+  const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  return device ? `${device} passkey` : "Passkey";
+}
+
+function passkeyDate(ms: number) {
+  return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+function setPasskeyMessage(error = "", status = "") {
+  if (passkeyError) passkeyError.textContent = error;
+  if (passkeyStatus) passkeyStatus.textContent = status;
+}
+
+async function renderPasskeys(user: any) {
+  const show = passkeysOn() && !!user && !user.isAnonymous;
+  passkeySection?.classList.toggle("hidden", !show);
+  if (!show || !passkeyList) return;
+  try {
+    const { listPasskeys } = await import("./passkeys.js");
+    const items = await listPasskeys();
+    passkeyList.innerHTML = items.length
+      ? items.map((p: any) => `<li class="passkey-row">
+          <span class="passkey-name">${escapeText(p.name)}</span>
+          <span class="muted">Added ${passkeyDate(p.createdAt)}${p.lastUsedAt ? `, last used ${passkeyDate(p.lastUsedAt)}` : ""}</span>
+          <button class="btn small" type="button" data-remove-passkey="${escapeText(p.id)}" aria-label="Remove passkey ${escapeText(p.name)}">Remove</button>
+        </li>`).join("")
+      : `<li class="muted">No passkeys yet.</li>`;
+  } catch (err: any) {
+    setPasskeyMessage(friendlyAuthError(err));
+  }
+}
+
+function escapeText(text: unknown) {
+  return String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }
 
 /* ---------- Rendering ---------- */
@@ -368,6 +422,7 @@ function renderSignedOut() {
   signedOutActions?.classList.remove("hidden");
   signedOutAuthRow?.classList.remove("hidden");
   signedInPanel?.classList.add("hidden");
+  passkeySection?.classList.add("hidden");
   setStats(null);
   if (statsNote) {
     statsNote.className = "status-note";
@@ -407,6 +462,7 @@ async function renderSignedIn(user: any) {
   signedOutActions?.classList.add("hidden");
   signedOutAuthRow?.classList.add("hidden");
   signedInPanel?.classList.remove("hidden");
+  void renderPasskeys(user);
 
   if (playerNameInput) playerNameInput.value = playerName;
   if (firstNameInput) firstNameInput.value = String(profile?.firstName || "");
@@ -462,6 +518,7 @@ function switchAuthPanel(mode: "signin" | "signup") {
   showSignUpTab?.setAttribute("aria-selected", String(!isSignIn));
   if (authModalTitle) authModalTitle.textContent = isSignIn ? "Sign in" : "Create account";
   moveErrorSlot(mode);
+  if (passkeyBtn) passkeyBtn.hidden = !isSignIn || !passkeysOn();
   setAuthError("");
   setAuthStatus("");
 }
@@ -700,6 +757,48 @@ googleBtn?.addEventListener("click", async () => {
     showToast(`Signed in as ${welcomeName()}`);
   } catch (err: any) {
     setAuthError(friendlyAuthError(err));
+  }
+});
+
+passkeyBtn?.addEventListener("click", async () => {
+  setAuthError("");
+  try {
+    await withBusy(passkeyBtn, "Waiting for your passkey…", async () => {
+      await requireAccount().signInWithPasskey();
+      await waitForAccountLoaded();
+    });
+    closeAuthModal();
+    showToast(`Signed in as ${welcomeName()}`);
+  } catch (err: any) {
+    setAuthError(friendlyAuthError(err));
+  }
+});
+
+addPasskeyBtn?.addEventListener("click", async () => {
+  setPasskeyMessage();
+  try {
+    await withBusy(addPasskeyBtn, "Waiting for your passkey…", async () => {
+      const { registerPasskey } = await import("./passkeys.js");
+      await registerPasskey(passkeyDefaultName());
+    });
+    setPasskeyMessage("", "Passkey added.");
+    await renderPasskeys(requireAccount().getUser?.());
+  } catch (err: any) {
+    setPasskeyMessage(friendlyAuthError(err));
+  }
+});
+
+passkeyList?.addEventListener("click", async (event) => {
+  const button = (event.target as HTMLElement).closest?.("[data-remove-passkey]") as HTMLButtonElement | null;
+  if (!button || !window.confirm("Remove this passkey? You can add it again later.")) return;
+  setPasskeyMessage();
+  try {
+    const { removePasskey } = await import("./passkeys.js");
+    await removePasskey(button.dataset.removePasskey);
+    setPasskeyMessage("", "Passkey removed.");
+    await renderPasskeys(requireAccount().getUser?.());
+  } catch (err: any) {
+    setPasskeyMessage(friendlyAuthError(err));
   }
 });
 

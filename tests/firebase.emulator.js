@@ -237,3 +237,14 @@ test('tutor chats sync under the owner account only', async () => {
  await assertFails(sdk.deleteDoc(ref(theirs)));
  await assertSucceeds(sdk.deleteDoc(ref(mine)));
 });
+
+test('passkey data is server-only: signed-in users cannot read or write it', async () => {
+ const db = env.authenticatedContext('u1', { firebase: { sign_in_provider: 'google.com' } }).firestore();
+ for (const path of [['passkeys', 'cred1'], ['passkeyChallenges', 'chal1']]) {
+  await assertFails(sdk.setDoc(sdk.doc(db, ...path), { uid: 'u1' }));
+  await assertFails(sdk.getDoc(sdk.doc(db, ...path)));
+ }
+ await assertFails(sdk.getDocs(sdk.query(sdk.collection(db, 'passkeys'), sdk.where('uid', '==', 'u1'))));
+ await env.withSecurityRulesDisabled(async (ctx) => { await sdk.setDoc(sdk.doc(ctx.firestore(), 'passkeys', 'cred1'), { uid: 'u1' }); });
+ await assertFails(sdk.deleteDoc(sdk.doc(db, 'passkeys', 'cred1')));
+});

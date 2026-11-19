@@ -302,3 +302,33 @@ input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px var(--buzz-soft); borde
 
 .field-hint.good { color: var(--correct); font-weight: 500; }
 .field-hint.bad { color: var(--buzz); font-weight: 500; }
+
+/* ---------- Passkeys ---------- */
+
+.passkeys {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.passkeys .section-title { margin-bottom: 0; }
+.passkey-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.passkey-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-control);
+  background: var(--plate-2);
+}
+
+.passkey-name { font-weight: 600; }
+.passkey-row .muted { grid-column: 1; font-size: 0.85rem; }
+.passkey-row .btn { grid-column: 2; grid-row: 1 / span 2; }
+
+#passkeyBtn[hidden] { display: none; }

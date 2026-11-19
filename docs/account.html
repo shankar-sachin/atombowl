@@ -121,6 +121,17 @@
         </div>
       </form>
 
+      <section id="passkeySection" class="passkeys hidden" aria-labelledby="passkeyTitle">
+        <h3 class="section-title" id="passkeyTitle">Passkeys</h3>
+        <p class="muted">Sign in with Face ID, Touch ID, Windows Hello or a security key instead of a password. Passkeys work on atombowl.web.app.</p>
+        <ul class="passkey-list" id="passkeyList" aria-live="polite"></ul>
+        <div class="button-row">
+          <button class="btn" id="addPasskeyBtn" type="button"><i data-icon="plus"></i>Add a passkey</button>
+          <span class="status-note" id="passkeyStatus" role="status" aria-live="polite"></span>
+        </div>
+        <p class="error error-box" id="passkeyError" role="alert"></p>
+      </section>
+
       <p class="guest-row">Guest ID <code id="guestTag">------------</code></p>
     </section>
 
@@ -167,6 +178,10 @@
         <button class="btn provider" id="githubBtn" type="button" data-auth-action>
           <img class="brand-icon" src="data/auth/github.svg" width="20" height="20" alt="" aria-hidden="true" />
           <span class="btn-label">Continue with GitHub</span>
+        </button>
+        <button class="btn provider" id="passkeyBtn" type="button" data-auth-action hidden>
+          <i data-icon="key"></i>
+          <span class="btn-label">Sign in with a passkey</span>
         </button>
       </div>
 

@@ -56,6 +56,12 @@ const authStatus = $("authStatus");
 const usernameStatus = $("usernameStatus");
 const googleBtn = $("googleBtn");
 const githubBtn = $("githubBtn");
+const passkeyBtn = $("passkeyBtn");
+const passkeySection = $("passkeySection");
+const passkeyList = $("passkeyList");
+const addPasskeyBtn = $("addPasskeyBtn");
+const passkeyStatus = $("passkeyStatus");
+const passkeyError = $("passkeyError");
 const signinIdentifierInput = $("signinIdentifierInput");
 const signinPasswordInput = $("signinPasswordInput");
 const signinBtn = $("signinBtn");
@@ -199,6 +205,11 @@ async function withBusy(button, busyText, task) {
 /* ---------- Errors ---------- */
 function friendlyAuthError(err) {
     const code = (err === null || err === void 0 ? void 0 : err.code) || "";
+    // Errors from the browser's passkey prompt.
+    if ((err === null || err === void 0 ? void 0 : err.name) === "NotAllowedError" || (err === null || err === void 0 ? void 0 : err.name) === "AbortError")
+        return "The passkey prompt was cancelled or timed out. Try again.";
+    if ((err === null || err === void 0 ? void 0 : err.name) === "InvalidStateError")
+        return "This device already has a passkey for your account.";
     switch (code) {
         case "auth/user-not-found":
         case "auth/invalid-credential":
@@ -249,6 +260,48 @@ function friendlyAuthError(err) {
             return msg.replace(/^Firebase:\s*/, "");
         }
     }
+}
+/* ---------- Passkeys ---------- */
+// Passkeys are tied to one web address (PASSKEY_HOST in passkeys.ts), so elsewhere they stay hidden.
+function passkeysOn() {
+    return !!window.PublicKeyCredential && !!navigator.credentials && location.hostname === "atombowl.web.app";
+}
+function passkeyDefaultName() {
+    const ua = navigator.userAgent;
+    const device = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+    return device ? `${device} passkey` : "Passkey";
+}
+function passkeyDate(ms) {
+    return new Date(ms).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+function setPasskeyMessage(error = "", status = "") {
+    if (passkeyError)
+        passkeyError.textContent = error;
+    if (passkeyStatus)
+        passkeyStatus.textContent = status;
+}
+async function renderPasskeys(user) {
+    const show = passkeysOn() && !!user && !user.isAnonymous;
+    passkeySection === null || passkeySection === void 0 ? void 0 : passkeySection.classList.toggle("hidden", !show);
+    if (!show || !passkeyList)
+        return;
+    try {
+        const { listPasskeys } = await import("./passkeys.js");
+        const items = await listPasskeys();
+        passkeyList.innerHTML = items.length
+            ? items.map((p) => `<li class="passkey-row">
+          <span class="passkey-name">${escapeText(p.name)}</span>
+          <span class="muted">Added ${passkeyDate(p.createdAt)}${p.lastUsedAt ? `, last used ${passkeyDate(p.lastUsedAt)}` : ""}</span>
+          <button class="btn small" type="button" data-remove-passkey="${escapeText(p.id)}" aria-label="Remove passkey ${escapeText(p.name)}">Remove</button>
+        </li>`).join("")
+            : `<li class="muted">No passkeys yet.</li>`;
+    }
+    catch (err) {
+        setPasskeyMessage(friendlyAuthError(err));
+    }
+}
+function escapeText(text) {
+    return String(text !== null && text !== void 0 ? text : "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 /* ---------- Rendering ---------- */
 function toReadableTime(totalSeconds) {
@@ -412,6 +465,7 @@ function renderSignedOut() {
     signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.remove("hidden");
     signedOutAuthRow === null || signedOutAuthRow === void 0 ? void 0 : signedOutAuthRow.classList.remove("hidden");
     signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.classList.add("hidden");
+    passkeySection === null || passkeySection === void 0 ? void 0 : passkeySection.classList.add("hidden");
     setStats(null);
     if (statsNote) {
         statsNote.className = "status-note";
@@ -453,6 +507,7 @@ async function renderSignedIn(user) {
     signedOutActions === null || signedOutActions === void 0 ? void 0 : signedOutActions.classList.add("hidden");
     signedOutAuthRow === null || signedOutAuthRow === void 0 ? void 0 : signedOutAuthRow.classList.add("hidden");
     signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.classList.remove("hidden");
+    void renderPasskeys(user);
     if (playerNameInput)
         playerNameInput.value = playerName;
     if (firstNameInput)
@@ -509,6 +564,8 @@ function switchAuthPanel(mode) {
     if (authModalTitle)
         authModalTitle.textContent = isSignIn ? "Sign in" : "Create account";
     moveErrorSlot(mode);
+    if (passkeyBtn)
+        passkeyBtn.hidden = !isSignIn || !passkeysOn();
     setAuthError("");
     setAuthStatus("");
 }
@@ -784,6 +841,51 @@ googleBtn === null || googleBtn === void 0 ? void 0 : googleBtn.addEventListener
     }
     catch (err) {
         setAuthError(friendlyAuthError(err));
+    }
+});
+passkeyBtn === null || passkeyBtn === void 0 ? void 0 : passkeyBtn.addEventListener("click", async () => {
+    setAuthError("");
+    try {
+        await withBusy(passkeyBtn, "Waiting for your passkey…", async () => {
+            await requireAccount().signInWithPasskey();
+            await waitForAccountLoaded();
+        });
+        closeAuthModal();
+        showToast(`Signed in as ${welcomeName()}`);
+    }
+    catch (err) {
+        setAuthError(friendlyAuthError(err));
+    }
+});
+addPasskeyBtn === null || addPasskeyBtn === void 0 ? void 0 : addPasskeyBtn.addEventListener("click", async () => {
+    var _a, _b;
+    setPasskeyMessage();
+    try {
+        await withBusy(addPasskeyBtn, "Waiting for your passkey…", async () => {
+            const { registerPasskey } = await import("./passkeys.js");
+            await registerPasskey(passkeyDefaultName());
+        });
+        setPasskeyMessage("", "Passkey added.");
+        await renderPasskeys((_b = (_a = requireAccount()).getUser) === null || _b === void 0 ? void 0 : _b.call(_a));
+    }
+    catch (err) {
+        setPasskeyMessage(friendlyAuthError(err));
+    }
+});
+passkeyList === null || passkeyList === void 0 ? void 0 : passkeyList.addEventListener("click", async (event) => {
+    var _a, _b, _c, _d;
+    const button = (_b = (_a = event.target).closest) === null || _b === void 0 ? void 0 : _b.call(_a, "[data-remove-passkey]");
+    if (!button || !window.confirm("Remove this passkey? You can add it again later."))
+        return;
+    setPasskeyMessage();
+    try {
+        const { removePasskey } = await import("./passkeys.js");
+        await removePasskey(button.dataset.removePasskey);
+        setPasskeyMessage("", "Passkey removed.");
+        await renderPasskeys((_d = (_c = requireAccount()).getUser) === null || _d === void 0 ? void 0 : _d.call(_c));
+    }
+    catch (err) {
+        setPasskeyMessage(friendlyAuthError(err));
     }
 });
 githubBtn === null || githubBtn === void 0 ? void 0 : githubBtn.addEventListener("click", async () => {

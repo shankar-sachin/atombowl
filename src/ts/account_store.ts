@@ -8,6 +8,7 @@ import {
   EmailAuthProvider,
   signInWithPopup,
   signInWithCredential,
+  signInWithCustomToken,
   linkWithPopup,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -431,6 +432,15 @@ async function signInWithProvider(providerId: string) {
   return res.user;
 }
 
+// Passkey sign-in: the server checks the passkey and hands back a Firebase custom token.
+async function signInWithPasskey() {
+  await auth.authStateReady();
+  const { loginWithPasskey } = await import("./passkeys.js");
+  const token = await loginWithPasskey();
+  const res = await signInWithCustomToken(auth, token);
+  return res.user;
+}
+
 async function signInWithEmail(email: string, password: string) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   if (!normalizedEmail) throw new Error("Email is required.");
@@ -757,6 +767,7 @@ window.atomAccount = {
   getGuestTag,
   onAuthChange,
   signInWithProvider,
+  signInWithPasskey,
   signInWithEmail,
   signInWithIdentifier,
   signUpWithEmail,
