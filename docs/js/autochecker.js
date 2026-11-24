@@ -370,12 +370,22 @@
         }
         return { isCorrect, score: best.score, matched: best.matched, threshold: applied };
     }
+    // A letter is compared as a letter. On an interrupt the choices may not have been read yet, so
+    // the answer itself ("basic" for "W) BASIC") counts too.
     function gradeMC(userAnswer, correctAnswer) {
-        const user = extractChoiceLetter(userAnswer);
         const correct = extractChoiceLetter(correctAnswer);
-        if (!user || !correct)
+        const typed = String(userAnswer || '').trim();
+        const letterOnly = typed.toUpperCase().match(/^([WXYZ])\s*[).:]?$/);
+        const lettered = typed.toUpperCase().match(/^([WXYZ])\s*[).:]\s*\S/);
+        if (letterOnly || lettered) {
+            const user = (letterOnly || lettered)[1];
+            return { isCorrect: !!correct && user === correct, score: correct && user === correct ? 1 : 0 };
+        }
+        const text = String(correctAnswer || '').replace(/^\s*[WXYZ]\s*[).:]\s*/i, '');
+        if (!typed || !text || text === String(correctAnswer || ''))
             return { isCorrect: false, score: 0 };
-        return { isCorrect: user === correct, score: user === correct ? 1 : 0 };
+        const res = gradeShortAnswer(typed, text, 0.8);
+        return { isCorrect: res.isCorrect, score: res.score };
     }
     function grade({ userAnswer, correctAnswer, questionType, threshold }) {
         if (String(questionType || '').toUpperCase() === 'MC') {

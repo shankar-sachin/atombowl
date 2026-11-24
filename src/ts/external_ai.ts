@@ -69,7 +69,9 @@
   async function send(ctx: MissContext) {
     const provider = PROVIDERS[currentKey()];
     const prompt = buildPrompt(ctx);
-    const tab = window.open(provider.url(prompt), '_blank', 'noopener');
+    // window.open returns null when asked for 'noopener', even if the tab opened, so cut the link by hand.
+    const tab = window.open(provider.url(prompt), '_blank');
+    if (tab) { try { tab.opener = null; } catch {} }
     if (!provider.paste) return tab ? '' : `Your browser blocked the new tab. Allow pop-ups to open ${provider.name}.`;
     try {
       await navigator.clipboard.writeText(prompt);

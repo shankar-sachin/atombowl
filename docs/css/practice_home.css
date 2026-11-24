@@ -208,6 +208,9 @@ i[data-icon] { display: inline-flex; font-style: normal; }
   font-variant-numeric: tabular-nums;
 }
 
+/* Small print under a field. */
+.field-note { display: block; margin-top: 4px; font-size: 0.8rem; line-height: 1.35; }
+
 /* ---------- Pick questions dialog ---------- */
 
 .pick-dialog {

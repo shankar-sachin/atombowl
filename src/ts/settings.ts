@@ -13,7 +13,7 @@
     div: 'MS',
     mode: 'rapid',
     rememberTopics: false,
-    autoCheck: false,
+    autoCheck: true,
     autoThreshold: 0.72,
     externalAi: 'claude',
     searchEngine: 'auto',

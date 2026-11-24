@@ -81,7 +81,7 @@
       <p id="metaRight" class="q-source"></p>
 
       <div class="answer-zone">
-        <p class="buzz" id="buzz">Loading questions</p>
+        <p class="buzz" id="buzz" aria-live="polite">Loading questions</p>
 
         <div class="answer-row">
           <input id="answer" class="answer-box hidden" type="text" placeholder="Type your answer" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Your answer" />
@@ -95,12 +95,13 @@
           <button class="choice-btn" type="button" data-letter="Z">Z</button>
         </div>
 
-        <div id="feedback" class="feedback"></div>
+        <div id="feedback" class="feedback" role="status"></div>
 
         <div class="button-row grade-row">
           <button class="btn good hidden" id="rightBtn" type="button"><i data-icon="check"></i>Mark right <span class="kbd">R</span></button>
           <button class="btn danger hidden" id="wrongBtn" type="button"><i data-icon="x"></i>Mark wrong <span class="kbd">W</span></button>
           <button class="btn primary hidden" id="nextBtn" type="button">Next question <span class="kbd">N</span></button>
+          <button class="btn quiet hidden" id="overrideBtn" type="button">I was right</button>
           <span class="hidden" id="learnRow">
             <button class="btn quiet" id="searchBtn" type="button"><i data-icon="search"></i>Look up the answer</button>
             <button class="btn hidden" id="askTutorBtn" type="button"><i data-icon="tutor"></i>Ask Tutor</button>

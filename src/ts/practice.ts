@@ -24,11 +24,17 @@
 
     // question_bank's Practice button hands over one question. It is one-shot:
     // read it, then clear it so the next normal run uses atom_run again.
-    const singleRaw = localStorage.getItem('atom_single_question');
-    if (singleRaw !== null) {
+    // The tab keeps its own copy so a reload shows the same question again.
+    const handedOver = localStorage.getItem('atom_single_question');
+    if (handedOver !== null) {
       localStorage.removeItem('atom_single_question');
       localStorage.removeItem('atom_practice_config');
+      try { sessionStorage.setItem('atom_single_question', handedOver); } catch {}
+    } else if (new URLSearchParams(window.location.search).get('single') !== '1') {
+      // Any other way of opening /practice starts a normal run.
+      try { sessionStorage.removeItem('atom_single_question'); } catch {}
     }
+    const singleRaw = handedOver !== null ? handedOver : (() => { try { return sessionStorage.getItem('atom_single_question'); } catch { return null; } })();
     const singleParsed = safeParseJSON(singleRaw, null);
     const singleQ = singleParsed && typeof singleParsed === 'object' && !Array.isArray(singleParsed)
       ? singleParsed
@@ -75,6 +81,7 @@
       { id: 'BIOLOGY', categories: ['BIOLOGY', 'LIFE SCIENCE'] },
       { id: 'GENERAL_SCIENCE', categories: ['GENERAL SCIENCE'] },
       { id: 'ENERGY', categories: ['ENERGY'] },
+      { id: 'COMPUTER_SCIENCE', categories: ['COMPUTER SCIENCE'] },
     ];
 
     function expandCategories(selectedTopics) {
@@ -111,7 +118,7 @@
       div: 'MS',
       mode: 'rapid',
       rememberTopics: false,
-      autoCheck: false,
+      autoCheck: true,
       autoThreshold: 0.72,
       highContrast: false,
       animations: true,
@@ -184,7 +191,7 @@
 
     // Early appearances for State constants
     let ttsEnabled = settings.tts;
-    let autoCheckEnabled = !!settings.autoCheck;
+    let autoCheckEnabled = settings.autoCheck !== false;
     let autoCheckThreshold = Number(settings.autoThreshold ?? 0.72);
     async function gradeAnswer(userAnswer, correctAnswer, questionType) {
       if (!autoCheckEnabled) return null;
@@ -218,6 +225,9 @@
     const choicesEl = document.getElementById('choices');
     const submitBtn = document.getElementById('submitBtn');
     const rightBtn = document.getElementById('rightBtn');
+    const overrideBtn = document.getElementById('overrideBtn');
+    // True when the checker, not the player, graded the current question.
+    let autoGraded = false;
     const wrongBtn = document.getElementById('wrongBtn');
     const askTutorBtn = document.getElementById('askTutorBtn');
     const extAiRow = document.getElementById('extAiRow');
@@ -307,6 +317,8 @@
       const q = currentQ();
       if (!q?.question_text) return;
       if (textFullyRevealed) return;
+      // After a buzz the question stays frozen where it stopped.
+      if (buzzed || locked) return;
       const startIndex = (questionTextEl?.textContent || '').length;
       startSyncedRead(q.question_text, startIndex);
     }
@@ -641,6 +653,18 @@
       const category = runCfg.category;
       const categories = expandCategories(runCfg.categories);
       const detailedCategories = runCfg.detailedCategories || [];
+      // Newer setups say which topic each subtopic belongs to, so it narrows that topic only.
+      const byTopic = runCfg.detailedByTopic && typeof runCfg.detailedByTopic === 'object' ? runCfg.detailedByTopic : null;
+      const topicIds = Array.isArray(runCfg.categories) ? runCfg.categories : [];
+      const anyDetailed = byTopic ? Object.values(byTopic).some((list: any) => Array.isArray(list) && list.length) : false;
+      const topicPass = (q) => {
+        if (!topicIds.length && !anyDetailed) return true;
+        const group = TOPIC_GROUPS.find(g => g.categories.includes(norm(q.category)));
+        if (!group) return false;
+        const subs = Array.isArray(byTopic[group.id]) ? byTopic[group.id] : [];
+        if (subs.length) return subs.includes(norm(q.detailed_category || q.detailedCategory));
+        return topicIds.includes(group.id);
+      };
       const qaType = runCfg.qaType;
       const bonus = runCfg.bonus;
       const setName = norm(runCfg.setName);
@@ -648,11 +672,15 @@
 
       return list.filter(q => {
         if (level !== 'ANY' && q.level !== level) return false;
-        if (categories.length && !categories.includes(norm(q.category))) return false;
-        if (!categories.length && category !== 'ANY' && norm(q.category) !== category) return false;
-        if (detailedCategories.length) {
-          const detailed = norm(q.detailed_category || q.detailedCategory);
-          if (!detailedCategories.includes(detailed)) return false;
+        if (byTopic) {
+          if (!topicPass(q)) return false;
+        } else {
+          if (categories.length && !categories.includes(norm(q.category))) return false;
+          if (!categories.length && category !== 'ANY' && norm(q.category) !== category) return false;
+          if (detailedCategories.length) {
+            const detailed = norm(q.detailed_category || q.detailedCategory);
+            if (!detailedCategories.includes(detailed)) return false;
+          }
         }
         if (qaType !== 'ANY' && q.type !== qaType) return false;
 
@@ -795,6 +823,9 @@
       locked = false;
       awaitingGrade = false;
       interrupted = false;
+      autoGraded = false;
+      lastGrade = null;
+      overrideBtn?.classList.add('hidden');
       if (finalSummaryEl) finalSummaryEl.classList.add('hidden');
 
       feedback.textContent = '';
@@ -983,37 +1014,15 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
       }
     });
 
-    function computeAtomScoreFallback(): number {
-      const answered = Math.max(0, Math.floor(Number(stats.answered) || 0));
-      const correct = Math.max(0, Math.floor(Number(stats.correct) || 0));
-      const slowCorrect = Math.max(0, Math.floor(Number(stats.slowCorrect) || 0));
-      const totalTime = Math.max(0, Number(stats.totalTime) || 0);
-
-      if (!answered) return 0;
-
-      const accuracy = correct / answered;
-      const avgTime = totalTime / answered;
-      const slowRate = correct > 0 ? (slowCorrect / correct) : 0;
-
-      const accuracyPart = Math.pow(Math.max(0, Math.min(1, accuracy)), 1.5) * 70;
-      const speedPart = Math.max(0, Math.min(1, (12 - avgTime) / 12)) * 20;
-      const consistencyPart = Math.max(0, 10 * (1 - Math.max(0, Math.min(1, slowRate))));
-
-      return Math.max(0, Math.min(100, accuracyPart + speedPart + consistencyPart));
-    }
-
+    // One formula only (atom_score.ts). If that script is missing, show a dash rather than a different number.
     function computeAtomScore(): number {
       const engine = window.atomScoreEngine;
-      if (!engine || typeof engine.compute !== 'function') {
-        console.log('[AtomScore] Engine not loaded, using fallback formula.');
-        return computeAtomScoreFallback();
-      }
-
+      if (!engine || typeof engine.compute !== 'function') return Number.NaN;
       try {
         return engine.compute(stats);
       } catch (err) {
-        console.log('[AtomScore] Engine compute failed, using fallback formula.', err);
-        return computeAtomScoreFallback();
+        console.log('[AtomScore] Engine compute failed.', err);
+        return Number.NaN;
       }
     }
 
@@ -1029,6 +1038,10 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
       locked = true;
       awaitingGrade = true;
       clearInterval(timerId);
+      // The answer is in: nothing more can be typed, so keys can't land in the box by mistake.
+      input.blur();
+      input.classList.add('hidden');
+      submitBtn.classList.add('hidden');
 
       const showButtons = opts.showButtons !== false;
       const autoInfo = opts.autoInfo;
@@ -1067,7 +1080,26 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
       learnRow.classList.add('hidden');
     }
 
-    function applyGrade(isRight) {
+    // The last grade given, so an automatic grade can be changed with the override button.
+    let lastGrade = null;
+
+    function changeGrade() {
+      if (!lastGrade || awaitingGrade) return;
+      const was = lastGrade;
+      stats.answered--;
+      stats.totalTime -= was.time;
+      if (was.isRight) {
+        stats.correct--;
+        if (was.time >= 10) stats.slowCorrect--;
+      }
+      score -= was.delta;
+      scoreEl.textContent = String(score);
+      feedback.querySelector('.fb-verdict')?.remove();
+      awaitingGrade = true;
+      applyGrade(!was.isRight, was.time);
+    }
+
+    function applyGrade(isRight, knownTime = null) {
       // Only grade once per question (hotkeys can fire after grading).
       if (!awaitingGrade) return;
       awaitingGrade = false;
@@ -1076,8 +1108,9 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
       stats.answered++;
 
       const gradeTime = Date.now();
+      const scoreBefore = score;
 
-      const totalSolveTime = questionStartTime
+      const totalSolveTime = knownTime !== null ? knownTime : questionStartTime
         ? (gradeTime - questionStartTime) / 1000
         : 0;
 
@@ -1109,6 +1142,11 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
 
       rightBtn.classList.add('hidden');
       wrongBtn.classList.add('hidden');
+      lastGrade = { isRight, delta: score - scoreBefore, time: totalSolveTime };
+      if (overrideBtn) {
+        overrideBtn.textContent = isRight ? 'Mark as wrong instead' : 'I was right';
+        overrideBtn.classList.toggle('hidden', !autoGraded);
+      }
 
       // Only show Search/Learn AFTER the user grades; Tutor only after a miss
       learnRow.classList.remove('hidden');
@@ -1132,12 +1170,14 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
         interruptBadgeEl.classList.add('hidden');
       }
       revealFullQuestionNow();
-      const result = await gradeAnswer(input.value, q.parsed_answer, q.type);
+      const typed = input.value;
+      const result = await gradeAnswer(typed, q.parsed_answer, q.type);
       if (result) {
-        revealManualGrade(input.value, q.parsed_answer, {
+        revealManualGrade(typed, q.parsed_answer, {
           showButtons: false,
           autoInfo: { confidence: result.confidence, matched: result.matched }
         });
+        autoGraded = true;
         applyGrade(!!result.isCorrect);
       } else {
         revealManualGrade(input.value, q.parsed_answer);
@@ -1153,12 +1193,14 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
         interruptBadgeEl.classList.add('hidden');
       }
       revealFullQuestionNow();
-      const result = await gradeAnswer(letter, q.parsed_answer, q.type);
+      const typed = letter;
+      const result = await gradeAnswer(typed, q.parsed_answer, q.type);
       if (result) {
-        revealManualGrade(letter, q.parsed_answer, {
+        revealManualGrade(typed, q.parsed_answer, {
           showButtons: false,
           autoInfo: { confidence: result.confidence, matched: result.matched }
         });
+        autoGraded = true;
         applyGrade(!!result.isCorrect);
       } else {
         revealManualGrade(letter, q.parsed_answer);
@@ -1174,15 +1216,15 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
         interruptBadgeEl.classList.add('hidden');
       }
       revealFullQuestionNow();
-      const result = await gradeAnswer('', q.parsed_answer, q.type);
-      if (result) {
-        revealManualGrade('', q.parsed_answer, {
-          showButtons: false,
-          autoInfo: { confidence: result.confidence, matched: result.matched }
-        });
-        applyGrade(!!result.isCorrect);
+      // Time is up, so the answer does not count, but show what was typed so far.
+      const unfinished = String(input.value || '').trim();
+      const shown = unfinished ? `${unfinished} (time ran out)` : '';
+      if (autoCheckEnabled && window.autoChecker) {
+        revealManualGrade(shown, q.parsed_answer, { showButtons: false });
+        autoGraded = true;
+        applyGrade(false);
       } else {
-        revealManualGrade('', q.parsed_answer);
+        revealManualGrade(shown, q.parsed_answer);
       }
     }
 
@@ -1355,6 +1397,7 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
       if (!runActive || !q) return;
 
       if (awaitingGrade) {
+        if (isTyping) return;
         const k2 = e.key.toUpperCase();
         if (k2 === 'R') applyGrade(true);
         if (k2 === 'W') applyGrade(false);
@@ -1373,7 +1416,7 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
         if (['W','X','Y','Z'].includes(k)) pickMC(k);
       }
 
-      if (e.key.toUpperCase() === 'N' && locked) nextQuestion();
+      if (e.key.toUpperCase() === 'N' && locked && !isTyping) nextQuestion();
     }, { passive: false });
 
     // Tap / click anywhere to buzz (mobile-friendly)
@@ -1403,6 +1446,7 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
 
 
     submitBtn.addEventListener('click', submitSA);
+    overrideBtn?.addEventListener('click', changeGrade);
     rightBtn.addEventListener('click', () => applyGrade(true));
     wrongBtn.addEventListener('click', () => applyGrade(false));
 
