@@ -17,6 +17,13 @@
     const LABELS = { ok: 'Operational', degraded: 'Degraded', down: 'Down', checking: 'Checking' };
     const banner = document.getElementById('statusBanner');
     const headline = document.getElementById('statusHeadline');
+    const infoBtn = document.getElementById('statusInfoBtn');
+    const infoText = document.getElementById('statusInfo');
+    infoBtn.addEventListener('click', () => {
+        const open = infoText.hidden;
+        infoText.hidden = !open;
+        infoBtn.setAttribute('aria-expanded', String(open));
+    });
     const checked = document.getElementById('statusChecked');
     const refreshBtn = document.getElementById('statusRefresh');
     const rows = {};
@@ -34,9 +41,16 @@
         if (desc && detail)
             desc.textContent = detail;
     }
-    function setBanner(state, text) {
+    // The (i) button shows `info` under the headline; without info both are hidden.
+    function setBanner(state, text, info = '') {
         banner.dataset.state = state;
         headline.textContent = text;
+        infoBtn.hidden = !info;
+        infoText.textContent = info;
+        if (!info) {
+            infoText.hidden = true;
+            infoBtn.setAttribute('aria-expanded', 'false');
+        }
     }
     function stamp(iso) {
         const when = iso ? new Date(iso) : new Date();
@@ -80,7 +94,7 @@
             const thinking = ((_c = health.models) === null || _c === void 0 ? void 0 : _c.thinking) || main;
             const followUp = followUpOnly.ok ? thinking : followUpOnly;
             setRow('function', 'ok', `Responded in ${health.latencyMs} ms`);
-            setRow('provider', health.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down', health.ok ? `${provider}, ${main.id}` : `${provider}: ${(main.ok ? followUp : main).detail || 'not responding'}`);
+            setRow('provider', health.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down', health.ok ? `${provider} API` : `${provider}: ${(main.ok ? followUp : main).detail || 'not responding'}`);
             setRow('generate', main.ok ? 'ok' : 'down');
             setRow('tutor', main.ok && followUp.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down');
             if (health.ok)
@@ -93,11 +107,12 @@
         }
         catch {
             const offline = navigator.onLine === false;
-            setRow('function', offline ? 'checking' : 'down', offline ? 'You appear to be offline' : 'Not responding');
+            // From here a blocked network looks the same as an outage, so name both.
+            setRow('function', offline ? 'checking' : 'down', offline ? 'You appear to be offline' : 'Not responding from this network');
             ['provider', 'tutor', 'generate'].forEach((name) => setRow(name, offline ? 'checking' : 'down'));
             setBanner(offline ? 'checking' : 'down', offline
                 ? "You're offline, so the status can't be checked"
-                : 'Tutor and Generate are down. We are fixing it.');
+                : 'Tutor and Generate are down', offline ? '' : "If you're on a school or work network, it may block AI sites, so this page can't reach the server. Otherwise they really are down and we're fixing it.");
             stamp();
         }
         finally {

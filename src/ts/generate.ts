@@ -72,7 +72,7 @@ async function loadCredits() {
     if (!client.getCredits()) await client.status();
   } catch (err) {
     creditsLoaded = false;
-    if (err.apiIssue) els.error.innerHTML = (await aiClient()).apiIssueHtml();
+    if (err.html) els.error.innerHTML = err.html;
     else els.error.textContent = err.message;
   }
 }
@@ -145,7 +145,7 @@ async function generate(event) {
       els.error.textContent = `Only ${questions.length} of ${questionTotal()} came back in a usable format.`;
     }
   } catch (err) {
-    if (err.apiIssue) els.error.innerHTML = (await aiClient()).apiIssueHtml();
+    if (err.html) els.error.innerHTML = err.html;
     else els.error.textContent = err.message;
   } finally {
     els.submit.disabled = false;

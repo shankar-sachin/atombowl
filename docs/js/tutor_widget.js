@@ -751,8 +751,8 @@ async function loadCredits() {
         creditsRequested = false;
         if (!els)
             return;
-        if (err.apiIssue) {
-            notice = (await aiClient()).apiIssueHtml();
+        if (err.html) {
+            notice = err.html;
             render();
         }
         else {
@@ -782,8 +782,8 @@ async function send(raw) {
         state.messages.pop();
         els.input.value = text;
         autosize();
-        if (err.apiIssue)
-            notice = (await aiClient()).apiIssueHtml();
+        if (err.html)
+            notice = err.html;
         else
             els.error.textContent = err.message;
     }

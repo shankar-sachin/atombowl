@@ -1225,3 +1225,17 @@ input:disabled { color: var(--muted); background: var(--plate-2); cursor: defaul
     bottom: calc(var(--kb, 0px) + 8px);
   }
 }
+
+/* Short message with an (i) that opens the explanation: ai_client.withInfoHtml and the status banner. */
+.info-more { display: inline; }
+.info-i {
+  display: inline-grid; place-items: center; width: 1.25em; height: 1.25em; margin-left: 0.25em;
+  padding: 0; border: 1.5px solid currentColor; border-radius: 50%; background: none; color: inherit;
+  font: italic 700 0.72em/1 Georgia, "Times New Roman", serif; vertical-align: 0.15em;
+  cursor: pointer; list-style: none; opacity: 0.75;
+}
+.info-i:hover, .info-i:focus-visible, .info-more[open] > .info-i, .info-i[aria-expanded="true"] { opacity: 1; }
+.info-i::-webkit-details-marker { display: none; }
+.info-i[hidden] { display: none; }
+.info-more-text { display: block; margin-top: 0.4em; color: var(--muted); font-size: 0.9rem; font-weight: 400; line-height: 1.45; }
+.info-more-text[hidden] { display: none; }
