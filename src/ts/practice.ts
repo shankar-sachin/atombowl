@@ -944,6 +944,13 @@ r &= \frac{s}{c},\qquad p = \min(8,\ 0.45\,s)\\[4pt]
 T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
 \end{aligned}`;
     const atomInfoEl = document.querySelector<HTMLDetailsElement>('.atom-info');
+    const atomFormulaEl = document.getElementById('atomFormula') as HTMLDetailsElement | null;
+    // The formula is always shown beside the text on wide screens and is a closed dropdown on phones.
+    const wideCard = window.matchMedia('(min-width: 860px)');
+    const syncFormulaOpen = () => { if (atomFormulaEl) atomFormulaEl.open = wideCard.matches; };
+    syncFormulaOpen();
+    wideCard.addEventListener('change', syncFormulaOpen);
+    atomFormulaEl?.querySelector('summary')?.addEventListener('click', (e) => { if (wideCard.matches) e.preventDefault(); });
     let atomFormulaRendered = false;
     atomInfoEl?.addEventListener('toggle', async () => {
       const target = document.getElementById('atomFormulaMath');

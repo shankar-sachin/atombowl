@@ -1,5 +1,5 @@
 (() => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     // Run config (single source of truth)
     const DEFAULT_RUN = {
         mode: 'rapid',
@@ -888,6 +888,15 @@ r &= \frac{s}{c},\qquad p = \min(8,\ 0.45\,s)\\[4pt]
 T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
 \end{aligned}`;
     const atomInfoEl = document.querySelector('.atom-info');
+    const atomFormulaEl = document.getElementById('atomFormula');
+    // The formula is always shown beside the text on wide screens and is a closed dropdown on phones.
+    const wideCard = window.matchMedia('(min-width: 860px)');
+    const syncFormulaOpen = () => { if (atomFormulaEl)
+        atomFormulaEl.open = wideCard.matches; };
+    syncFormulaOpen();
+    wideCard.addEventListener('change', syncFormulaOpen);
+    (_e = atomFormulaEl === null || atomFormulaEl === void 0 ? void 0 : atomFormulaEl.querySelector('summary')) === null || _e === void 0 ? void 0 : _e.addEventListener('click', (e) => { if (wideCard.matches)
+        e.preventDefault(); });
     let atomFormulaRendered = false;
     atomInfoEl === null || atomInfoEl === void 0 ? void 0 : atomInfoEl.addEventListener('toggle', async () => {
         const target = document.getElementById('atomFormulaMath');
@@ -1398,7 +1407,7 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
         if ((hotkeyHelpEl === null || hotkeyHelpEl === void 0 ? void 0 : hotkeyHelpEl.classList.contains('open')) && !hotkeyHelpEl.contains(e.target))
             setHotkeyHelp(false);
     });
-    (_e = document.getElementById('runAgainBtn')) === null || _e === void 0 ? void 0 : _e.addEventListener('click', () => window.location.reload());
+    (_f = document.getElementById('runAgainBtn')) === null || _f === void 0 ? void 0 : _f.addEventListener('click', () => window.location.reload());
     async function loadBank() {
         const requested = runCfg.bankFile || DEFAULT_RUN.bankFile;
         const tried = [];

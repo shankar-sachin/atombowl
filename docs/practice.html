@@ -133,8 +133,9 @@
                   <div><dt>Under 30</dt><dd>Needs practice</dd></div>
                 </dl>
               </div>
-              <div class="atom-formula">
-                <h4>How it's calculated</h4>
+              <!-- Always open on wide screens; a closed dropdown on phones (practice.ts sets `open`). -->
+              <details class="atom-formula" id="atomFormula" open>
+                <summary>How it's calculated</summary>
                 <!-- practice.ts replaces this plain-text version with KaTeX when the card opens. -->
                 <div class="atom-formula-math" id="atomFormulaMath">
                   <p>AtomScore = min(100, (A + S + C) × T)</p>
@@ -144,7 +145,7 @@
                   <p>T = 0.9 + 0.1 · min(1, ln(1 + n) / ln 26)</p>
                 </div>
                 <p class="atom-formula-key"><b>a</b> share answered correctly, <b>t</b> average seconds per question, <b>c</b> correct answers, <b>s</b> correct answers that took 10 seconds or more, <b>n</b> questions answered. Accuracy <b>A</b> is worth up to 72 points, speed <b>S</b> up to 18 and consistency <b>C</b> up to 12. <b>T</b> trims short runs by up to 10%.</p>
-              </div>
+              </details>
             </div>
           </details>
           <div class="button-row final-actions">
