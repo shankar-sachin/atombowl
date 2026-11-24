@@ -932,6 +932,40 @@
     document.getElementById('statCorrect').textContent = String(stats.correct);
     document.getElementById('statSlow').textContent = String(stats.slowCorrect);
   }
+    // The formula in the "What is AtomScore?" card, typeset with KaTeX the first time the card
+    // opens. It mirrors atom_score.ts; the plain-text version in the HTML stays if KaTeX can't load.
+    const ATOM_SCORE_TEX = String.raw`\begin{aligned}
+\text{AtomScore} &= \min\!\big(100,\ (A + S + C)\cdot T\big)\\[6pt]
+A &= 72\,a^{1.65}\\[4pt]
+S &= 18\left(0.55\sqrt{v} + 0.45\,\frac{\ln(2 + 9v)}{\ln 11}\right)\\[4pt]
+v &= \operatorname{clamp}\!\left(\frac{12 - t}{12},\ 0,\ 1\right)\\[4pt]
+C &= \operatorname{clamp}\!\big(12\,(1 - r^{0.85}) - p,\ 0,\ 12\big)\\[4pt]
+r &= \frac{s}{c},\qquad p = \min(8,\ 0.45\,s)\\[4pt]
+T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
+\end{aligned}`;
+    const atomInfoEl = document.querySelector<HTMLDetailsElement>('.atom-info');
+    let atomFormulaRendered = false;
+    atomInfoEl?.addEventListener('toggle', async () => {
+      const target = document.getElementById('atomFormulaMath');
+      if (!atomInfoEl.open || atomFormulaRendered || !target) return;
+      atomFormulaRendered = true;
+      const KATEX = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist';
+      try {
+        if (!document.querySelector(`link[href="${KATEX}/katex.min.css"]`)) {
+          const css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.href = `${KATEX}/katex.min.css`;
+          document.head.appendChild(css);
+        }
+        const mod = await import(`${KATEX}/katex.mjs`);
+        const html = (mod.default || mod).renderToString(ATOM_SCORE_TEX, { displayMode: true, throwOnError: true });
+        target.innerHTML = html;
+      } catch (err) {
+        atomFormulaRendered = false;
+        console.log('[AtomScore] Could not typeset the formula, keeping the plain-text version.', err);
+      }
+    });
+
     function computeAtomScoreFallback(): number {
       const answered = Math.max(0, Math.floor(Number(stats.answered) || 0));
       const correct = Math.max(0, Math.floor(Number(stats.correct) || 0));
