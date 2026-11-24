@@ -17,7 +17,13 @@ const callAi = useEmulators
 // The live status page (src/html/status.html, served at /status by a hosting rewrite).
 export const STATUS_URL = "https://atombowl.web.app/status";
 export const API_ISSUE_MESSAGE = `We're extremely sorry. There seems to be an API issue. We're fixing it. Check the live status at: ${STATUS_URL}`;
-export const BLOCKED_MESSAGE = "Tutor and Generate can't reach the Atom Bowl AI server from this network. School and work networks often block AI sites, so this is likely your school's network policy, not a problem with Atom Bowl or your account. Try again at home or on phone data, or ask your school's IT team to allow atombowl-ai.vercel.app.";
+export const BLOCKED_MESSAGE = "The API is down on this network.";
+const BLOCKED_DETAIL = "School and work networks often block AI sites, so this is likely your school's network policy, not a problem with Atom Bowl or your account. Try again at home or on phone data, or ask your school's IT team to allow atombowl-ai.vercel.app.";
+
+// A short message with an (i) that opens the explanation. Styled by .info-more in atom.css.
+export function withInfoHtml(short, detail) {
+  return `${short} <details class="info-more"><summary class="info-i" title="Learn more" aria-label="Learn more">i</summary><span class="info-more-text">${detail}</span></details>`;
+}
 
 // The same message with the status URL as a link, for error areas that render HTML.
 export function apiIssueHtml() {
@@ -90,11 +96,13 @@ async function run(payload) {
       const blocked = new Error(BLOCKED_MESSAGE);
       blocked.code = err?.code;
       blocked.blocked = true;
+      blocked.html = withInfoHtml(BLOCKED_MESSAGE, BLOCKED_DETAIL);
       throw blocked;
     }
     const wrapped = new Error(friendlyError(err));
     wrapped.code = err?.code;
     wrapped.apiIssue = wrapped.message === API_ISSUE_MESSAGE;
+    if (wrapped.apiIssue) wrapped.html = apiIssueHtml();
     throw wrapped;
   }
 }

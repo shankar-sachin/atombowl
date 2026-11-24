@@ -19,6 +19,13 @@
 
   const banner = document.getElementById('statusBanner');
   const headline = document.getElementById('statusHeadline');
+  const infoBtn = document.getElementById('statusInfoBtn');
+  const infoText = document.getElementById('statusInfo');
+  infoBtn.addEventListener('click', () => {
+    const open = infoText.hidden;
+    infoText.hidden = !open;
+    infoBtn.setAttribute('aria-expanded', String(open));
+  });
   const checked = document.getElementById('statusChecked');
   const refreshBtn = document.getElementById('statusRefresh') as HTMLButtonElement;
   const rows = {};
@@ -36,9 +43,13 @@
     if (desc && detail) desc.textContent = detail;
   }
 
-  function setBanner(state: string, text: string) {
+  // The (i) button shows `info` under the headline; without info both are hidden.
+  function setBanner(state: string, text: string, info = '') {
     banner.dataset.state = state;
     headline.textContent = text;
+    infoBtn.hidden = !info;
+    infoText.textContent = info;
+    if (!info) { infoText.hidden = true; infoBtn.setAttribute('aria-expanded', 'false'); }
   }
 
   function stamp(iso?: string) {
@@ -81,7 +92,7 @@
 
       setRow('function', 'ok', `Responded in ${health.latencyMs} ms`);
       setRow('provider', health.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down',
-        health.ok ? `${provider}, ${main.id}` : `${provider}: ${(main.ok ? followUp : main).detail || 'not responding'}`);
+        health.ok ? `${provider} API` : `${provider}: ${(main.ok ? followUp : main).detail || 'not responding'}`);
       setRow('generate', main.ok ? 'ok' : 'down');
       setRow('tutor', main.ok && followUp.ok ? 'ok' : main.ok || followUp.ok ? 'degraded' : 'down');
 
@@ -96,7 +107,7 @@
       ['provider', 'tutor', 'generate'].forEach((name) => setRow(name, offline ? 'checking' : 'down'));
       setBanner(offline ? 'checking' : 'down', offline
         ? "You're offline, so the status can't be checked"
-        : "Can't reach Tutor and Generate. If you're on a school or work network, it may block AI sites. Otherwise they're down and we're fixing it.");
+        : 'Tutor and Generate are down', offline ? '' : "If you're on a school or work network, it may block AI sites, so this page can't reach the server. Otherwise they really are down and we're fixing it.");
       stamp();
     } finally {
       running = false;

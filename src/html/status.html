@@ -28,7 +28,8 @@
     <section class="status-banner" id="statusBanner" data-state="checking" aria-live="polite">
       <span class="status-dot" aria-hidden="true"></span>
       <div>
-        <h2 id="statusHeadline">Checking…</h2>
+        <h2><span id="statusHeadline">Checking…</span> <button class="info-i" id="statusInfoBtn" type="button" title="Learn more" aria-label="Learn more" aria-expanded="false" aria-controls="statusInfo" hidden>i</button></h2>
+        <p class="info-more-text" id="statusInfo" hidden></p>
         <p class="muted" id="statusChecked"></p>
       </div>
       <button class="btn small" id="statusRefresh" type="button"><i data-icon="reset"></i>Check now</button>

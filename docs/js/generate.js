@@ -73,8 +73,8 @@ async function loadCredits() {
     }
     catch (err) {
         creditsLoaded = false;
-        if (err.apiIssue)
-            els.error.innerHTML = (await aiClient()).apiIssueHtml();
+        if (err.html)
+            els.error.innerHTML = err.html;
         else
             els.error.textContent = err.message;
     }
@@ -146,8 +146,8 @@ async function generate(event) {
         }
     }
     catch (err) {
-        if (err.apiIssue)
-            els.error.innerHTML = (await aiClient()).apiIssueHtml();
+        if (err.html)
+            els.error.innerHTML = err.html;
         else
             els.error.textContent = err.message;
     }
