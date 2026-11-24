@@ -353,6 +353,28 @@ i[data-icon] { display: inline-flex; font-style: normal; }
   font-size: 0.92rem;
 }
 
+.atom-info-text { display: grid; gap: 10px; align-content: start; }
+.atom-formula { min-width: 0; }
+.atom-formula > summary { width: fit-content; color: var(--signal); font-size: 0.92rem; font-weight: 500; cursor: pointer; }
+.atom-formula > :not(summary) { margin-top: 8px; }
+.atom-formula-math { color: var(--text); font-size: 0.86rem; padding-bottom: 2px; overflow-x: auto; overflow-y: hidden; }
+.atom-formula-math p { margin: 0 0 4px; }
+.atom-formula-math .katex-display { margin: 0; text-align: left; }
+.atom-formula-math .katex-display > .katex { text-align: left; }
+.atom-formula-key { font-size: 0.82rem; line-height: 1.5; }
+.atom-formula-key b { color: var(--text); font-family: KaTeX_Math, "Times New Roman", serif; font-style: italic; font-weight: 400; }
+
+@media (max-width: 480px) { .atom-formula-math { font-size: 0.66rem; } }
+
+/* Text and score bands on the left, the formula on the right; stacked when the card is narrow. */
+@media (min-width: 860px) {
+  .atom-info-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: 28px; }
+  .atom-formula { padding-left: 28px; border-left: 1px solid var(--rule); }
+  /* Wide screens: a plain heading, not a toggle. */
+  .atom-formula > summary { color: var(--text); font-weight: 600; cursor: default; pointer-events: none; list-style: none; }
+  .atom-formula > summary::-webkit-details-marker { display: none; }
+}
+
 .atom-info dl { display: grid; gap: 4px; margin: 0; }
 .atom-info dl > div { display: grid; grid-template-columns: 7em 1fr; gap: 12px; }
 .atom-info dt { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }

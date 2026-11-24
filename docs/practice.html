@@ -123,14 +123,29 @@
           <details class="atom-info">
             <summary>What is AtomScore?</summary>
             <div class="atom-info-body">
-              <p>A 0 to 100 summary of this run. It weighs accuracy most, then your average solve speed, then consistency (correct answers that took 10 seconds or more count against you).</p>
-              <dl>
-                <div><dt>85 to 100</dt><dd>Elite, nationals level</dd></div>
-                <div><dt>70 to 84</dt><dd>Strong and consistent</dd></div>
-                <div><dt>50 to 69</dt><dd>Competitive</dd></div>
-                <div><dt>30 to 49</dt><dd>Developing</dd></div>
-                <div><dt>Under 30</dt><dd>Needs practice</dd></div>
-              </dl>
+              <div class="atom-info-text">
+                <p>A 0 to 100 summary of this run. It weighs accuracy most, then your average solve speed, then consistency (correct answers that took 10 seconds or more count against you).</p>
+                <dl>
+                  <div><dt>85 to 100</dt><dd>Elite, nationals level</dd></div>
+                  <div><dt>70 to 84</dt><dd>Strong and consistent</dd></div>
+                  <div><dt>50 to 69</dt><dd>Competitive</dd></div>
+                  <div><dt>30 to 49</dt><dd>Developing</dd></div>
+                  <div><dt>Under 30</dt><dd>Needs practice</dd></div>
+                </dl>
+              </div>
+              <!-- Always open on wide screens; a closed dropdown on phones (practice.ts sets `open`). -->
+              <details class="atom-formula" id="atomFormula" open>
+                <summary>How it's calculated</summary>
+                <!-- practice.ts replaces this plain-text version with KaTeX when the card opens. -->
+                <div class="atom-formula-math" id="atomFormulaMath">
+                  <p>AtomScore = min(100, (A + S + C) × T)</p>
+                  <p>A = 72 · a^1.65</p>
+                  <p>S = 18 · (0.55·√v + 0.45·ln(2 + 9v) / ln 11), with v = (12 − t) / 12 kept between 0 and 1</p>
+                  <p>C = 12 · (1 − r^0.85) − p, kept between 0 and 12, with r = s / c and p = min(8, 0.45·s)</p>
+                  <p>T = 0.9 + 0.1 · min(1, ln(1 + n) / ln 26)</p>
+                </div>
+                <p class="atom-formula-key"><b>a</b> share answered correctly, <b>t</b> average seconds per question, <b>c</b> correct answers, <b>s</b> correct answers that took 10 seconds or more, <b>n</b> questions answered. Accuracy <b>A</b> is worth up to 72 points, speed <b>S</b> up to 18 and consistency <b>C</b> up to 12. <b>T</b> trims short runs by up to 10%.</p>
+              </details>
             </div>
           </details>
           <div class="button-row final-actions">

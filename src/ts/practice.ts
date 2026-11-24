@@ -42,6 +42,16 @@
       return Array.isArray(list) ? list.filter(q => q && q.question_text && q.parsed_answer) : null;
     })();
 
+    // Practice's "Pick questions" plays exactly the chosen questions, in order: /practice?picked=1.
+    const pickedQs = (() => {
+      if (singleMode || generatedQs) return null;
+      if (new URLSearchParams(window.location.search).get('picked') !== '1') return null;
+      const list = safeParseJSON(sessionStorage.getItem('atom_picked_set'), null);
+      if (!Array.isArray(list)) return null;
+      const usable = list.filter(q => q && typeof q === 'object' && q.parsed_answer && (q.question_text || q.question_image));
+      return usable.length ? usable : null;
+    })();
+
     // A single-question session ignores atom_run's filters; only timing carries over.
     const runCfg = singleMode
       ? {
@@ -142,7 +152,7 @@
       single: 'Single question'
     };
     const modeKey = String(runCfg.mode || 'rapid').toLowerCase();
-    document.getElementById('mode').textContent = MODE_NAMES[modeKey] || 'Practice';
+    document.getElementById('mode').textContent = pickedQs ? 'Picked questions' : (MODE_NAMES[modeKey] || 'Practice');
     const exitUrl = singleMode ? '/question-bank' : generatedQs ? '/generate' : '/practice-home';
 
     // ---------- Display helpers (data values stay as they are) ----------
@@ -767,7 +777,7 @@
 
       const mode = String(runCfg.mode || 'rapid').toLowerCase();
 
-      if (mode === 'tossups' || mode === 'bonuses' || singleMode) {
+      if (mode === 'tossups' || mode === 'bonuses' || singleMode || pickedQs) {
         // raw question progress
         progressEl.textContent = `Question ${index + 1} of ${questions.length}`;
         return;
@@ -932,6 +942,47 @@
     document.getElementById('statCorrect').textContent = String(stats.correct);
     document.getElementById('statSlow').textContent = String(stats.slowCorrect);
   }
+    // The formula in the "What is AtomScore?" card, typeset with KaTeX the first time the card
+    // opens. It mirrors atom_score.ts; the plain-text version in the HTML stays if KaTeX can't load.
+    const ATOM_SCORE_TEX = String.raw`\begin{aligned}
+\text{AtomScore} &= \min\!\big(100,\ (A + S + C)\cdot T\big)\\[6pt]
+A &= 72\,a^{1.65}\\[4pt]
+S &= 18\left(0.55\sqrt{v} + 0.45\,\frac{\ln(2 + 9v)}{\ln 11}\right)\\[4pt]
+v &= \operatorname{clamp}\!\left(\frac{12 - t}{12},\ 0,\ 1\right)\\[4pt]
+C &= \operatorname{clamp}\!\big(12\,(1 - r^{0.85}) - p,\ 0,\ 12\big)\\[4pt]
+r &= \frac{s}{c},\qquad p = \min(8,\ 0.45\,s)\\[4pt]
+T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
+\end{aligned}`;
+    const atomInfoEl = document.querySelector<HTMLDetailsElement>('.atom-info');
+    const atomFormulaEl = document.getElementById('atomFormula') as HTMLDetailsElement | null;
+    // The formula is always shown beside the text on wide screens and is a closed dropdown on phones.
+    const wideCard = window.matchMedia('(min-width: 860px)');
+    const syncFormulaOpen = () => { if (atomFormulaEl) atomFormulaEl.open = wideCard.matches; };
+    syncFormulaOpen();
+    wideCard.addEventListener('change', syncFormulaOpen);
+    atomFormulaEl?.querySelector('summary')?.addEventListener('click', (e) => { if (wideCard.matches) e.preventDefault(); });
+    let atomFormulaRendered = false;
+    atomInfoEl?.addEventListener('toggle', async () => {
+      const target = document.getElementById('atomFormulaMath');
+      if (!atomInfoEl.open || atomFormulaRendered || !target) return;
+      atomFormulaRendered = true;
+      const KATEX = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist';
+      try {
+        if (!document.querySelector(`link[href="${KATEX}/katex.min.css"]`)) {
+          const css = document.createElement('link');
+          css.rel = 'stylesheet';
+          css.href = `${KATEX}/katex.min.css`;
+          document.head.appendChild(css);
+        }
+        const mod = await import(`${KATEX}/katex.mjs`);
+        const html = (mod.default || mod).renderToString(ATOM_SCORE_TEX, { displayMode: true, throwOnError: true });
+        target.innerHTML = html;
+      } catch (err) {
+        atomFormulaRendered = false;
+        console.log('[AtomScore] Could not typeset the formula, keeping the plain-text version.', err);
+      }
+    });
+
     function computeAtomScoreFallback(): number {
       const answered = Math.max(0, Math.floor(Number(stats.answered) || 0));
       const correct = Math.max(0, Math.floor(Number(stats.correct) || 0));
@@ -1562,6 +1613,9 @@
       if (generatedQs) {
         bank = generatedQs;
         questions = generatedQs.slice();
+      } else if (pickedQs) {
+        bank = pickedQs;
+        questions = pickedQs.slice();
       } else {
         bank = singleMode ? await loadPairBank() : await loadBank();
         questions = buildRunQuestions();
