@@ -59,3 +59,14 @@ test('quiz progress survives cleaning and junk in it does not', () => {
   assert.deepEqual(c.messages[0].quiz, { a: { '0.0': 'B' }, ok: { '0.0': true } });
   assert.equal('quiz' in c.messages[1], false);
 });
+
+test('a copy that continues the other one wins even when its device clock is behind', () => {
+  const short = chat('a', 9, { messages: [{ role: 'user', text: 'q' }, { role: 'assistant', text: 'a' }] });
+  const longer = chat('a', 1, { messages: [...short.messages, { role: 'user', text: 'q2' }, { role: 'assistant', text: 'a2' }] });
+  const localAhead = mergeRemote([longer], [short], ['a']);
+  assert.equal(localAhead.history[0].messages.length, 4);
+  assert.equal(localAhead.upload.length, 1);
+  const remoteAhead = mergeRemote([short], [longer], ['a']);
+  assert.equal(remoteAhead.history[0].messages.length, 4);
+  assert.deepEqual(remoteAhead.upload, []);
+});

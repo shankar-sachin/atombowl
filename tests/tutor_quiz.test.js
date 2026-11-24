@@ -98,3 +98,23 @@ test('score and the follow-up message list only the missed questions', () => {
   assert.match(msg, /I answered: A\. Correct: B\) Light frequency/);
   assert.doesNotMatch(msg, /newton/);
 });
+
+test('the answer key is a letter on its own or the text of a choice, and a trailing ::: closes the quiz', () => {
+  const quiz = parseQuiz('T', [
+    'Q1 (mc): Which halogen is a liquid?', 'A) Chlorine', 'B) Bromine', 'C) Iodine', 'Answer: Bromine',
+    'Q2 (mc): Which is a noble gas?', 'A) Argon', 'B) Boron', 'Answer: (A) Argon',
+    'Q3 (mc): No such choice', 'A) Carbon', 'B) Boron', 'Answer: Dark energy'
+  ]);
+  assert.deepEqual(quiz.questions.map((q) => q.answer), ['B', 'A']);
+  const parts = splitQuiz('Intro\n:::quiz Light\nQ1 (sa): Symbol for the photon energy constant?\nAnswer: h\nWhy: E = hf. :::\nAfter the quiz.');
+  assert.deepEqual(parts.map((p) => p.type), ['text', 'quiz', 'text']);
+  assert.equal(parts[1].quiz.questions[0].why, 'E = hf.');
+  assert.equal(parts[2].text.trim(), 'After the quiz.');
+});
+
+test('without the site checker, symbol answers are compared as typed', () => {
+  const pi = { kind: 'sa', q: 'q', choices: [], answer: 'π', accept: [], why: '' };
+  assert.equal(gradeQuestion(pi, 'π'), true);
+  assert.equal(gradeQuestion(pi, 'μ'), false);
+  assert.equal(gradeQuestion(pi, '%'), false);
+});

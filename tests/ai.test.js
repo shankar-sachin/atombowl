@@ -121,6 +121,11 @@ test('providers send the right request shape and surface HTTP errors', async () 
   await complete({ provider: 'anthropic', model: 'claude-opus-5-5', apiKey: 'a', fetchImpl: reply({ content: [] }), ...job, reasoning: 'high' });
   assert.deepEqual([calls[6].init.body.model, calls[6].init.body.output_config.effort], ['claude-opus-5-5', 'high']);
   await assert.rejects(complete({ provider: 'anthropic', apiKey: 'a', fetchImpl: reply({ content: [], stop_reason: 'refusal' }), ...job }), /refused/);
+  // Out of room: JSON is an error (it would not parse), prose comes back marked as cut short.
+  await assert.rejects(complete({ provider: 'anthropic', apiKey: 'a', fetchImpl: reply({ content: [{ type: 'text', text: '{"a":' }], stop_reason: 'max_tokens' }), ...job }), /cut off/);
+  const cut = await complete({ provider: 'anthropic', apiKey: 'a', fetchImpl: reply({ content: [{ type: 'text', text: 'Half an ans' }], stop_reason: 'max_tokens' }), ...job, json: false });
+  assert.match(cut, /^Half an ans[\s\S]*cut short/);
+  assert.ok(calls.at(-1).init.signal instanceof AbortSignal);
 
   await assert.rejects(complete({ provider: 'groq', apiKey: 'g', fetchImpl: reply({ error: { message: 'slow down' } }, 429), ...job }),
     (err) => err instanceof ProviderError && err.status === 429);

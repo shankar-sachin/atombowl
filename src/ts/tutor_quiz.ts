@@ -36,7 +36,11 @@ function finish(d: Draft): QuizQuestion | null {
   if (d.kind === "mc") {
     const seen = new Set<string>();
     const choices = d.choices.filter((c) => c.text.trim() && !seen.has(c.letter) && seen.add(c.letter)).map((c) => ({ letter: c.letter, text: c.text.trim() }));
-    const letter = (d.answer.toUpperCase().match(/[A-D]/) || [""])[0];
+    // The key is a letter on its own ("B", "B)", "(B) Bromine"), never the first A-D inside a word.
+    // An answer written out in words is matched to the choice with that text.
+    const plain = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const written = d.answer.trim().toUpperCase().match(/^\(?([A-D])(?:[).:]|\s|$)/);
+    const letter = written ? written[1] : (choices.find((c) => plain(c.text) && plain(c.text) === plain(d.answer))?.letter || "");
     if (choices.length < 2 || !choices.some((c) => c.letter === letter)) return null;
     return { kind: "mc", q, choices, answer: letter, accept: [], why: d.why.trim() };
   }
@@ -103,7 +107,10 @@ export function splitQuiz(text: string): Segment[] {
       const open = line.match(/^\s*:::\s*quiz\b\s*(.*)$/i);
       if (open) { flushText(); quizLines = []; title = open[1]; }
       else buf.push(line);
-    } else if (/^\s*:::\s*$/.test(line)) {
+    } else if (/:::\s*$/.test(line)) {
+      // The closing marker usually has its own line, but the model sometimes ends a line with it.
+      const rest = line.replace(/\s*:::\s*$/, "");
+      if (rest.trim()) quizLines.push(rest);
       flushQuiz();
     } else {
       quizLines.push(line);
@@ -126,7 +133,8 @@ export function gradeQuestion(q: QuizQuestion, value: string, grader?: Grader): 
   if (q.kind === "mc") return v.toUpperCase() === q.answer;
   const targets = [q.answer, ...q.accept];
   if (grader) return !!grader({ userAnswer: v, correctAnswer: targets.join("; "), questionType: "SA" }).isCorrect;
-  return targets.some((t) => norm(t) === norm(v));
+  // Symbols such as π all normalise to nothing, so those are compared as typed.
+  return targets.some((t) => (norm(t) && norm(v) ? norm(t) === norm(v) : t.trim().toLowerCase() === v.toLowerCase()));
 }
 
 export function quizScore(quiz: Quiz, index: number, state: QuizState | undefined) {
