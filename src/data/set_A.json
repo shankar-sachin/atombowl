@@ -85209,9 +85209,9 @@
         "num": 3,
         "question_image": "Sample-Set-2/sample_questions_r1/2_3.png",
         "page": 2,
-        "parsed_answer": "100  (DO NOT ACCEPT: 10",
+        "parsed_answer": "100 (DO NOT ACCEPT: 10^2)",
         "answer_image": "Sample-Set-2/sample_questions_r1/2_3_ans.png",
-        "category": "MATH What is the integer value of 10",
+        "category": "MATH",
         "type": "SA"
     },
     {

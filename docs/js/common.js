@@ -134,7 +134,7 @@
         bar.className = focusMode ? 'site-bar focus-bar' : 'site-bar';
         bar.innerHTML = `
       <a class="brand" href="/" aria-label="Atom Bowl home">
-        <img src="images/brand/logo.svg" alt="" width="32" height="32"><span>Atom Bowl</span>
+        <img src="/images/brand/logo.svg" alt="" width="32" height="32"><span>Atom Bowl</span>
       </a>
       <nav class="site-links" aria-label="Primary">
         ${PRIMARY.map((item) => `<a class="site-link" href="${item.href}"${current(item.href)}>${icon(item.icon)}<span>${item.label}</span></a>`).join('')}
