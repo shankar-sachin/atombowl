@@ -15,6 +15,7 @@ const callAi = useEmulators
 // The live status page (src/html/status.html, served at /status by a hosting rewrite).
 export const STATUS_URL = "https://atombowl.web.app/status";
 export const API_ISSUE_MESSAGE = `We're extremely sorry. There seems to be an API issue. We're fixing it. Check the live status at: ${STATUS_URL}`;
+export const BLOCKED_MESSAGE = "Tutor and Generate can't reach the Atom Bowl AI server from this network. School and work networks often block AI sites, so this is likely your school's network policy, not a problem with Atom Bowl or your account. Try again at home or on phone data, or ask your school's IT team to allow atombowl-ai.vercel.app.";
 // The same message with the status URL as a link, for error areas that render HTML.
 export function apiIssueHtml() {
     const [before] = API_ISSUE_MESSAGE.split(STATUS_URL);
@@ -55,6 +56,33 @@ function friendlyError(err) {
         return "Couldn't reach Atom Bowl. Check your connection and try again.";
     return message || "Something went wrong. Try again.";
 }
+// A school or work filter that blocks the AI host either drops the request (no response, which
+// the SDK reports as "internal") or answers with its own block page (no JSON body, so the
+// message is just the bare code). Server errors always carry a JSON message.
+function maybeBlocked(err) {
+    const code = String((err === null || err === void 0 ? void 0 : err.code) || "").replace(/^functions\//, "");
+    const message = String((err === null || err === void 0 ? void 0 : err.message) || "");
+    if (code === "internal" || code === "unavailable" || code === "deadline-exceeded")
+        return true;
+    return (code === "permission-denied" || code === "unauthenticated" || code === "not-found") && message === code;
+}
+// The public health action needs no sign-in. If even that can't come back as JSON, this
+// network is blocking the AI host; if it does, the failure was on our side.
+async function aiHostReachable() {
+    try {
+        const res = await fetch(AI_URL, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ data: { action: "health" } }),
+            signal: AbortSignal.timeout(10000)
+        });
+        const body = await res.json();
+        return !!(body === null || body === void 0 ? void 0 : body.result);
+    }
+    catch {
+        return false;
+    }
+}
 async function run(payload) {
     var _a;
     try {
@@ -63,6 +91,12 @@ async function run(payload) {
         return result.data;
     }
     catch (err) {
+        if (!useEmulators && navigator.onLine !== false && maybeBlocked(err) && !(await aiHostReachable())) {
+            const blocked = new Error(BLOCKED_MESSAGE);
+            blocked.code = err === null || err === void 0 ? void 0 : err.code;
+            blocked.blocked = true;
+            throw blocked;
+        }
         const wrapped = new Error(friendlyError(err));
         wrapped.code = err === null || err === void 0 ? void 0 : err.code;
         wrapped.apiIssue = wrapped.message === API_ISSUE_MESSAGE;

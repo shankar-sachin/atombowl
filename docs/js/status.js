@@ -93,11 +93,12 @@
         }
         catch {
             const offline = navigator.onLine === false;
-            setRow('function', offline ? 'checking' : 'down', offline ? 'You appear to be offline' : 'Not responding');
+            // From here a blocked network looks the same as an outage, so name both.
+            setRow('function', offline ? 'checking' : 'down', offline ? 'You appear to be offline' : 'Not responding from this network');
             ['provider', 'tutor', 'generate'].forEach((name) => setRow(name, offline ? 'checking' : 'down'));
             setBanner(offline ? 'checking' : 'down', offline
                 ? "You're offline, so the status can't be checked"
-                : 'Tutor and Generate are down. We are fixing it.');
+                : "Can't reach Tutor and Generate. If you're on a school or work network, it may block AI sites. Otherwise they're down and we're fixing it.");
             stamp();
         }
         finally {
