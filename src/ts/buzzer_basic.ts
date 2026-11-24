@@ -8,10 +8,14 @@ import {
   buzzSeconds
 } from "./room_state.js";
 import { mountCopyButtons } from "./room_invite.js";
-import { db, ensureAnonAuth } from "./firebase.js";
+import { db, auth, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
+// The game belongs to the account that created it. If that changes under this page, say so.
+const HOST_LOST = "You signed in to a different account in another tab, so this page can no longer run this game. Create a new game to keep playing.";
+let hostLost = false;
+
 const els = {
   main: $("basicMain"), statusDot: $("statusDot"), statusText: $("statusText"), settingsBtn: $("settingsBtn"),
   fullscreen: $("fullscreenBtn"), endBtn: $("endBtn"), note: $("hostNote"), endConfirm: $("endConfirm"),
@@ -52,8 +56,8 @@ function setSwitch(button, on) {
   button.classList.toggle("on", !!on);
   button.setAttribute("aria-checked", String(!!on));
 }
-const flag = (room, key, fallback = false) => (room.settings?.[key] === undefined ? fallback : !!room.settings[key]);
-const num = (room, key, fallback) => (Number.isInteger(room.settings?.[key]) ? room.settings[key] : fallback);
+const flag = (room, key, fallback = false) => (room?.settings?.[key] === undefined ? fallback : !!room.settings[key]);
+const num = (room, key, fallback) => (Number.isInteger(room?.settings?.[key]) ? room.settings[key] : fallback);
 
 function shown() {
   if (!snap) return null;
@@ -86,6 +90,7 @@ function enqueue(task) {
 function act(action, options = {}) {
   const room = shown();
   if (!room || !uid) return;
+  if (hostLost) return note(HOST_LOST);
   const reason = actionReason(room, action, options);
   if (reason) return note(reason);
   const now = Date.now();
@@ -125,7 +130,27 @@ function beep(freq = 880, ms = 220) {
 
 // ---------- Timers ----------
 
-function ensureLoop() { if (!rafId) rafId = requestAnimationFrame(frame); }
+// Animation frames stop in a hidden tab or on a locked phone, so the end of the timer and the
+// game clock is also set on a plain timeout, which still fires there.
+let expiryTimer = 0;
+function ensureLoop() {
+  if (!rafId) rafId = requestAnimationFrame(frame);
+  scheduleExpiry();
+}
+function scheduleExpiry() {
+  window.clearTimeout(expiryTimer);
+  const room = shown();
+  if (!room) return;
+  const now = Date.now();
+  const waits = [];
+  if (timerOf(room).status === "running") waits.push(timerLeft(room, now));
+  if (gameClockOf(room).status === "running") waits.push(clockRemaining(room, clockElapsed(room, now)));
+  if (!waits.length) return;
+  expiryTimer = window.setTimeout(() => {
+    const current = shown();
+    if (current) checkExpiry(current, Date.now());
+  }, Math.max(0, Math.min(...waits)) + 20);
+}
 
 function frame() {
   rafId = 0;
@@ -133,6 +158,11 @@ function frame() {
   if (!room) return;
   const now = Date.now();
   renderTimers(room, now);
+  checkExpiry(room, now);
+  if (timerOf(room).status === "running" || clockLive(room)) ensureLoop();
+}
+
+function checkExpiry(room, now) {
   const timer = timerOf(room);
   if (timer.status === "running" && timerLeft(room, now) <= 0 && snap && timerOf(snap).runKey === timer.runKey && !expired.has(timer.runKey)) {
     expired.add(timer.runKey);
@@ -145,7 +175,6 @@ function frame() {
     beep(660, 800);
     enqueue(() => sendHostAction(roomId, "game_expire", { runKey: clock.runKey }).catch(() => {}));
   }
-  if (timerOf(room).status === "running" || clockLive(room)) ensureLoop();
 }
 
 function renderTimers(room, now) {
@@ -426,7 +455,8 @@ function onBuzz(room) {
 
 // ---------- Wiring ----------
 
-const toggleSetting = (key, fallback = false) => change(key, !flag(shown(), key, fallback));
+// Nothing to switch until the room has loaded.
+const toggleSetting = (key, fallback = false) => { if (shown()) change(key, !flag(shown(), key, fallback)); };
 els.swPoints.addEventListener("click", () => toggleSetting("showPoints", true));
 els.swTeams.addEventListener("click", () => toggleSetting("showTeams"));
 els.swTimer.addEventListener("click", () => toggleSetting("showTimer", true));
@@ -444,6 +474,7 @@ els.timerDisplay.addEventListener("click", () => {
   els.timerDialog.showModal();
   els.timerReadInput.select();
 });
+$("timerCancel").addEventListener("click", () => els.timerDialog.close("cancel"));
 els.timerDialog.addEventListener("close", () => {
   if (els.timerDialog.returnValue !== "save") return;
   const room = shown();
@@ -510,6 +541,10 @@ buildSettings();
 (async () => {
   if (!roomId) return note("This page needs a game. Create one from Buzzer rooms.");
   uid = (await ensureAnonAuth()).uid;
+  auth.onAuthStateChanged((current) => {
+    hostLost = current?.uid !== uid;
+    if (hostLost) note(HOST_LOST);
+  });
   attach();
 })().catch((err) => note(err.message || "Unable to connect."));
 window.addEventListener("pagehide", () => { if (rafId) cancelAnimationFrame(rafId); });

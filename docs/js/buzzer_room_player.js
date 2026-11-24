@@ -66,10 +66,19 @@ function myBuzzIdentity() {
 }
 /** Why I cannot buzz (empty string when I can), using the same rules the server applies. */
 function reasonNow(room, now = Date.now()) {
-    var _a, _b;
+    var _a, _b, _c;
     if (!member)
         return "Joining the room.";
-    return buzzReason(room, myBuzzIdentity(), now, anchorFor((_a = room.timers) === null || _a === void 0 ? void 0 : _a.phaseKey, (_b = room.timers) === null || _b === void 0 ? void 0 : _b.phaseStartedAt));
+    const reason = buzzReason(room, myBuzzIdentity(), now, anchorFor((_a = room.timers) === null || _a === void 0 ? void 0 : _a.phaseKey, (_b = room.timers) === null || _b === void 0 ? void 0 : _b.phaseStartedAt));
+    if (reason)
+        return reason;
+    // Basic games: the host locks when its timer ends, but its tab may be asleep, so stop here too.
+    if (room.status === "basic" && ((_c = room.settings) === null || _c === void 0 ? void 0 : _c.timerLockOnEnd)) {
+        const timer = timerOf(room);
+        if (timer.status === "running" && !timer.buzz && basicTimerLeft(room, now) <= 0)
+            return "Time is up.";
+    }
+    return "";
 }
 const ORDINALS = ["first", "2nd", "3rd"];
 const ordinal = (n) => ORDINALS[n - 1] || `${n}th`;
@@ -338,8 +347,11 @@ async function buzz() {
     }
     catch (err) {
         buzzSent = false;
+        // The server refuses a late buzz the same way as a second one, so say which it was.
+        const deadline = room.status === "basic" ? null : phaseDeadlineOf(snap || room);
+        const late = deadline != null && Date.now() >= deadline;
         els.buzzError.textContent = (err === null || err === void 0 ? void 0 : err.code) === "permission-denied"
-            ? (multiBuzz(room) ? "Your buzz did not count. The buzzers may be locked." : "Someone buzzed first.")
+            ? (multiBuzz(room) ? "Your buzz did not count. The buzzers may be locked." : late && !(snap || room).currentBuzz ? "Time is up." : "Someone buzzed first.")
             : ((err === null || err === void 0 ? void 0 : err.message) || "Your buzz did not go through. Try again.");
         render();
     }
