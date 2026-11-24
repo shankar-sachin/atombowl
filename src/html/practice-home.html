@@ -177,10 +177,44 @@
             </span>
             <span class="mode-count" id="countSet">Loading</span>
           </button>
+
+          <button class="mode" type="button" data-mode="pick" aria-haspopup="dialog">
+            <i data-icon="list"></i>
+            <span class="mode-body">
+              <strong>Pick questions</strong>
+              <span>Advanced: choose exactly which questions to play.</span>
+            </span>
+            <span class="mode-count" id="countPick">Loading</span>
+          </button>
         </div>
       </aside>
     </div>
   </main>
+
+  <dialog id="pickDialog" class="pick-dialog" aria-labelledby="pickTitle">
+    <div class="pick-head">
+      <div>
+        <h2 id="pickTitle">Pick questions</h2>
+        <p class="muted" id="pickSummary">Tick the questions you want. They play in the order you pick them.</p>
+      </div>
+      <button class="x-close" id="pickClose" type="button" aria-label="Close"><i data-icon="close"></i></button>
+    </div>
+    <div class="pick-tools">
+      <input type="search" id="pickSearch" placeholder="Search question, answer, topic or set" aria-label="Search these questions" autocomplete="off">
+      <label class="pick-only"><input type="checkbox" id="pickOnlyPicked"> Picked only</label>
+      <button class="btn small" id="pickAllShown" type="button">Pick all shown</button>
+      <button class="btn small quiet" id="pickClear" type="button">Clear</button>
+    </div>
+    <div class="pick-scroll" id="pickScroll">
+      <ul class="pick-list" id="pickList"></ul>
+      <p class="pick-empty muted" id="pickEmpty" hidden></p>
+      <button class="btn small pick-more" id="pickMore" type="button" hidden>Show more</button>
+    </div>
+    <div class="pick-foot">
+      <span id="pickCount" role="status">0 picked</span>
+      <button class="btn primary" id="pickStart" type="button" disabled><i data-icon="play"></i>Start</button>
+    </div>
+  </dialog>
 
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>

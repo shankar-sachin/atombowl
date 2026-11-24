@@ -21,6 +21,7 @@
         countMC: document.getElementById('countMC'),
         countSA: document.getElementById('countSA'),
         countSet: document.getElementById('countSet'),
+        countPick: document.getElementById('countPick'),
       };
 
       // Minimal self-tests (console only)
@@ -316,6 +317,7 @@
         els.countMC.textContent = matchLabel(applyFilters(bank, { qaType: 'MC' }).length);
         els.countSA.textContent = matchLabel(applyFilters(bank, { qaType: 'SA' }).length);
         els.countSet.textContent = matchLabel(applyFilters(bank).length);
+        if (els.countPick) els.countPick.textContent = `${applyFilters(bank).length.toLocaleString()} to choose from`;
       }
 
       function getRunConfig(mode) {
@@ -355,7 +357,151 @@
 
       document.getElementById('modeList')?.addEventListener('click', (e) => {
         const btn = (e.target as HTMLElement | null)?.closest('button[data-mode]') as HTMLElement | null;
-        if (btn?.dataset.mode) window.startRun(btn.dataset.mode);
+        if (btn?.dataset.mode === 'pick') openPicker();
+        else if (btn?.dataset.mode) window.startRun(btn.dataset.mode);
+      });
+
+      // ---- Pick questions (advanced): choose the exact questions for a run ----
+      // The list is whatever the filters above match. Picks are kept in tick order and handed
+      // to /practice?picked=1 through sessionStorage, the same way Generate hands over its set.
+      const PICKED_KEY = 'atom_picked_set';
+      const PICK_PAGE = 60;
+      const PICK_MAX = 200;
+      const pick = {
+        dialog: document.getElementById('pickDialog') as HTMLDialogElement | null,
+        search: document.getElementById('pickSearch') as HTMLInputElement | null,
+        onlyPicked: document.getElementById('pickOnlyPicked') as HTMLInputElement | null,
+        list: document.getElementById('pickList'),
+        empty: document.getElementById('pickEmpty'),
+        more: document.getElementById('pickMore'),
+        count: document.getElementById('pickCount'),
+        start: document.getElementById('pickStart') as HTMLButtonElement | null,
+        summary: document.getElementById('pickSummary'),
+      };
+      const picked = new Map<number, any>();   // bank index -> question, in the order ticked
+      let pickPool: number[] = [];             // bank indexes that pass the filters
+      let pickShown = PICK_PAGE;
+
+      function escapeText(s) {
+        return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function pickHaystack(q) {
+        return [q.question_text, q.parsed_answer, q.category, q.detailed_category || q.detailedCategory, q.set_name, q.round_name]
+          .map(v => String(v || '').toLowerCase()).join('\n');
+      }
+
+      function pickMatches() {
+        const words = (pick.search?.value || '').toLowerCase().split(/\s+/).filter(Boolean);
+        const onlyPicked = !!pick.onlyPicked?.checked;
+        const source = onlyPicked ? Array.from(picked.keys()) : pickPool;
+        if (!words.length) return source;
+        return source.filter(i => {
+          const hay = pickHaystack(bank[i]);
+          return words.every(w => hay.includes(w));
+        });
+      }
+
+      function pickRowHtml(i) {
+        const q = bank[i];
+        const meta = [
+          `<b>${q.bonus ? 'Bonus' : 'Toss-up'}</b>`,
+          escapeText(sentenceCase(String(q.category || '').toLowerCase().replace(/^./, c => c.toUpperCase()))),
+          q.type === 'MC' ? 'Multiple choice' : 'Short answer',
+          q.level === 'HS' ? 'High school' : q.level === 'MS' ? 'Middle school' : '',
+          escapeText([q.set_name, q.round_name, q.num != null ? `#${q.num}` : ''].filter(Boolean).join(' ')),
+        ].filter(Boolean).join(' · ');
+        const text = q.question_text ? escapeText(q.question_text) : 'Picture question (shown when you play it)';
+        return `<li><label class="pick-row"><input type="checkbox" data-i="${i}"${picked.has(i) ? ' checked' : ''}>` +
+          `<span class="pick-meta">${meta}</span><span class="pick-text">${text}</span></label></li>`;
+      }
+
+      function renderPickFoot() {
+        const n = picked.size;
+        if (pick.count) pick.count.textContent = n >= PICK_MAX ? `${n} picked (the most one run can hold)` : `${n} picked`;
+        if (pick.start) {
+          pick.start.disabled = n === 0;
+          pick.start.lastChild.textContent = n ? `Start with ${n} ${n === 1 ? 'question' : 'questions'}` : 'Start';
+        }
+      }
+
+      function renderPickList() {
+        if (!pick.list) return;
+        const matches = pickMatches();
+        const shown = matches.slice(0, pickShown);
+        pick.list.innerHTML = shown.map(pickRowHtml).join('');
+        if (pick.more) {
+          pick.more.hidden = matches.length <= shown.length;
+          pick.more.textContent = `Show more (${(matches.length - shown.length).toLocaleString()} left)`;
+        }
+        if (pick.empty) {
+          pick.empty.hidden = matches.length > 0;
+          pick.empty.textContent = pick.onlyPicked?.checked && !picked.size
+            ? 'Nothing picked yet.'
+            : pickPool.length
+              ? 'No questions match that search.'
+              : 'No questions match your filters. Close this and include more topics or levels.';
+        }
+        renderPickFoot();
+      }
+
+      function openPicker() {
+        if (!pick.dialog || typeof pick.dialog.showModal !== 'function') return;
+        const pool = new Set(applyFilters(bank));
+        pickPool = [];
+        bank.forEach((q, i) => { if (pool.has(q)) pickPool.push(i); });
+        // Drop picks the filters no longer include, so the count always matches what is listed.
+        for (const i of Array.from(picked.keys())) if (!pool.has(bank[i])) picked.delete(i);
+        pickShown = PICK_PAGE;
+        if (pick.search) pick.search.value = '';
+        if (pick.onlyPicked) pick.onlyPicked.checked = false;
+        if (pick.summary) {
+          pick.summary.textContent = `${pickPool.length.toLocaleString()} questions match your filters. Tick the ones you want. They play in the order you pick them.`;
+        }
+        renderPickList();
+        pick.dialog.showModal();
+      }
+
+      pick.list?.addEventListener('change', (e) => {
+        const box = e.target as HTMLInputElement | null;
+        if (!box || box.dataset.i == null) return;
+        const i = Number(box.dataset.i);
+        if (box.checked) {
+          if (picked.size >= PICK_MAX) { box.checked = false; renderPickFoot(); return; }
+          picked.set(i, bank[i]);
+        } else {
+          picked.delete(i);
+        }
+        renderPickFoot();
+      });
+      let pickSearchTimer = 0;
+      pick.search?.addEventListener('input', () => {
+        window.clearTimeout(pickSearchTimer);
+        pickSearchTimer = window.setTimeout(() => { pickShown = PICK_PAGE; renderPickList(); }, 150);
+      });
+      pick.onlyPicked?.addEventListener('change', () => { pickShown = PICK_PAGE; renderPickList(); });
+      pick.more?.addEventListener('click', () => { pickShown += PICK_PAGE; renderPickList(); });
+      document.getElementById('pickAllShown')?.addEventListener('click', () => {
+        for (const i of pickMatches().slice(0, pickShown)) {
+          if (picked.size >= PICK_MAX) break;
+          if (!picked.has(i)) picked.set(i, bank[i]);
+        }
+        renderPickList();
+      });
+      document.getElementById('pickClear')?.addEventListener('click', () => { picked.clear(); renderPickList(); });
+      document.getElementById('pickClose')?.addEventListener('click', () => pick.dialog?.close());
+      pick.dialog?.addEventListener('click', (e) => { if (e.target === pick.dialog) pick.dialog.close(); });
+      pick.start?.addEventListener('click', () => {
+        if (!picked.size) return;
+        try {
+          sessionStorage.setItem(PICKED_KEY, JSON.stringify(Array.from(picked.values())));
+        } catch {
+          if (pick.count) pick.count.textContent = 'Too many questions to hand over. Pick fewer and try again.';
+          return;
+        }
+        // Timing, bank and read-aloud choices still come from the filters above.
+        localStorage.setItem('atom_run', JSON.stringify(getRunConfig('rapid')));
+        window.location.href = '/practice?picked=1';
       });
 
       async function loadBank() {
@@ -368,6 +514,7 @@
           const data = await res.json();
           bank = Array.isArray(data) ? data : (data.questions || []);
           window.bank = bank;
+          picked.clear();
 
           setBankStatus('Ready', 'good');
           els.bankMeta.className = 'status-note';

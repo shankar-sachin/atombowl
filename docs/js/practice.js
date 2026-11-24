@@ -44,6 +44,18 @@
         const list = safeParseJSON(sessionStorage.getItem('atom_generated_set'), null);
         return Array.isArray(list) ? list.filter(q => q && q.question_text && q.parsed_answer) : null;
     })();
+    // Practice's "Pick questions" plays exactly the chosen questions, in order: /practice?picked=1.
+    const pickedQs = (() => {
+        if (singleMode || generatedQs)
+            return null;
+        if (new URLSearchParams(window.location.search).get('picked') !== '1')
+            return null;
+        const list = safeParseJSON(sessionStorage.getItem('atom_picked_set'), null);
+        if (!Array.isArray(list))
+            return null;
+        const usable = list.filter(q => q && typeof q === 'object' && q.parsed_answer && (q.question_text || q.question_image));
+        return usable.length ? usable : null;
+    })();
     // A single-question session ignores atom_run's filters; only timing carries over.
     const runCfg = singleMode
         ? {
@@ -140,7 +152,7 @@
         single: 'Single question'
     };
     const modeKey = String(runCfg.mode || 'rapid').toLowerCase();
-    document.getElementById('mode').textContent = MODE_NAMES[modeKey] || 'Practice';
+    document.getElementById('mode').textContent = pickedQs ? 'Picked questions' : (MODE_NAMES[modeKey] || 'Practice');
     const exitUrl = singleMode ? '/question-bank' : generatedQs ? '/generate' : '/practice-home';
     // ---------- Display helpers (data values stay as they are) ----------
     function sentenceCase(text) {
@@ -734,7 +746,7 @@
             return;
         }
         const mode = String(runCfg.mode || 'rapid').toLowerCase();
-        if (mode === 'tossups' || mode === 'bonuses' || singleMode) {
+        if (mode === 'tossups' || mode === 'bonuses' || singleMode || pickedQs) {
             // raw question progress
             progressEl.textContent = `Question ${index + 1} of ${questions.length}`;
             return;
@@ -1508,6 +1520,10 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
         if (generatedQs) {
             bank = generatedQs;
             questions = generatedQs.slice();
+        }
+        else if (pickedQs) {
+            bank = pickedQs;
+            questions = pickedQs.slice();
         }
         else {
             bank = singleMode ? await loadPairBank() : await loadBank();
