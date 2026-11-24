@@ -126,16 +126,19 @@ function showToast(msg) {
     toastTimer = window.setTimeout(() => toastEl.classList.remove("show"), 3200);
 }
 const VERIFY_TEXT = "Confirm your email to use Tutor and Generate. We sent a link to your inbox.";
+const VERIFY_NOT_SENT_TEXT = "Confirm your email to use Tutor and Generate. We couldn't send the link just now. Press Send a new link.";
 function renderVerifyNotice(user) {
-    var _a, _b;
+    var _a, _b, _c, _d;
     let needed = false;
+    let sendFailed = false;
     try {
         needed = !!((_b = (_a = requireAccount()).needsEmailVerification) === null || _b === void 0 ? void 0 : _b.call(_a, user));
+        sendFailed = !!((_d = (_c = requireAccount()).verificationSendFailed) === null || _d === void 0 ? void 0 : _d.call(_c));
     }
     catch { }
     verifyNotice === null || verifyNotice === void 0 ? void 0 : verifyNotice.classList.toggle("hidden", !needed);
-    if (!needed && verifyNoticeText)
-        verifyNoticeText.textContent = VERIFY_TEXT;
+    if (verifyNoticeText && (!needed || sendFailed))
+        verifyNoticeText.textContent = needed && sendFailed ? VERIFY_NOT_SENT_TEXT : VERIFY_TEXT;
 }
 async function checkVerification({ quiet = false } = {}) {
     var _a, _b, _c, _d;
@@ -230,7 +233,10 @@ async function withBusy(button, busyText, task) {
 }
 /* ---------- Errors ---------- */
 function friendlyAuthError(err) {
-    const code = (err === null || err === void 0 ? void 0 : err.code) || "";
+    // The passkey server's codes arrive as "functions/<code>".
+    const code = String((err === null || err === void 0 ? void 0 : err.code) || "").replace(/^functions\//, "");
+    if (code === "internal")
+        return "Something went wrong on our side. Try again in a minute.";
     // Errors from the browser's passkey prompt.
     if ((err === null || err === void 0 ? void 0 : err.name) === "NotAllowedError" || (err === null || err === void 0 ? void 0 : err.name) === "AbortError")
         return "The passkey prompt was cancelled or timed out. Try again.";
@@ -542,6 +548,11 @@ async function renderSignedIn(user) {
         lastNameInput.value = String((profile === null || profile === void 0 ? void 0 : profile.lastName) || "");
     if (phoneInput)
         phoneInput.value = String((profile === null || profile === void 0 ? void 0 : profile.phone) || "");
+    // What each field held when it was filled in, so a save sends only what was edited here.
+    for (const input of [playerNameInput, firstNameInput, lastNameInput, phoneInput]) {
+        if (input)
+            input.dataset.loaded = input.value.trim();
+    }
     if (usernameLockedInput) {
         usernameLockedInput.value = username;
         usernameLockedInput.readOnly = !!username;
@@ -992,10 +1003,22 @@ signInFormPanel === null || signInFormPanel === void 0 ? void 0 : signInFormPane
         signinPasswordInput === null || signinPasswordInput === void 0 ? void 0 : signinPasswordInput.select();
     }
 });
+// True from the first click until the attempt ends. The button is only disabled after the
+// username lookup, so without this a double click would start two sign-ups.
+let signingUp = false;
 signUpFormPanel === null || signUpFormPanel === void 0 ? void 0 : signUpFormPanel.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (signupBtn === null || signupBtn === void 0 ? void 0 : signupBtn.disabled)
+    if ((signupBtn === null || signupBtn === void 0 ? void 0 : signupBtn.disabled) || signingUp)
         return;
+    signingUp = true;
+    try {
+        await submitSignUp();
+    }
+    finally {
+        signingUp = false;
+    }
+});
+async function submitSignUp() {
     setAuthError("");
     const fieldsOk = signupFields.map((input) => validateField(input)).every(Boolean);
     const usernameOk = await checkUsername();
@@ -1052,7 +1075,7 @@ signUpFormPanel === null || signUpFormPanel === void 0 ? void 0 : signUpFormPane
         }
         setAuthError(friendlyAuthError(err));
     }
-});
+}
 // Photos are cropped to a square and shrunk to a small JPEG here, so any camera photo fits in
 // the profile document, then saved straight away.
 const PHOTO_SIZE = 256;
@@ -1122,11 +1145,29 @@ photoUploadInput === null || photoUploadInput === void 0 ? void 0 : photoUploadI
         photoUploadInput.value = "";
     }
 });
+let savingProfile = false;
 signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.addEventListener("submit", async (event) => {
-    var _a, _b;
     event.preventDefault();
-    if (saveProfileBtn === null || saveProfileBtn === void 0 ? void 0 : saveProfileBtn.disabled)
+    if ((saveProfileBtn === null || saveProfileBtn === void 0 ? void 0 : saveProfileBtn.disabled) || savingProfile)
         return;
+    savingProfile = true;
+    try {
+        await submitProfile();
+    }
+    finally {
+        savingProfile = false;
+    }
+});
+// The typed value if it differs from what the form was loaded with, otherwise undefined (not sent).
+function edited(input) {
+    var _a;
+    if (!input)
+        return undefined;
+    const value = String(input.value || "").trim();
+    return value === ((_a = input.dataset.loaded) !== null && _a !== void 0 ? _a : "") ? undefined : value;
+}
+async function submitProfile() {
+    var _a, _b;
     setAccountError("");
     setAccountStatus("");
     const playerName = String((playerNameInput === null || playerNameInput === void 0 ? void 0 : playerNameInput.value) || "").trim();
@@ -1152,10 +1193,10 @@ signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.addE
             var _a, _b;
             return (_b = (_a = requireAccount()).updateAccountProfile) === null || _b === void 0 ? void 0 : _b.call(_a, {
                 username: typedUsername || (usernameLockedInput === null || usernameLockedInput === void 0 ? void 0 : usernameLockedInput.value) || undefined,
-                playerName,
-                firstName: String((firstNameInput === null || firstNameInput === void 0 ? void 0 : firstNameInput.value) || "").trim(),
-                lastName: String((lastNameInput === null || lastNameInput === void 0 ? void 0 : lastNameInput.value) || "").trim(),
-                phone: String((phoneInput === null || phoneInput === void 0 ? void 0 : phoneInput.value) || "").trim(),
+                playerName: edited(playerNameInput),
+                firstName: edited(firstNameInput),
+                lastName: edited(lastNameInput),
+                phone: edited(phoneInput),
                 photoURL: pendingPhotoData || undefined
             });
         });
@@ -1173,7 +1214,7 @@ signedInPanel === null || signedInPanel === void 0 ? void 0 : signedInPanel.addE
     catch (err) {
         setAccountError(`Profile not saved. ${friendlyAuthError(err)}`);
     }
-});
+}
 verifyResendBtn === null || verifyResendBtn === void 0 ? void 0 : verifyResendBtn.addEventListener("click", async () => {
     try {
         await withBusy(verifyResendBtn, "Sending…", () => requireAccount().sendVerification());

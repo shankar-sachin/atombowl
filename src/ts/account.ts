@@ -133,12 +133,17 @@ function showToast(msg: string) {
 }
 
 const VERIFY_TEXT = "Confirm your email to use Tutor and Generate. We sent a link to your inbox.";
+const VERIFY_NOT_SENT_TEXT = "Confirm your email to use Tutor and Generate. We couldn't send the link just now. Press Send a new link.";
 
 function renderVerifyNotice(user: any) {
   let needed = false;
-  try { needed = !!requireAccount().needsEmailVerification?.(user); } catch {}
+  let sendFailed = false;
+  try {
+    needed = !!requireAccount().needsEmailVerification?.(user);
+    sendFailed = !!requireAccount().verificationSendFailed?.();
+  } catch {}
   verifyNotice?.classList.toggle("hidden", !needed);
-  if (!needed && verifyNoticeText) verifyNoticeText.textContent = VERIFY_TEXT;
+  if (verifyNoticeText && (!needed || sendFailed)) verifyNoticeText.textContent = needed && sendFailed ? VERIFY_NOT_SENT_TEXT : VERIFY_TEXT;
 }
 
 async function checkVerification({ quiet = false } = {}) {
@@ -228,7 +233,9 @@ async function withBusy<T>(button: HTMLButtonElement | null, busyText: string, t
 /* ---------- Errors ---------- */
 
 function friendlyAuthError(err: any): string {
-  const code = err?.code || "";
+  // The passkey server's codes arrive as "functions/<code>".
+  const code = String(err?.code || "").replace(/^functions\//, "");
+  if (code === "internal") return "Something went wrong on our side. Try again in a minute.";
   // Errors from the browser's passkey prompt.
   if (err?.name === "NotAllowedError" || err?.name === "AbortError") return "The passkey prompt was cancelled or timed out. Try again.";
   if (err?.name === "InvalidStateError") return "This device already has a passkey for your account.";
@@ -495,6 +502,10 @@ async function renderSignedIn(user: any) {
   if (firstNameInput) firstNameInput.value = String(profile?.firstName || "");
   if (lastNameInput) lastNameInput.value = String(profile?.lastName || "");
   if (phoneInput) phoneInput.value = String(profile?.phone || "");
+  // What each field held when it was filled in, so a save sends only what was edited here.
+  for (const input of [playerNameInput, firstNameInput, lastNameInput, phoneInput]) {
+    if (input) input.dataset.loaded = input.value.trim();
+  }
   if (usernameLockedInput) {
     usernameLockedInput.value = username;
     usernameLockedInput.readOnly = !!username;
@@ -901,9 +912,21 @@ signInFormPanel?.addEventListener("submit", async (event) => {
   }
 });
 
+// True from the first click until the attempt ends. The button is only disabled after the
+// username lookup, so without this a double click would start two sign-ups.
+let signingUp = false;
 signUpFormPanel?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (signupBtn?.disabled) return;
+  if (signupBtn?.disabled || signingUp) return;
+  signingUp = true;
+  try {
+    await submitSignUp();
+  } finally {
+    signingUp = false;
+  }
+});
+
+async function submitSignUp() {
   setAuthError("");
   const fieldsOk = signupFields.map((input) => validateField(input)).every(Boolean);
   const usernameOk = await checkUsername();
@@ -956,7 +979,7 @@ signUpFormPanel?.addEventListener("submit", async (event) => {
     }
     setAuthError(friendlyAuthError(err));
   }
-});
+}
 
 // Photos are cropped to a square and shrunk to a small JPEG here, so any camera photo fits in
 // the profile document, then saved straight away.
@@ -1023,9 +1046,26 @@ photoUploadInput?.addEventListener("change", async () => {
   }
 });
 
+let savingProfile = false;
 signedInPanel?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (saveProfileBtn?.disabled) return;
+  if (saveProfileBtn?.disabled || savingProfile) return;
+  savingProfile = true;
+  try {
+    await submitProfile();
+  } finally {
+    savingProfile = false;
+  }
+});
+
+// The typed value if it differs from what the form was loaded with, otherwise undefined (not sent).
+function edited(input: HTMLInputElement | null): string | undefined {
+  if (!input) return undefined;
+  const value = String(input.value || "").trim();
+  return value === (input.dataset.loaded ?? "") ? undefined : value;
+}
+
+async function submitProfile() {
   setAccountError("");
   setAccountStatus("");
   const playerName = String(playerNameInput?.value || "").trim();
@@ -1049,10 +1089,10 @@ signedInPanel?.addEventListener("submit", async (event) => {
   try {
     const next: any = await withBusy(saveProfileBtn, "Saving…", () => requireAccount().updateAccountProfile?.({
       username: typedUsername || usernameLockedInput?.value || undefined,
-      playerName,
-      firstName: String(firstNameInput?.value || "").trim(),
-      lastName: String(lastNameInput?.value || "").trim(),
-      phone: String(phoneInput?.value || "").trim(),
+      playerName: edited(playerNameInput),
+      firstName: edited(firstNameInput),
+      lastName: edited(lastNameInput),
+      phone: edited(phoneInput),
       photoURL: pendingPhotoData || undefined
     }));
     pendingPhotoData = "";
@@ -1066,7 +1106,7 @@ signedInPanel?.addEventListener("submit", async (event) => {
   } catch (err: any) {
     setAccountError(`Profile not saved. ${friendlyAuthError(err)}`);
   }
-});
+}
 
 verifyResendBtn?.addEventListener("click", async () => {
   try {

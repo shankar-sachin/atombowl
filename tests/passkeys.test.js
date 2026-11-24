@@ -61,13 +61,16 @@ function fakeDb() {
     update: async (value) => { data.set(`${col}/${id}`, { ...data.get(`${col}/${id}`), ...value }); },
     delete: async () => { data.delete(`${col}/${id}`); }
   });
+  const query = (col, test, max = Infinity) => ({
+    limit: (n) => query(col, test, n),
+    get: async () => ({ docs: [...data].filter(([k, v]) => k.startsWith(`${col}/`) && test(v)).slice(0, max).map(([k, v]) => ({ id: k.slice(col.length + 1), data: () => v })) })
+  });
   return {
     data,
+    runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, v) => r.set(v), delete: (r) => r.delete() }),
     collection: (col) => ({
       doc: (id) => ref(col, id),
-      where: (field, _op, value) => ({
-        get: async () => ({ docs: [...data].filter(([k, v]) => k.startsWith(`${col}/`) && v[field] === value).map(([k, v]) => ({ id: k.slice(col.length + 1), data: () => v })) })
-      })
+      where: (field, op, value) => query(col, (v) => (op === '<' ? v[field] < value : v[field] === value))
     })
   };
 }
@@ -202,4 +205,20 @@ test('junk input is rejected cleanly', async () => {
   await assert.rejects(t.act('nope', {}, t.user()), (e) => e.code === 'invalid-argument');
   await assert.rejects(t.act('login-verify', { response: { id: 'x', response: { clientDataJSON: 'not-json' } } }), (e) => e.code === 'invalid-argument');
   await assert.rejects(t.act('login-verify', {}), (e) => e.code === 'invalid-argument');
+});
+
+test('unanswered challenges are cleared once they expire, and a mismatched request leaves a live one alone', async () => {
+  const t = await setup();
+  const count = () => [...t.db.data.keys()].filter((k) => k.startsWith('passkeyChallenges/')).length;
+  for (let i = 0; i < 5; i += 1) await t.act('login-options', {});
+  assert.equal(count(), 5);
+  t.tick(6 * 60 * 1000);
+  await t.act('login-options', {});
+  assert.equal(count(), 1);
+
+  // A registration response that names a login challenge is refused, and the login challenge survives.
+  const { options } = await t.act('login-options', {});
+  const clientDataJSON = Buffer.from(JSON.stringify({ challenge: options.challenge })).toString('base64url');
+  await assert.rejects(t.act('register-verify', { response: { response: { clientDataJSON } } }, t.user()), (e) => e.code === 'permission-denied');
+  assert.ok(t.db.data.has(`passkeyChallenges/${options.challenge}`));
 });

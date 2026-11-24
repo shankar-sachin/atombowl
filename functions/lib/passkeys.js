@@ -16,6 +16,7 @@ import { AiError } from "./service.js";
 
 export const MAX_PASSKEYS = 10;
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const SWEEP_BATCH = 20;
 const RP_NAME = "Atom Bowl";
 
 const b64u = {
@@ -42,6 +43,16 @@ export function createPasskeyService({ config, getDb, createToken, lib = default
 
   async function saveChallenge(db, challenge, fields) {
     await challenges(db).doc(challenge).set({ ...fields, expiresAt: now() + CHALLENGE_TTL_MS });
+    await sweepChallenges(db);
+  }
+
+  // Most challenges are never answered, so each new one clears a few expired ones. That keeps the
+  // collection small without a scheduled job. Best effort: a failure here never blocks sign-in.
+  async function sweepChallenges(db) {
+    try {
+      const old = await challenges(db).where("expiresAt", "<", now()).limit(SWEEP_BATCH).get();
+      await Promise.all(old.docs.map((doc) => challenges(db).doc(doc.id).delete()));
+    } catch { /* ignored */ }
   }
 
   // The challenge is inside the browser's clientDataJSON. Read it, and consume the stored copy so
@@ -57,12 +68,19 @@ export function createPasskeyService({ config, getDb, createToken, lib = default
       throw new AiError("invalid-argument", "That passkey response is not valid.");
     }
     const ref = challenges(db).doc(challenge);
-    const snap = await ref.get();
-    const doc = snap.exists ? snap.data() : null;
-    if (doc) await ref.delete();
-    if (!doc || doc.type !== type || doc.origin !== origin || doc.uid !== uid || doc.expiresAt < now()) {
-      throw new AiError("permission-denied", "That passkey request expired. Try again.");
-    }
+    // Read and delete in one transaction, so two copies of the same response can't both pass.
+    // A request that doesn't match (wrong type, account or site) leaves the challenge alone:
+    // it must not be able to cancel someone else's sign-in.
+    const ok = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const doc = snap.exists ? snap.data() : null;
+      if (!doc) return false;
+      const expired = doc.expiresAt < now();
+      const mine = doc.type === type && doc.origin === origin && doc.uid === uid;
+      if (mine || expired) tx.delete(ref);
+      return mine && !expired;
+    });
+    if (!ok) throw new AiError("permission-denied", "That passkey request expired. Try again.");
     return challenge;
   }
 

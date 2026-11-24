@@ -2,9 +2,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    // A username is chosen once. The page already refuses to change it; this makes the rule match,
+    // so a modified client can't swap names or collect several.
+    function usernameKept() {
+      let before = resource.data.get('profile', {}).get('username', '');
+      return before == '' || before == null
+        || request.resource.data.get('profile', {}).get('username', '') == before;
+    }
     match /users/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-      match /{document=**} {
+      allow read, create, delete: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn() && request.auth.uid == uid && usernameKept();
+      // Everything under the account. Starts one level down: a bare {document=**} also matches
+      // the account document itself, which would bypass the username rule above.
+      match /{collection}/{document=**} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
     }

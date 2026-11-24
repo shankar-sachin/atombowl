@@ -157,6 +157,10 @@ test('private accounts are owner-only and username reservation atomically create
  batch.set(user, { profile: { username: 'player1', email: 'test@example.com' } });
  batch.set(name, { uid: 'account', username: 'player1' });
  await assertSucceeds(batch.commit());
+ // A username is fixed once set: other profile fields can change, the username cannot.
+ await assertSucceeds(sdk.setDoc(user, { profile: { phone: '555' } }, { merge: true }));
+ await assertFails(sdk.setDoc(user, { profile: { username: 'someoneelse' } }, { merge: true }));
+ await assertFails(sdk.setDoc(user, { settings: {} }));
  const publicDB = env.unauthenticatedContext().firestore();
  await assertSucceeds(sdk.getDoc(sdk.doc(publicDB, 'usernames', 'player1')));
  await assertFails(sdk.getDoc(sdk.doc(publicDB, 'users', 'account')));
