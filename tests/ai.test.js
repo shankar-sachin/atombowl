@@ -229,3 +229,42 @@ test('email/password accounts must confirm their email before using credits', as
   const google = { uid: 'g', token: { email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
   await assert.rejects(service.handle({ action: 'status' }, google), /should not reach the database/);
 });
+
+test('a second opinion on a practice answer uses the small model at low effort, costs no credits and has its own daily cap', async () => {
+  const { createAiService } = await lib('service');
+  const { gradeJob } = await lib('prompts');
+  const docs = new Map();
+  const ref = (path) => ({ path, get: async () => ({ data: () => docs.get(path) }) });
+  const db = { doc: ref, runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, value) => docs.set(r.path, value) }) };
+  const calls = [];
+  let reply = '{"correct": true}';
+  const service = createAiService({
+    config: () => ({ provider: 'anthropic', model: 'big', followUpModel: 'small', thinkingModel: 'deep', apiKey: 'k', dailyCredits: 10, dailyChecks: 2 }),
+    getDb: () => ({ db, serverTimestamp: () => 'now' }),
+    logger: { warn() {} },
+    completeImpl: async (args) => { calls.push(args); if (reply instanceof Error) throw reply; return reply; }
+  });
+  const user = { uid: 'u1', token: { email_verified: true, firebase: { sign_in_provider: 'google.com' } } };
+  const ask = { action: 'grade', question: 'What is NaCl commonly called?', officialAnswer: 'TABLE SALT (ACCEPT: SALT)', answer: 'sodium chloride' };
+
+  const yes = await service.handle(ask, user);
+  assert.equal(yes.correct, true);
+  assert.equal(yes.checks.remaining, 1);
+  assert.deepEqual([calls[0].model, calls[0].reasoning, calls[0].json], ['small', 'low', true]);
+  assert.match(calls[0].messages[0].text, /<student_answer>\nsodium chloride\n<\/student_answer>/);
+  assert.equal(docs.get('aiUsage/u1'), undefined);
+
+  // A failed call gives the check back.
+  reply = new Error('boom');
+  await assert.rejects(service.handle(ask, user), (e) => e.code === 'unavailable');
+  assert.equal(docs.get('aiGrades/u1').used, 1);
+
+  reply = 'Sure! {"correct": false}';
+  assert.equal((await service.handle(ask, user)).correct, false);
+  await assert.rejects(service.handle(ask, user), (e) => e.code === 'resource-exhausted');
+
+  await assert.rejects(service.handle({ ...ask, answer: '  ' }, { ...user, uid: 'u2' }), (e) => e.code === 'invalid-argument');
+  await assert.rejects(service.handle(ask, { uid: 'g', token: { firebase: { sign_in_provider: 'anonymous' } } }), (e) => e.code === 'permission-denied');
+  assert.throws(() => gradeJob({ officialAnswer: 'x', answer: 'y' }).parse('I cannot tell'), /no verdict/);
+  assert.equal(gradeJob({ officialAnswer: 'x'.repeat(5000), answer: 'y'.repeat(5000) }).messages[0].text.length < 1100, true);
+});

@@ -2,7 +2,7 @@
 // Firebase callable (index.js, local emulators). It checks the caller is a signed-in (not
 // anonymous) user, charges daily credits in aiUsage/{uid}, calls the configured model and
 // refunds the credits if that call fails. Errors are AiErrors with callable error codes.
-import { buildJob } from "./prompts.js";
+import { buildJob, gradeJob } from "./prompts.js";
 import { creditState, charge, refund } from "./credits.js";
 import { complete, checkModel } from "./providers.js";
 
@@ -18,6 +18,8 @@ export class AiError extends Error {
 // the provider traffic. A check is shared for 30 s per instance: the status page (which polls every
 // 10 s) stays close to live, and a loop of calls costs three provider requests per half minute.
 const HEALTH_TTL_MS = 30 * 1000;
+// Second-opinion checks per user per day when the config sets none.
+const DEFAULT_DAILY_CHECKS = 200;
 
 // config() returns { provider, model, followUpModel, thinkingModel, apiKey, dailyCredits }; getDb() returns
 // { db, serverTimestamp } and is only called for signed-in actions, so health works without it.
@@ -76,6 +78,43 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
     if (action === "status") {
       const snap = await usageRef.get();
       return { credits: creditState(snap.data(), limit) };
+    }
+
+    // A second opinion on a practice answer. It costs no credits, so it has its own daily count
+    // (aiGrades/{uid}, same shape as aiUsage) to keep a runaway page or a script from running up a bill.
+    if (action === "grade") {
+      let job;
+      try {
+        job = gradeJob(data);
+      } catch (err) {
+        throw new AiError("invalid-argument", err.message);
+      }
+      const configured = config().dailyChecks;
+      const checksLimit = Number.isInteger(configured) && configured >= 0 ? configured : DEFAULT_DAILY_CHECKS;
+      const checksRef = db.doc(`aiGrades/${auth.uid}`);
+      const checks = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(checksRef);
+        const result = charge(snap.data(), 1, checksLimit);
+        if (!result.ok) throw new AiError("resource-exhausted", "No second-opinion checks left today.", { checks: result.state });
+        tx.set(checksRef, { ...result.next, updatedAt: serverTimestamp() });
+        return result.state;
+      });
+      try {
+        const text = await completeImpl({
+          provider, model: followUpModel || model, apiKey, system: job.system, messages: job.messages,
+          json: job.json, maxTokens: job.maxTokens, temperature: job.temperature, reasoning: job.reasoning
+        });
+        return { ...job.parse(text), checks };
+      } catch (err) {
+        logger.warn("ai grade failed", { uid: auth.uid, error: err?.message, status: err?.status });
+        // The check was not used: give it back, best effort.
+        await db.runTransaction(async (tx) => {
+          const snap = await tx.get(checksRef);
+          const next = refund(snap.data(), 1);
+          if (next) tx.set(checksRef, { ...next, updatedAt: serverTimestamp() });
+        }).catch(() => {});
+        throw new AiError("unavailable", "The second opinion is not available right now.");
+      }
     }
 
     let job;

@@ -15,6 +15,7 @@
         mode: 'rapid',
         rememberTopics: false,
         autoCheck: true,
+        aiCheck: true,
         autoThreshold: 0.72,
         externalAi: 'claude',
         searchEngine: 'auto',
@@ -73,6 +74,7 @@
     const animToggle = $('animToggle');
     const rememberTopicsToggle = $('rememberTopicsToggle');
     const autoCheckToggle = $('autoCheckToggle');
+    const aiCheckToggle = $('aiCheckToggle');
     const autoThreshold = $('autoThreshold');
     const autoThresholdValue = $('autoThresholdValue');
     const voiceSelect = $('voiceSelect');
@@ -93,7 +95,7 @@
     const themeSelect = $('themeSelect');
     const toast = $('toast');
     const resetBtn = $('reset');
-    const toggles = [sfxToggle, ttsToggle, hcToggle, animToggle, rememberTopicsToggle, autoCheckToggle];
+    const toggles = [sfxToggle, ttsToggle, hcToggle, animToggle, rememberTopicsToggle, autoCheckToggle, aiCheckToggle];
     swatches.forEach((sw) => sw.style.setProperty('--swatch', sw.dataset.value || DEFAULT_ACCENT));
     let toastTimer = 0;
     function showToast(msg, icon = 'check') {
@@ -146,6 +148,7 @@
         setToggle(animToggle, s.animations);
         setToggle(rememberTopicsToggle, s.rememberTopics);
         setToggle(autoCheckToggle, s.autoCheck);
+        setToggle(aiCheckToggle, s.aiCheck !== false);
         autoThreshold.value = String((_d = s.autoThreshold) !== null && _d !== void 0 ? _d : 0.72);
         externalAiSelect.value = ['claude', 'chatgpt', 'gemini'].includes(s.externalAi) ? s.externalAi : 'claude';
         searchEngineSelect.value = ['auto', 'google', 'bing', 'duckduckgo', 'brave'].includes(s.searchEngine) ? s.searchEngine : 'auto';
@@ -171,6 +174,7 @@
             mode: modeSelect.value,
             rememberTopics: readToggle(rememberTopicsToggle),
             autoCheck: readToggle(autoCheckToggle),
+            aiCheck: readToggle(aiCheckToggle),
             autoThreshold: Number(autoThreshold.value),
             externalAi: externalAiSelect.value,
             searchEngine: searchEngineSelect.value,
