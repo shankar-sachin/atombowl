@@ -28,6 +28,7 @@ import {
   serverTimestamp,
   increment,
   arrayUnion,
+  arrayRemove,
   runTransaction
 } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
@@ -385,10 +386,20 @@ async function loadLearnProgress(): Promise<string[] | null> {
 
 async function saveLearnProgress(completedLessons: string[]) {
   await whenReady();
-  if (!currentUser?.uid) return;
+  if (!currentUser?.uid || !completedLessons.length) return;
   const ref = learnProgressRef(currentUser.uid);
   await trackedWrite("lesson progress", () => setDoc(ref, {
     completedLessons: arrayUnion(...completedLessons), updatedAt: serverTimestamp()
+  }, { merge: true }));
+}
+
+// Un-marking a lesson: saving only adds ids, so removals are their own write.
+async function removeLearnProgress(lessons: string[]) {
+  await whenReady();
+  if (!currentUser?.uid || !lessons.length) return;
+  const ref = learnProgressRef(currentUser.uid);
+  await trackedWrite("lesson progress", () => setDoc(ref, {
+    completedLessons: arrayRemove(...lessons), updatedAt: serverTimestamp()
   }, { merge: true }));
 }
 
@@ -465,6 +476,7 @@ async function sendVerification(user = auth.currentUser) {
   if (!user) throw new Error("Sign in first.");
   const settings = typeof location === "undefined" ? undefined : { url: new URL("/account?verified=1", location.href).href };
   await sendEmailVerification(user, settings);
+  verificationSendFailed = false;
 }
 
 // After the link is clicked: reload the user and refresh the ID token so the server sees
@@ -534,7 +546,7 @@ async function signUpWithEmail(email: string, password: string, displayName = ""
     if (displayName) {
       await updateProfile(res.user, { displayName });
     }
-    await sendVerification(res.user).catch((err) => console.warn("Atom Bowl: verification email failed", err));
+    await sendFirstVerification(res.user);
     return res.user;
   }
 
@@ -542,8 +554,21 @@ async function signUpWithEmail(email: string, password: string, displayName = ""
   if (displayName) {
     await updateProfile(res.user, { displayName });
   }
-  await sendVerification(res.user).catch((err) => console.warn("Atom Bowl: verification email failed", err));
+  await sendFirstVerification(res.user);
   return res.user;
+}
+
+// The account exists even if the confirmation email could not be sent, so sign-up still succeeds.
+// The page reads this flag to say so instead of claiming a link is on its way.
+let verificationSendFailed = false;
+async function sendFirstVerification(user: any) {
+  try {
+    await sendVerification(user);
+    verificationSendFailed = false;
+  } catch (err) {
+    verificationSendFailed = true;
+    console.warn("Atom Bowl: verification email failed", err);
+  }
 }
 
 async function signUpWithDetails(details: {
@@ -646,15 +671,15 @@ async function updateAccountProfile(patch: {
   if (patch?.photoURL && patch.photoURL.length > 400000) throw new Error("Profile image is too large. Choose an image under 250 KB.");
   const user = currentUser;
   const prev = currentProfile || (await loadUserProfile(user.uid)) || {};
-  const next = {
-    ...prev,
-    playerName: patch?.playerName != null ? String(patch.playerName).trim() : (prev.playerName || ""),
-    displayName: patch?.playerName != null ? String(patch.playerName).trim() : (prev.displayName || ""),
-    firstName: patch?.firstName != null ? String(patch.firstName).trim() : (prev.firstName || ""),
-    lastName: patch?.lastName != null ? String(patch.lastName).trim() : (prev.lastName || ""),
-    phone: patch?.phone != null ? String(patch.phone).trim() : (prev.phone || ""),
-    photoURL: patch?.photoURL != null ? String(patch.photoURL).trim() : (prev.photoURL || "")
-  };
+  // Only the fields being changed. They are laid over the profile as it is in the account right
+  // now (read inside the transaction), so a page that has been open a while can't put back old
+  // values for fields edited on another tab or device.
+  const changes: Record<string, string> = {};
+  if (patch?.playerName != null) changes.playerName = changes.displayName = String(patch.playerName).trim();
+  for (const field of ["firstName", "lastName", "phone", "photoURL"]) {
+    if (patch?.[field] != null) changes[field] = String(patch[field]).trim();
+  }
+  let next: any = { ...prev, ...changes };
   const username = patch.username ? sanitizeUsername(patch.username) : prev.username;
   if (patch.username && !username) throw new Error("Usernames are 3 to 20 lowercase letters or numbers.");
   if (prev.username && username !== prev.username) throw new Error("Your username cannot be changed.");
@@ -664,6 +689,8 @@ async function updateAccountProfile(patch: {
     if (existing.data()?.profile?.username && existing.data().profile.username !== username) {
       throw new Error("Your profile changed. Reload before saving.");
     }
+    next = { ...prev, ...(existing.data()?.profile || {}), ...changes };
+    for (const field of ["playerName", "displayName", "firstName", "lastName", "phone", "photoURL"]) next[field] = next[field] || "";
     if (username && !prev.username) {
       const nameRef = usernameRef(username);
       const name = await tx.get(nameRef);
@@ -795,5 +822,7 @@ window.atomAccount = {
   getLocalName,
   setLocalName,
   loadLearnProgress,
-  saveLearnProgress
+  saveLearnProgress,
+  removeLearnProgress,
+  verificationSendFailed: () => verificationSendFailed
 };

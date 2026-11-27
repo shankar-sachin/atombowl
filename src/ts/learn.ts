@@ -116,6 +116,30 @@ function saveLocalProgress() {
   } catch {}
 }
 
+// Lessons un-marked on this device that the account has not been told about yet (offline, or
+// a failed write). Kept so the next sync removes them instead of bringing them back.
+const REMOVED_KEY = "atom_learn_removed_v1";
+function loadRemoved(): string[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REMOVED_KEY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function saveRemoved(ids: string[]) {
+  try { localStorage.setItem(REMOVED_KEY, JSON.stringify([...new Set(ids)])); } catch {}
+}
+async function pushRemovals() {
+  const ids = loadRemoved().filter((id) => !completedLessons.has(id));
+  if (!ids.length) return saveRemoved([]);
+  if (!account?.getUser?.() || !account.removeLearnProgress) return;
+  try {
+    await account.removeLearnProgress(ids);
+    saveRemoved(loadRemoved().filter((id) => !ids.includes(id)));
+  } catch {}
+}
+
 // Merge remote progress into local. Only writes to Firestore when local has ids the account lacks.
 async function syncProgress() {
   const user = account?.getUser?.();
@@ -123,7 +147,10 @@ async function syncProgress() {
   try {
     const remote = await account.loadLearnProgress();
     if (account.getUser?.() !== user) return;
-    const remoteSet = new Set<string>(Array.isArray(remote) ? remote : []);
+    // Anything un-marked here but not yet removed from the account stays un-marked.
+    const removed = new Set(loadRemoved());
+    const remoteSet = new Set<string>((Array.isArray(remote) ? remote : []).filter((id) => !removed.has(id)));
+    if (removed.size) void pushRemovals();
     let localChanged = false;
     remoteSet.forEach((id) => {
       if (!completedLessons.has(id)) {
@@ -534,11 +561,17 @@ completeBtn.addEventListener("click", async () => {
   updateCompleteUI();
   updateProgressUI();
 
-  // The account store only adds ids (arrayUnion), so un-marking stays local.
-  if (nowDone && account?.getUser?.() && account.saveLearnProgress) {
-    try {
-      await account.saveLearnProgress([...completedLessons]);
-    } catch {}
+  if (nowDone) {
+    saveRemoved(loadRemoved().filter((id) => id !== currentLessonId));
+    if (account?.getUser?.() && account.saveLearnProgress) {
+      try {
+        await account.saveLearnProgress([...completedLessons]);
+      } catch {}
+    }
+  } else {
+    // Saving only adds lessons, so a removal is its own write. It is remembered until it lands.
+    saveRemoved([...loadRemoved(), currentLessonId]);
+    await pushRemovals();
   }
 });
 
