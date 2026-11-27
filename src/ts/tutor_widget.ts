@@ -50,7 +50,7 @@ function load() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null");
     if (saved && Array.isArray(saved.messages)) {
-      return { id: saved.id || null, messages: saved.messages.slice(-30), context: saved.context || null, thinking: saved.thinking === true };
+      return { id: saved.id || null, messages: saved.messages.slice(-30), context: saved.context || null, thinking: saved.thinking === true, owner: typeof saved.owner === "string" ? saved.owner : "" };
     }
   } catch {}
   return { id: null, messages: [], context: null, thinking: false };
@@ -58,6 +58,8 @@ function load() {
 
 function save() {
   recordChat();
+  // The open chat belongs to whoever is signed in, so it never follows the tab to another account.
+  if (uid && state.messages.length) state.owner = uid;
   try { sessionStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch {}
 }
 
@@ -78,7 +80,12 @@ function loadHistory() {
 
 function saveHistory() {
   if (!uid) return;
-  try { localStorage.setItem(`${HISTORY_KEY}:${uid}`, JSON.stringify(history)); } catch {}
+  try {
+    localStorage.setItem(`${HISTORY_KEY}:${uid}`, JSON.stringify(history));
+  } catch {
+    // Storage is full: keep the newest half on this device rather than silently saving nothing.
+    try { localStorage.setItem(`${HISTORY_KEY}:${uid}`, JSON.stringify(history.slice(0, Math.max(1, Math.ceil(history.length / 2))))); } catch {}
+  }
 }
 
 function chatTitle(messages) {
@@ -89,21 +96,21 @@ function chatTitle(messages) {
 
 // Keeps the saved copy of the current chat in step with it. A chat that has no messages left
 // (the first question failed) is removed again.
-function recordChat() {
+function recordChat(chat = state) {
   if (!uid) return;
-  if (!state.messages.length) {
-    if (state.id && history.some((c) => c.id === state.id)) {
-      history = history.filter((c) => c.id !== state.id);
+  if (!chat.messages.length) {
+    if (chat.id && history.some((c) => c.id === chat.id)) {
+      history = history.filter((c) => c.id !== chat.id);
       saveHistory();
       renderHistory();
     }
     return;
   }
-  if (!state.id) state.id = newId();
-  const existing = history.find((c) => c.id === state.id);
-  const messages = cleanChat({ id: state.id, messages: state.messages })?.messages || [];
+  if (!chat.id) chat.id = newId();
+  const existing = history.find((c) => c.id === chat.id);
+  const messages = cleanChat({ id: chat.id, messages: chat.messages })?.messages || [];
   if (existing && JSON.stringify(existing.messages) === JSON.stringify(messages)) return;
-  const entry = { id: state.id, title: existing?.title || chatTitle(messages), updated: Date.now(), messages, context: state.context };
+  const entry = { id: chat.id, title: existing?.title || chatTitle(messages), updated: Date.now(), messages, context: chat.context };
   const all = [entry, ...history.filter((c) => c.id !== entry.id)];
   history = all.slice(0, MAX_CHATS);
   all.slice(MAX_CHATS).forEach((c) => removeRemote(c.id));
@@ -140,8 +147,19 @@ async function pushRemote(chat) {
   try {
     await (await syncModule()).pushChat(forUid, chat);
     if (uid === forUid) markSynced(chat.id);
-  } catch {}
+  } catch {
+    // Not saved to the account yet: tried again when the connection comes back.
+    if (uid === forUid) markSynced(chat.id, false);
+  }
 }
+
+// Chats that never reached the account (offline, or a failed write) are sent again.
+function pushUnsynced() {
+  if (!uid) return;
+  const synced = new Set(loadSynced());
+  history.filter((c) => !synced.has(c.id)).forEach(pushRemote);
+}
+window.addEventListener("online", pushUnsynced);
 
 async function removeRemote(id) {
   const forUid = uid;
@@ -615,7 +633,11 @@ async function answerQuiz(ref, value) {
   if (!target || target.message.quiz?.ok?.[target.key] !== undefined) return;
   const v = String(value || "").trim();
   if (!v) return;
-  if (target.question.kind === "sa") await loadGrader();
+  if (target.question.kind === "sa") {
+    await loadGrader();
+    // The chat may have been switched while the grader loaded.
+    if (quizTarget(ref)?.message !== target.message) return;
+  }
   const progress = target.message.quiz || { a: {}, ok: {} };
   progress.a[target.key] = v.slice(0, 300);
   progress.ok[target.key] = gradeQuestion(target.question, v, window.autoChecker?.grade);
@@ -712,7 +734,9 @@ async function send(raw) {
   if (!text || busy || !signedIn) return;
   els.error.textContent = "";
   notice = "";
-  state.messages.push({ role: "user", text });
+  // The reply belongs to this chat even if another one is opened before it arrives.
+  const chat = state;
+  chat.messages.push({ role: "user", text });
   els.input.value = "";
   autosize();
   busy = true;
@@ -720,18 +744,27 @@ async function send(raw) {
   render();
   try {
     const { aiClient: client } = await aiClient();
-    const result = await client.tutor(state.messages.slice(-12), state.context, !!state.thinking);
-    state.messages.push({ role: "assistant", text: result.reply });
+    const result = await client.tutor(chat.messages.slice(-12), chat.context, !!chat.thinking);
+    chat.messages.push({ role: "assistant", text: result.reply });
   } catch (err) {
     // Put the question back so it can be sent again.
-    state.messages.pop();
-    els.input.value = text;
-    autosize();
+    chat.messages.pop();
+    if (state === chat) {
+      els.input.value = text;
+      autosize();
+    }
     if (err.html) notice = err.html;
     else els.error.textContent = err.message;
   } finally {
     busy = false;
-    save();
+    if (state === chat) {
+      save();
+    } else {
+      // Another chat is open now: file the reply under the chat it was asked in.
+      recordChat(chat);
+      if (state.id && state.id === chat.id) state.messages = JSON.parse(JSON.stringify(chat.messages));
+      save();
+    }
     render();
     els.input.focus();
   }
@@ -774,7 +807,13 @@ export function mount(options: { launcher?: boolean; container?: HTMLElement } =
     authKnown = !!account.isReady?.() || !!user;
     signedIn = !!user;
     uid = user?.uid || "";
+    // A chat left in this tab by another account (or by an account that signed out) is not ours.
+    if (authKnown && state.owner && state.owner !== uid) {
+      state = { id: null, messages: [], context: null, thinking: false, owner: "" };
+      try { sessionStorage.removeItem(STORE_KEY); } catch {}
+    }
     loadHistory();
+    pushUnsynced();
     if (embedded) { if (uid) startSync(); else stopSync(); }
     if (signedIn) recordChat();
     if (!signedIn) creditsRequested = false;

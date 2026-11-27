@@ -21,6 +21,12 @@ function adminApp() {
   return initializeApp({ credential: cert(JSON.parse(raw)), projectId: PROJECT_ID });
 }
 
+// 0 is a real setting (no credits at all), so only a missing or unreadable value falls back to 30.
+function dailyCredits() {
+  const n = parseInt(process.env.AI_DAILY_CREDITS ?? "", 10);
+  return Number.isInteger(n) && n >= 0 ? n : 30;
+}
+
 const service = createAiService({
   config: () => ({
     provider: process.env.AI_PROVIDER || "anthropic",
@@ -28,7 +34,7 @@ const service = createAiService({
     followUpModel: process.env.AI_FOLLOWUP_MODEL ?? "claude-haiku-5-5",
     thinkingModel: process.env.AI_THINKING_MODEL ?? "claude-opus-5-5",
     apiKey: process.env.AI_API_KEY || "",
-    dailyCredits: parseInt(process.env.AI_DAILY_CREDITS || "30", 10) || 30
+    dailyCredits: dailyCredits()
   }),
   getDb: () => ({ db: getFirestore(adminApp()), serverTimestamp: () => FieldValue.serverTimestamp() })
 });

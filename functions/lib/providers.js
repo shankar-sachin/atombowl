@@ -6,6 +6,20 @@ export const DEFAULT_MODELS = {
   groq: "openai/gpt-oss-120b"
 };
 
+// The host stops a function at 60 seconds (functions/vercel.json). Stop the model call well before
+// that, so the caller's catch still runs and can return the credits it charged.
+const CALL_TIMEOUT_MS = 50 * 1000;
+const CHECK_TIMEOUT_MS = 8 * 1000;
+const callSignal = () => AbortSignal.timeout(CALL_TIMEOUT_MS);
+
+// A reply that ran out of room. JSON would not parse, so that is an error; prose is still useful,
+// so it is returned with a line saying it was cut short.
+const CUT_SHORT = "\n\n*This answer was cut short. Ask me to continue.*";
+function finishCut(text, json) {
+  if (json) throw new ProviderError("the reply was cut off before it finished", 502);
+  return text ? text + CUT_SHORT : text;
+}
+
 export class ProviderError extends Error {
   constructor(message, status) {
     super(message);
@@ -30,6 +44,7 @@ async function callGemini({ model, apiKey, system, messages, json, maxTokens, te
   const res = await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    signal: callSignal(),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.text }] })),
@@ -39,7 +54,8 @@ async function callGemini({ model, apiKey, system, messages, json, maxTokens, te
   const body = await readJson(res);
   const candidate = body?.candidates?.[0];
   if (!candidate) throw new ProviderError(`blocked: ${body?.promptFeedback?.blockReason || "no candidates"}`, 400);
-  return (candidate.content?.parts || []).map((p) => p.text || "").join("");
+  const text = (candidate.content?.parts || []).map((p) => p.text || "").join("");
+  return candidate.finishReason === "MAX_TOKENS" ? finishCut(text, json) : text;
 }
 
 async function callGroq({ model, apiKey, system, messages, json, maxTokens, temperature, reasoning, fetchImpl }) {
@@ -54,10 +70,12 @@ async function callGroq({ model, apiKey, system, messages, json, maxTokens, temp
   const res = await fetchImpl("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+    signal: callSignal(),
     body: JSON.stringify(payload)
   });
   const body = await readJson(res);
-  return body?.choices?.[0]?.message?.content || "";
+  const text = body?.choices?.[0]?.message?.content || "";
+  return body?.choices?.[0]?.finish_reason === "length" ? finishCut(text, json) : text;
 }
 
 const ANTHROPIC_HEADERS = (apiKey) => ({ "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" });
@@ -65,11 +83,12 @@ const ANTHROPIC_HEADERS = (apiKey) => ({ "content-type": "application/json", "x-
 // Claude 5.x models reject temperature and budget_tokens and always think, so depth is set with
 // output_config.effort. Thinking tokens count against max_tokens, so leave room for them.
 // There is no JSON mode and no prefill: Generate's prompt asks for JSON and the parser strips fences.
-async function callAnthropic({ model, apiKey, system, messages, maxTokens, reasoning, fetchImpl }) {
+async function callAnthropic({ model, apiKey, system, messages, json, maxTokens, reasoning, fetchImpl }) {
   const high = reasoning === "high";
   const res = await fetchImpl("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: ANTHROPIC_HEADERS(apiKey),
+    signal: callSignal(),
     body: JSON.stringify({
       model,
       max_tokens: maxTokens + (high ? 8000 : 2000),
@@ -80,7 +99,9 @@ async function callAnthropic({ model, apiKey, system, messages, maxTokens, reaso
   });
   const body = await readJson(res);
   if (body?.stop_reason === "refusal") throw new ProviderError("refused", 400);
-  return (body?.content || []).filter((b) => b.type === "text").map((b) => b.text || "").join("");
+  const text = (body?.content || []).filter((b) => b.type === "text").map((b) => b.text || "").join("");
+  // Thinking shares the max_tokens budget, so a long answer can stop mid-sentence.
+  return body?.stop_reason === "max_tokens" ? finishCut(text, json) : text;
 }
 
 function providerName(provider) {
@@ -102,7 +123,7 @@ export async function checkModel({ provider, model, apiKey, fetchImpl = fetch })
   const id = model || DEFAULT_MODELS[name];
   try {
     if (name === "anthropic") {
-      await readJson(await fetchImpl(`https://api.anthropic.com/v1/models/${encodeURIComponent(id)}`, { headers: ANTHROPIC_HEADERS(apiKey) }));
+      await readJson(await fetchImpl(`https://api.anthropic.com/v1/models/${encodeURIComponent(id)}`, { headers: ANTHROPIC_HEADERS(apiKey), signal: AbortSignal.timeout(CHECK_TIMEOUT_MS) }));
       return { ok: true };
     }
     if (name === "groq") {

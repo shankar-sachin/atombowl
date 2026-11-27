@@ -14,9 +14,10 @@ export class AiError extends Error {
   }
 }
 
-// The public status page polls `health` every 10 s, so cache a check for 5 s: that keeps each
-// poll fresh while many open pages still share one provider check per instance.
-const HEALTH_TTL_MS = 5 * 1000;
+// `health` needs no sign-in and asks the provider about each model, so anyone could use it to send
+// the provider traffic. A check is shared for 30 s per instance: the status page (which polls every
+// 10 s) stays close to live, and a loop of calls costs three provider requests per half minute.
+const HEALTH_TTL_MS = 30 * 1000;
 
 // config() returns { provider, model, followUpModel, thinkingModel, apiKey, dailyCredits }; getDb() returns
 // { db, serverTimestamp } and is only called for signed-in actions, so health works without it.
@@ -95,12 +96,18 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
       return result.state;
     });
 
+    // `returned` is false when the refund itself failed, so the message never claims it worked.
+    let returned = true;
     const giveBack = (amount) => db.runTransaction(async (tx) => {
       const snap = await tx.get(usageRef);
       const next = refund(snap.data(), amount);
       if (next) tx.set(usageRef, { ...next, updatedAt: serverTimestamp() });
       return creditState(next || snap.data(), limit);
-    }).catch(() => credits);
+    }).catch((err) => {
+      returned = false;
+      logger.warn("ai refund failed", { action, uid: auth.uid, amount, error: err?.message });
+      return credits;
+    });
 
     try {
       const text = await completeImpl({
@@ -121,10 +128,14 @@ export function createAiService({ config, getDb, logger = console, completeImpl 
     } catch (err) {
       logger.warn("ai call failed", { action, uid: auth.uid, error: err?.message, status: err?.status });
       const restored = await giveBack(job.cost);
+      const about = returned ? "Your credits were not used." : "We couldn't return your credits just now. If they are still missing tomorrow, tell us.";
       if (err?.status === 429 || err?.status === 529) {
-        throw new AiError("resource-exhausted", "The SI service is busy right now. Wait a minute and try again. Your credits were not used.", { credits: restored });
+        throw new AiError("resource-exhausted", `The SI service is busy right now. Wait a minute and try again. ${about}`, { credits: restored });
       }
-      throw new AiError("unavailable", "The SI service didn't give a usable answer. Try again. Your credits were not used.", { credits: restored });
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        throw new AiError("unavailable", `The SI service took too long to answer. Try again. ${about}`, { credits: restored });
+      }
+      throw new AiError("unavailable", `The SI service didn't give a usable answer. Try again. ${about}`, { credits: restored });
     }
   }
 

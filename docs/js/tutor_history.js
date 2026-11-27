@@ -40,6 +40,11 @@ export function cleanChat(raw) {
 }
 // Merges the Firestore copy into the local list. `synced` is the set of ids last known to exist
 // in Firestore, which tells "never uploaded yet" apart from "deleted elsewhere".
+// True when `a` is `b` plus more messages: the same conversation, carried further.
+function continues(a, b) {
+    return a.messages.length > b.messages.length
+        && b.messages.every((m, i) => { var _a, _b; return ((_a = a.messages[i]) === null || _a === void 0 ? void 0 : _a.role) === m.role && ((_b = a.messages[i]) === null || _b === void 0 ? void 0 : _b.text) === m.text; });
+}
 export function mergeRemote(local, remote, synced) {
     const remoteById = new Map(remote.map((c) => [c.id, c]));
     const knew = new Set(synced);
@@ -48,7 +53,9 @@ export function mergeRemote(local, remote, synced) {
     for (const mine of local) {
         const theirs = remoteById.get(mine.id);
         if (theirs) {
-            if (mine.updated > theirs.updated) {
+            // Device clocks can disagree, so a copy that continues the other one wins whatever they say.
+            const mineWins = continues(mine, theirs) || (!continues(theirs, mine) && mine.updated > theirs.updated);
+            if (mineWins) {
                 merged.set(mine.id, mine);
                 upload.push(mine);
             }
