@@ -386,3 +386,11 @@ test('room codes and team display', () => {
   assert.equal(S.teamsShown(base()), true);
   assert.equal(S.teamsShown(base({ mode: 'basic', showTeams: false })), false);
 });
+
+test('basic timer: the length cannot be changed while it is running', () => {
+  let room = act(base({ mode: 'basic' }, { status: 'basic' }), 'timer_set', { seconds: 45 });
+  room = act(room, 'timer_start', {}, 2000);
+  assert.equal(actionReason(room, 'timer_set', { seconds: 30 }), 'Pause the timer first.');
+  room = act(room, 'timer_pause', { elapsedMs: 1000 }, 3000);
+  assert.equal(actionReason(room, 'timer_set', { seconds: 30 }), '');
+});

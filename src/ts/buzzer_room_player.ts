@@ -76,7 +76,14 @@ function myBuzzIdentity() {
 /** Why I cannot buzz (empty string when I can), using the same rules the server applies. */
 function reasonNow(room, now = Date.now()) {
   if (!member) return "Joining the room.";
-  return buzzReason(room, myBuzzIdentity(), now, anchorFor(room.timers?.phaseKey, room.timers?.phaseStartedAt));
+  const reason = buzzReason(room, myBuzzIdentity(), now, anchorFor(room.timers?.phaseKey, room.timers?.phaseStartedAt));
+  if (reason) return reason;
+  // Basic games: the host locks when its timer ends, but its tab may be asleep, so stop here too.
+  if (room.status === "basic" && room.settings?.timerLockOnEnd) {
+    const timer = timerOf(room);
+    if (timer.status === "running" && !timer.buzz && basicTimerLeft(room, now) <= 0) return "Time is up.";
+  }
+  return "";
 }
 
 const ORDINALS = ["first", "2nd", "3rd"];
@@ -331,8 +338,11 @@ async function buzz() {
     await sendBuzz(roomId, room, member, seenAt);
   } catch (err) {
     buzzSent = false;
+    // The server refuses a late buzz the same way as a second one, so say which it was.
+    const deadline = room.status === "basic" ? null : phaseDeadlineOf(snap || room);
+    const late = deadline != null && Date.now() >= deadline;
     els.buzzError.textContent = err?.code === "permission-denied"
-      ? (multiBuzz(room) ? "Your buzz did not count. The buzzers may be locked." : "Someone buzzed first.")
+      ? (multiBuzz(room) ? "Your buzz did not count. The buzzers may be locked." : late && !(snap || room).currentBuzz ? "Time is up." : "Someone buzzed first.")
       : (err?.message || "Your buzz did not go through. Try again.");
     render();
   }

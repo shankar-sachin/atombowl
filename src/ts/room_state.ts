@@ -310,6 +310,7 @@ export function actionReason(room: Room, action: string, options: Room = {}): st
     case "timer_reset":
       return "";
     case "timer_set": {
+      if (timerOf(room).status === "running") return "Pause the timer first.";
       const seconds = Number(options.seconds);
       return Number.isInteger(seconds) && seconds >= 1 && seconds <= 36000 ? "" : "Set the timer between 1 second and 10 hours.";
     }

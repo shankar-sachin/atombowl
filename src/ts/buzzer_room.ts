@@ -10,10 +10,14 @@ import {
 } from "./room_state.js";
 import { createReader } from "./room_reader.js";
 import { mountCopyButtons } from "./room_invite.js";
-import { db, ensureAnonAuth } from "./firebase.js";
+import { db, auth, ensureAnonAuth } from "./firebase.js";
 import { doc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-firestore.js";
 
 const $ = (id) => document.getElementById(id);
+// The room belongs to the account that created it. If that changes under this page, say so.
+const HOST_LOST = "You signed in to a different account in another tab, so this page can no longer run this room. Create a new room to keep playing.";
+let hostLost = false;
+
 const els = {
   teams: $("teams"), roomCode: $("roomCode"), roomName: $("roomName"), copyRow: $("copyRow"),
   hostNote: $("hostNote"), stateLine: $("stateLine"), stateNote: $("stateNote"), phaseTime: $("phaseTime"),
@@ -105,9 +109,11 @@ function enqueue(task) {
 function act(action, options = {}) {
   const room = shown();
   if (!room || !uid) return;
+  if (hostLost) { note(HOST_LOST); return; }
   const runKey = action + JSON.stringify(options);
   const now = Date.now();
-  if (now - (lastRun[runKey] || 0) < 250) return;
+  // Guards against a doubled click event. Score buttons are tapped fast on purpose, so they get a short one.
+  if (now - (lastRun[runKey] || 0) < (action === "adjust_score" ? 40 : 250)) return;
   lastRun[runKey] = now;
   const reason = actionReason(room, action, options);
   if (reason) {
@@ -583,6 +589,8 @@ function runGrade(which) {
 }
 
 function csvCell(value) {
+  // Numbers stay numbers. Only text is guarded against being read as a spreadsheet formula.
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   let text = String(value ?? "");
   if (/^[=+@\-\t\r]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
@@ -703,6 +711,10 @@ function attach(room) {
   }
   const user = await ensureAnonAuth();
   uid = user.uid;
+  auth.onAuthStateChanged((current) => {
+    hostLost = current?.uid !== uid;
+    if (hostLost) note(HOST_LOST);
+  });
   attach(roomId);
 })().catch((err) => note(err.message || "Unable to connect to the room."));
 

@@ -17,6 +17,7 @@
 </head>
 <body class="role-host">
   <main class="main basic" id="basicMain">
+    <h1 class="visually-hidden">Basic game</h1>
     <div class="basic-bar">
       <span class="status-dot" id="statusDot" aria-hidden="true"></span>
       <span class="muted" id="statusText">Connecting</span>
@@ -114,7 +115,7 @@
           <div class="number-control"><input id="timerBuzzInput" type="number" min="1" max="600" inputmode="numeric" /><span class="muted">s</span></div>
         </div>
         <div class="button-row dialog-actions">
-          <button class="btn" value="cancel" formnovalidate>Cancel</button>
+          <button class="btn" type="button" id="timerCancel">Cancel</button>
           <button class="btn primary" value="save">Save</button>
         </div>
       </div>
