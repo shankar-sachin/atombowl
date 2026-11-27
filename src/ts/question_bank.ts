@@ -238,7 +238,7 @@
         showErr('Your browser blocked local storage, so this question cannot be sent to practice.');
         return;
       }
-      window.location.href = '/practice';
+      window.location.href = '/practice?single=1';
     });
 
     const debounced = (() => {
@@ -283,7 +283,7 @@
       }
 
       statusEl.textContent = `Loaded ${bank.length.toLocaleString()} questions from both banks.`;
-      filtered = bank.slice();
-      render();
+      // Apply whatever was typed or picked while the banks were loading.
+      apply();
     })();
 })();

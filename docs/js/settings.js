@@ -14,7 +14,7 @@
         div: 'MS',
         mode: 'rapid',
         rememberTopics: false,
-        autoCheck: false,
+        autoCheck: true,
         autoThreshold: 0.72,
         externalAi: 'claude',
         searchEngine: 'auto',
@@ -271,6 +271,8 @@
     });
     resetBtn.addEventListener('click', () => {
         const next = { ...DEFAULTS };
+        // A change made just before the reset is still waiting to be saved: drop it.
+        clearTimeout(syncTimer);
         saveSettings(next);
         syncAccountSettings(next);
         hydrateUI(next);

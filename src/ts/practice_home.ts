@@ -205,6 +205,12 @@
             'Energy Policy',
           ],
         },
+        {
+          id: 'COMPUTER_SCIENCE',
+          label: 'Computer science',
+          categories: ['COMPUTER SCIENCE'],
+          detailed: [],
+        },
       ];
 
       // Display helper: "Work, Energy, & Power" -> "Work, energy, & power".
@@ -265,6 +271,30 @@
           .filter(Boolean);
       }
 
+      // Ticked subtopics, grouped under the topic they belong to: { MATH: ['Algebra'] }.
+      function selectedDetailedByTopic() {
+        const out = {};
+        document.querySelectorAll('.topic-detail-checkbox:checked').forEach((el) => {
+          const box = el as HTMLInputElement;
+          if (!box.dataset.topic || !box.value) return;
+          (out[box.dataset.topic] = out[box.dataset.topic] || []).push(box.value);
+        });
+        return out;
+      }
+
+      // A subtopic narrows its own topic only. Ticking one counts as choosing that topic, so a
+      // subtopic left ticked under Math never empties a Physics run.
+      function topicPass(q, topics, detailedByTopic) {
+        const anyDetailed = Object.values(detailedByTopic).some((list: any) => list.length);
+        if (!topics.length && !anyDetailed) return true;
+        const cat = normCat(q.category);
+        const group = TOPIC_GROUPS.find(g => g.categories.includes(cat));
+        if (!group) return false;
+        const subs = detailedByTopic[group.id] || [];
+        if (subs.length) return subs.includes(normCat(q.detailed_category || q.detailedCategory));
+        return topics.includes(group.id);
+      }
+
       function expandedCategories(selectedTopics) {
         if (!selectedTopics.length) return [];
         const lookup = new Map(TOPIC_GROUPS.map(group => [group.id, group.categories]));
@@ -284,8 +314,8 @@
 
       function applyFilters(list, overrides: FilterOverrides = {}) {
         const level = overrides.level ?? els.level.value;
-        const categories = overrides.categories ?? expandedCategories(selectedSuperTopics());
-        const detailedCategories = overrides.detailedCategories ?? selectedDetailedTopics();
+        const topics = selectedSuperTopics();
+        const detailedByTopic = selectedDetailedByTopic();
         const qaType = overrides.qaType ?? els.qaType.value;
         const bonus = overrides.bonus ?? els.bonus.value;
         const setName = (overrides.setName ?? els.setName.value).trim();
@@ -293,11 +323,7 @@
 
         return list.filter(q => {
           if (level !== 'ANY' && q.level !== level) return false;
-          if (categories.length && !categories.includes(normCat(q.category))) return false;
-          if (detailedCategories.length) {
-            const detailed = normCat(q.detailed_category || q.detailedCategory);
-            if (!detailedCategories.includes(detailed)) return false;
-          }
+          if (!topicPass(q, topics, detailedByTopic)) return false;
           if (qaType !== 'ANY' && q.type !== qaType) return false;
           if (bonus !== 'ANY' && String(!!q.bonus) !== bonus) return false;
           if (setName && q.set_name !== setName) return false;
@@ -330,6 +356,7 @@
           level: els.level.value,
           categories: selectedSuperTopics(),
           detailedCategories: selectedDetailedTopics(),
+          detailedByTopic: selectedDetailedByTopic(),
           qaType: els.qaType.value,
           bonus: els.bonus.value,
           count: Math.max(1, parseInt(els.count.value || '25', 10)),

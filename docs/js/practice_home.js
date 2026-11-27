@@ -203,6 +203,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 'Energy Policy',
             ],
         },
+        {
+            id: 'COMPUTER_SCIENCE',
+            label: 'Computer science',
+            categories: ['COMPUTER SCIENCE'],
+            detailed: [],
+        },
     ];
     // Display helper: "Work, Energy, & Power" -> "Work, energy, & power".
     // Only plain capitalized words are lowered, so "pH" and acronyms survive.
@@ -255,6 +261,32 @@ document.addEventListener('DOMContentLoaded', () => {
             .map(el => el.value)
             .filter(Boolean);
     }
+    // Ticked subtopics, grouped under the topic they belong to: { MATH: ['Algebra'] }.
+    function selectedDetailedByTopic() {
+        const out = {};
+        document.querySelectorAll('.topic-detail-checkbox:checked').forEach((el) => {
+            const box = el;
+            if (!box.dataset.topic || !box.value)
+                return;
+            (out[box.dataset.topic] = out[box.dataset.topic] || []).push(box.value);
+        });
+        return out;
+    }
+    // A subtopic narrows its own topic only. Ticking one counts as choosing that topic, so a
+    // subtopic left ticked under Math never empties a Physics run.
+    function topicPass(q, topics, detailedByTopic) {
+        const anyDetailed = Object.values(detailedByTopic).some((list) => list.length);
+        if (!topics.length && !anyDetailed)
+            return true;
+        const cat = normCat(q.category);
+        const group = TOPIC_GROUPS.find(g => g.categories.includes(cat));
+        if (!group)
+            return false;
+        const subs = detailedByTopic[group.id] || [];
+        if (subs.length)
+            return subs.includes(normCat(q.detailed_category || q.detailedCategory));
+        return topics.includes(group.id);
+    }
     function expandedCategories(selectedTopics) {
         if (!selectedTopics.length)
             return [];
@@ -262,24 +294,19 @@ document.addEventListener('DOMContentLoaded', () => {
         return selectedTopics.flatMap(topic => lookup.get(topic) || []);
     }
     function applyFilters(list, overrides = {}) {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e;
         const level = (_a = overrides.level) !== null && _a !== void 0 ? _a : els.level.value;
-        const categories = (_b = overrides.categories) !== null && _b !== void 0 ? _b : expandedCategories(selectedSuperTopics());
-        const detailedCategories = (_c = overrides.detailedCategories) !== null && _c !== void 0 ? _c : selectedDetailedTopics();
-        const qaType = (_d = overrides.qaType) !== null && _d !== void 0 ? _d : els.qaType.value;
-        const bonus = (_e = overrides.bonus) !== null && _e !== void 0 ? _e : els.bonus.value;
-        const setName = ((_f = overrides.setName) !== null && _f !== void 0 ? _f : els.setName.value).trim();
-        const roundName = ((_g = overrides.roundName) !== null && _g !== void 0 ? _g : els.roundName.value).trim();
+        const topics = selectedSuperTopics();
+        const detailedByTopic = selectedDetailedByTopic();
+        const qaType = (_b = overrides.qaType) !== null && _b !== void 0 ? _b : els.qaType.value;
+        const bonus = (_c = overrides.bonus) !== null && _c !== void 0 ? _c : els.bonus.value;
+        const setName = ((_d = overrides.setName) !== null && _d !== void 0 ? _d : els.setName.value).trim();
+        const roundName = ((_e = overrides.roundName) !== null && _e !== void 0 ? _e : els.roundName.value).trim();
         return list.filter(q => {
             if (level !== 'ANY' && q.level !== level)
                 return false;
-            if (categories.length && !categories.includes(normCat(q.category)))
+            if (!topicPass(q, topics, detailedByTopic))
                 return false;
-            if (detailedCategories.length) {
-                const detailed = normCat(q.detailed_category || q.detailedCategory);
-                if (!detailedCategories.includes(detailed))
-                    return false;
-            }
             if (qaType !== 'ANY' && q.type !== qaType)
                 return false;
             if (bonus !== 'ANY' && String(!!q.bonus) !== bonus)
@@ -314,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
             level: els.level.value,
             categories: selectedSuperTopics(),
             detailedCategories: selectedDetailedTopics(),
+            detailedByTopic: selectedDetailedByTopic(),
             qaType: els.qaType.value,
             bonus: els.bonus.value,
             count: Math.max(1, parseInt(els.count.value || '25', 10)),
