@@ -23,6 +23,8 @@ service cloud.firestore {
       allow get: if signedIn() && request.auth.uid == uid;
       allow list, write: if false;
     }
+    // aiGrades/{uid} (daily count of second-opinion answer checks) has no rule on purpose:
+    // like the passkey collections it is read and written by the server only.
     match /usernames/{username} {
       // Legacy documents containing email stay private until administratively sanitized.
       allow get: if !exists(/databases/$(database)/documents/usernames/$(username))

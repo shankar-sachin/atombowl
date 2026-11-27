@@ -119,6 +119,7 @@
       mode: 'rapid',
       rememberTopics: false,
       autoCheck: true,
+      aiCheck: true,
       autoThreshold: 0.72,
       highContrast: false,
       animations: true,
@@ -1161,6 +1162,57 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
       updateStatsUI();
     }
 
+    // ---- Second opinion ----
+    // The built-in checker compares wording. When it marks a short answer wrong, or only just
+    // right, a signed-in player's answer is also judged by SI (the small model, on the server),
+    // which knows that "sodium chloride" is table salt. Any failure falls back to the built-in grade.
+    const AI_CLIENT_URL = '/js/ai_client.js';
+    const SECOND_OPINION_MS = 8000;
+    let secondOpinionOffUntil = 0;
+
+    function wantsSecondOpinion(result, typed, q) {
+      if (settings.aiCheck === false || Date.now() < secondOpinionOffUntil) return false;
+      if (!String(typed || '').trim() || !q?.parsed_answer) return false;
+      if (result.isCorrect && Number(result.confidence ?? 1) >= 0.9) return false;
+      // Signed-in accounts only; guests get the built-in grade.
+      return signedInHere();
+    }
+
+    // The account module is not loaded during a run, so go by the hint the site keeps for the
+    // header chip. If it is out of date the server says so and the second opinion switches off.
+    function signedInHere() {
+      if (window.atomAccount?.getUser?.()) return true;
+      try {
+        return !!JSON.parse(localStorage.getItem('atom_account_hint_v1') || 'null')?.uid;
+      } catch {
+        return false;
+      }
+    }
+    // Load the client ahead of the first answer so the first check is not the slow one.
+    if (autoCheckEnabled && settings.aiCheck !== false && signedInHere()) {
+      window.setTimeout(() => { import(AI_CLIENT_URL).catch(() => {}); }, 1500);
+    }
+
+    async function secondOpinion(q, typed) {
+      try {
+        const asked = (async () => {
+          const mod = await import(AI_CLIENT_URL);
+          const reply = await mod.aiClient.grade(q.question_text || '', q.parsed_answer, typed);
+          return typeof reply?.correct === 'boolean' ? reply.correct : null;
+        })();
+        const gaveUp = new Promise<null>((resolve) => window.setTimeout(() => resolve(null), SECOND_OPINION_MS));
+        const verdict = await Promise.race([asked, gaveUp]);
+        // Slow or unusable: don't hold up the next few answers waiting again.
+        if (verdict === null) secondOpinionOffUntil = Date.now() + 5 * 60 * 1000;
+        return verdict;
+      } catch (err: any) {
+        // Out of checks for today, not allowed, or the server can't be reached from this network.
+        const forToday = /resource-exhausted|permission-denied|unauthenticated/.test(String(err?.code || ''));
+        secondOpinionOffUntil = Date.now() + (forToday ? 6 * 60 * 60 * 1000 : 5 * 60 * 1000);
+        return null;
+      }
+    }
+
     async function submitSA() {
       if (!runActive || !buzzed || locked) return;
       stopStopwatch();
@@ -1178,7 +1230,23 @@ T &= 0.9 + 0.1\,\min\!\left(1,\ \frac{\ln(1 + n)}{\ln 26}\right)
           autoInfo: { confidence: result.confidence, matched: result.matched }
         });
         autoGraded = true;
-        applyGrade(!!result.isCorrect);
+        if (!wantsSecondOpinion(result, typed, q)) {
+          applyGrade(!!result.isCorrect);
+          return;
+        }
+        // The time to answer stops here; waiting for the second opinion is not the player's time.
+        const at = index;
+        const solveTime = questionStartTime ? (Date.now() - questionStartTime) / 1000 : 0;
+        feedback.insertAdjacentHTML('afterbegin', '<div class="fb-verdict fb-checking">Checking your answer…</div>');
+        const verdict = await secondOpinion(q, typed);
+        feedback.querySelector('.fb-checking')?.remove();
+        // Graded by hand or moved on while waiting.
+        if (index !== at || !awaitingGrade) return;
+        if (verdict !== null) {
+          feedback.insertAdjacentHTML('beforeend',
+            `<div class="fb-line"><span class="fb-label">Second opinion</span><span class="fb-value">SI ${verdict ? 'accepted' : 'did not accept'} this answer</span></div>`);
+        }
+        applyGrade(verdict !== null ? verdict : !!result.isCorrect, solveTime);
       } else {
         revealManualGrade(input.value, q.parsed_answer);
       }

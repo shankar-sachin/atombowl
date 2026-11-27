@@ -6,6 +6,8 @@
 //   FIREBASE_SERVICE_ACCOUNT  a service account key's JSON, for verifying sign-ins and the
 //                             aiUsage credits in Firestore (secret)
 //   AI_PROVIDER, AI_MODEL, AI_FOLLOWUP_MODEL, AI_THINKING_MODEL, AI_DAILY_CREDITS  optional, defaults below
+//   AI_DAILY_CHECKS           second opinions on practice answers per user per day (default 200);
+//                             they use AI_FOLLOWUP_MODEL at low effort and cost no credits
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -27,6 +29,12 @@ function dailyCredits() {
   return Number.isInteger(n) && n >= 0 ? n : 30;
 }
 
+// Second opinions on practice answers per user per day. They cost no credits, so this is the cap.
+function dailyChecks() {
+  const n = parseInt(process.env.AI_DAILY_CHECKS ?? "", 10);
+  return Number.isInteger(n) && n >= 0 ? n : 200;
+}
+
 const service = createAiService({
   config: () => ({
     provider: process.env.AI_PROVIDER || "anthropic",
@@ -34,7 +42,8 @@ const service = createAiService({
     followUpModel: process.env.AI_FOLLOWUP_MODEL ?? "claude-haiku-5-5",
     thinkingModel: process.env.AI_THINKING_MODEL ?? "claude-opus-5-5",
     apiKey: process.env.AI_API_KEY || "",
-    dailyCredits: dailyCredits()
+    dailyCredits: dailyCredits(),
+    dailyChecks: dailyChecks()
   }),
   getDb: () => ({ db: getFirestore(adminApp()), serverTimestamp: () => FieldValue.serverTimestamp() })
 });

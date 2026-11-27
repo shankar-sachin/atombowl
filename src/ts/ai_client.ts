@@ -110,6 +110,8 @@ async function run(payload) {
 export const aiClient = {
   status: () => run({ action: "status" }),
   tutor: (messages, context, thinking = false) => run({ action: "tutor", messages, context: context || null, thinking }),
+  // A second opinion on a practice answer: { correct: boolean }. Free of credits, capped per day.
+  grade: (question, officialAnswer, answer) => run({ action: "grade", question, officialAnswer, answer }),
   generate: (options) => run({ action: "generate", ...options }),
   getCredits: () => lastCredits,
   onCredits(cb) {

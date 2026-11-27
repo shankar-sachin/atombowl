@@ -18,6 +18,8 @@ const AI_FOLLOWUP_MODEL = defineString("AI_FOLLOWUP_MODEL", { default: "" });
 // Extra thinking uses this model; empty means AI_MODEL.
 const AI_THINKING_MODEL = defineString("AI_THINKING_MODEL", { default: "" });
 const AI_DAILY_CREDITS = defineInt("AI_DAILY_CREDITS", { default: 30 });
+// Second opinions on practice answers per user per day. They cost no credits.
+const AI_DAILY_CHECKS = defineInt("AI_DAILY_CHECKS", { default: 200 });
 
 const service = createAiService({
   config: () => ({
@@ -26,7 +28,8 @@ const service = createAiService({
     followUpModel: AI_FOLLOWUP_MODEL.value(),
     thinkingModel: AI_THINKING_MODEL.value(),
     apiKey: AI_API_KEY.value(),
-    dailyCredits: AI_DAILY_CREDITS.value()
+    dailyCredits: AI_DAILY_CREDITS.value(),
+    dailyChecks: AI_DAILY_CHECKS.value()
   }),
   getDb: () => ({ db, serverTimestamp: () => FieldValue.serverTimestamp() }),
   logger
