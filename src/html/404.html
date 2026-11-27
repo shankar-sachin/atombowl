@@ -5,15 +5,17 @@
   <title>Page not found | Atom Bowl</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0e1626" />
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/svg+xml" href="images/brand/logo.svg">
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/images/brand/logo.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/favicon.png">
+  <!-- Applies the saved theme, text size and contrast before the first paint. Keep in step with applySettings in common.ts. -->
+  <script>(function(){try{var s=JSON.parse(localStorage.getItem('atom_settings_v1')||'{}'),r=document.documentElement;var light=s.theme==='light'||(s.theme!=='dark'&&window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches);if(light)r.classList.add('theme-light');var size={s:'15px',m:'16px',l:'18px'}[s.fontSize];if(size)r.style.fontSize=size;if(s.highContrast)r.classList.add('high-contrast');if(s.animations===false)r.classList.add('no-anim');}catch(e){}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Schibsted+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/atom.css">
-  <link rel="stylesheet" href="css/404.css">
+  <link rel="stylesheet" href="/css/atom.css">
+  <link rel="stylesheet" href="/css/404.css">
 </head>
 <body>
   <main class="main not-found">
@@ -27,7 +29,7 @@
     </section>
   </main>
 
-  <script src="js/icons.js"></script>
-  <script src="js/common.js"></script>
+  <script src="/js/icons.js"></script>
+  <script src="/js/common.js"></script>
 </body>
 </html>

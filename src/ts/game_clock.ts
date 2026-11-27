@@ -181,6 +181,8 @@
     const secs = clamp(parseInt(gameSecondsInput?.value || '0', 10), 0, 59);
     if (gameMinutesInput) gameMinutesInput.value = String(mins);
     if (gameSecondsInput) gameSecondsInput.value = String(secs);
+    // A new length replaces the run in progress; otherwise the countdown would overwrite it.
+    if (gameRunning) stopGameClock();
     gameDuration = mins * 60 + secs;
     gameRemaining = gameDuration;
     renderGameClock();
@@ -204,6 +206,11 @@
 
   const startGameClock = () => {
     if (gameRunning || gameDuration === 0) return;
+    // Start on a finished clock begins a fresh run instead of replaying the end-of-time cue.
+    if (gameRemaining <= 0) {
+      gameRemaining = gameDuration;
+      renderGameClock();
+    }
     const startTime = Date.now();
     const baseRemaining = gameRemaining;
     gameRunning = true;
